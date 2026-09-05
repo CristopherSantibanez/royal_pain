@@ -1,0 +1,99 @@
+[gd_scene format=3 uid="uid://q8ruwmgk1o5j"]
+
+[ext_resource type="Script" uid="uid://b83lmkgpm21n7" path="res://scenes/map/map.gd" id="1_a2pkv"]
+[ext_resource type="Texture2D" uid="uid://bdaxqqpp14il" path="res://assets/Map.png" id="1_sxf4j"]
+[ext_resource type="Texture2D" uid="uid://b8i0hob6iwv4" path="res://assets/Main-Menu.png" id="2_ph54e"]
+[ext_resource type="Script" uid="uid://6i1fb2un4atk" path="res://scripts/map/map_camera.gd" id="2_tqkkf"]
+
+[node name="GeopoliticalMap" type="Node2D" unique_id=1188924373]
+script = ExtResource("1_a2pkv")
+
+[node name="TextureRect" type="TextureRect" parent="." unique_id=603286327]
+propagate_maximum_size = true
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("2_ph54e")
+expand_mode = 5
+stretch_mode = 6
+
+[node name="MainMenu" type="TextureRect" parent="." unique_id=1377632464]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("2_ph54e")
+expand_mode = 5
+stretch_mode = 6
+
+[node name="MapBackground" type="Sprite2D" parent="." unique_id=1549325877]
+texture = ExtResource("1_sxf4j")
+centered = false
+
+[node name="Camera2D" type="Camera2D" parent="." unique_id=1036877330]
+script = ExtResource("2_tqkkf")
+
+[node name="CastlesContainer" type="Node2D" parent="." unique_id=813518255]
+
+[node name="RoutesContainer" type="Node2D" parent="." unique_id=1411630336]
+
+[node name="UILayer" type="CanvasLayer" parent="." unique_id=571969811]
+
+[node name="SelectedCastleLabel" type="Label" parent="UILayer" unique_id=1462569735]
+offset_right = 40.0
+offset_bottom = 20.0
+
+[node name="CastleDetailsPanel" type="PanelContainer" parent="UILayer" unique_id=1339241652]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(280, 220)
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="DetailsMargin" type="MarginContainer" parent="UILayer/CastleDetailsPanel" unique_id=1337485223]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
+
+[node name="DetailsVBox" type="VBoxContainer" parent="UILayer/CastleDetailsPanel/DetailsMargin" unique_id=222882302]
+layout_mode = 2
+theme_override_constants/separation = 25
+
+[node name="DetailsCastleName" type="Label" parent="UILayer/CastleDetailsPanel/DetailsMargin/DetailsVBox" unique_id=1192477852]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="DetailsKingdom" type="Label" parent="UILayer/CastleDetailsPanel/DetailsMargin/DetailsVBox" unique_id=1727867123]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="DetailsOwner" type="Label" parent="UILayer/CastleDetailsPanel/DetailsMargin/DetailsVBox" unique_id=1375954219]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="DetailsGarrison" type="Label" parent="UILayer/CastleDetailsPanel/DetailsMargin/DetailsVBox" unique_id=605937905]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="DetailsGold" type="Label" parent="UILayer/CastleDetailsPanel/DetailsMargin/DetailsVBox" unique_id=872579955]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="DetailsFood" type="Label" parent="UILayer/CastleDetailsPanel/DetailsMargin/DetailsVBox" unique_id=1004688215]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="BtnEnterCastle" type="Button" parent="UILayer/CastleDetailsPanel/DetailsMargin/DetailsVBox" unique_id=2131644555]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Entrar"
+
+[node name="BtnClosePanel" type="Button" parent="UILayer/CastleDetailsPanel/DetailsMargin/DetailsVBox" unique_id=1932871503]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Cerrar"

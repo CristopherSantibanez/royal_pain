@@ -1,0 +1,113 @@
+[gd_scene format=3 uid="uid://bfsewlkktikkj"]
+
+[ext_resource type="Script" uid="uid://cbniuq8pl7uu7" path="res://scripts/resources/characters/combat.gd" id="1_gsfeh"]
+
+[node name="Node2D" type="Node2D" unique_id=1822253119]
+script = ExtResource("1_gsfeh")
+
+[node name="HBoxContainer" type="HBoxContainer" parent="." unique_id=521436399]
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="PlayerPanel" type="VBoxContainer" parent="HBoxContainer" unique_id=656091009]
+layout_mode = 2
+
+[node name="NamePlayer" type="Label" parent="HBoxContainer/PlayerPanel" unique_id=1259658914]
+layout_mode = 2
+
+[node name="HealthBarPlayer" type="ProgressBar" parent="HBoxContainer/PlayerPanel" unique_id=369406779]
+layout_mode = 2
+
+[node name="StaminaBarPlayer" type="ProgressBar" parent="HBoxContainer/PlayerPanel" unique_id=20586322]
+layout_mode = 2
+
+[node name="MoraleBarPlayer" type="ProgressBar" parent="HBoxContainer/PlayerPanel" unique_id=10311269]
+layout_mode = 2
+
+[node name="LStatusPlayer abel" type="Label" parent="HBoxContainer/PlayerPanel" unique_id=221926083]
+layout_mode = 2
+
+[node name="EnemyPanel" type="VBoxContainer" parent="HBoxContainer" unique_id=1457632913]
+layout_mode = 2
+
+[node name="NameEnemy" type="Label" parent="HBoxContainer/EnemyPanel" unique_id=987178986]
+layout_mode = 2
+
+[node name="HealthBarEnemy" type="ProgressBar" parent="HBoxContainer/EnemyPanel" unique_id=670429549]
+layout_mode = 2
+
+[node name="StaminaBarEnemy" type="ProgressBar" parent="HBoxContainer/EnemyPanel" unique_id=1860967463]
+layout_mode = 2
+
+[node name="MoraleBarEnemy" type="ProgressBar" parent="HBoxContainer/EnemyPanel" unique_id=1439845435]
+layout_mode = 2
+
+[node name="StatusEnemy" type="Label" parent="HBoxContainer/EnemyPanel" unique_id=2139530770]
+layout_mode = 2
+
+[node name="LogLabel" type="RichTextLabel" parent="." unique_id=2004609530]
+offset_right = 40.0
+offset_bottom = 40.0
+fit_content = true
+
+[node name="PostureBox" type="HBoxContainer" parent="." unique_id=952594163]
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="BtnOfensiva" type="Button" parent="PostureBox" unique_id=19700464]
+layout_mode = 2
+text = "Ofensiva"
+
+[node name="BtnDefensiva" type="Button" parent="PostureBox" unique_id=699371784]
+layout_mode = 2
+text = "Defensiva
+"
+
+[node name="BtnEsgrima" type="Button" parent="PostureBox" unique_id=120123761]
+layout_mode = 2
+text = "Esgrima
+"
+
+[node name="BtnMuro" type="Button" parent="PostureBox" unique_id=241489638]
+layout_mode = 2
+text = "Muro"
+
+[node name="BtnDesesperada" type="Button" parent="PostureBox" unique_id=1560533619]
+layout_mode = 2
+text = "Desesperada"
+
+[node name="ActionBox" type="HBoxContainer" parent="." unique_id=2097494924]
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="BtnAtacar" type="Button" parent="ActionBox" unique_id=1057163094]
+layout_mode = 2
+text = "Atacar"
+
+[node name="BtnDefender" type="Button" parent="ActionBox" unique_id=1153733010]
+layout_mode = 2
+text = "Defender"
+
+[node name="BtnEsquivar" type="Button" parent="ActionBox" unique_id=456705439]
+layout_mode = 2
+text = "Esquivar"
+
+[node name="BtnContraatacar" type="Button" parent="ActionBox" unique_id=424609566]
+layout_mode = 2
+text = "Contraatacar"
+
+[node name="BtnDesarmar" type="Button" parent="ActionBox" unique_id=475570006]
+layout_mode = 2
+text = "Desarmar"
+
+[node name="BtnEmpujar" type="Button" parent="ActionBox" unique_id=303538462]
+layout_mode = 2
+text = "Empujar"
+
+[node name="BtnRendirse" type="Button" parent="ActionBox" unique_id=352743483]
+layout_mode = 2
+text = "Rendirse"
+
+[node name="BtnRetirarse" type="Button" parent="ActionBox" unique_id=246150482]
+layout_mode = 2
+text = "Retirarse"

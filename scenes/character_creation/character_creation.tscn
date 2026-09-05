@@ -1,0 +1,473 @@
+[gd_scene format=3 uid="uid://d0j14knu5hbba"]
+
+[ext_resource type="Script" uid="uid://doyvu6cqycjdt" path="res://scenes/character_creation/character_creation.gd" id="1_5w2ck"]
+[ext_resource type="Texture2D" uid="uid://bgfn3h8hf6c42" path="res://assets/Character_Creation.png" id="2_28tfh"]
+[ext_resource type="Texture2D" uid="uid://bc7h746x0ms1a" path="res://assets/backbox.png" id="3_4xea1"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_cndol"]
+content_margin_top = 30.0
+
+[sub_resource type="ButtonGroup" id="ButtonGroup_5w2ck"]
+
+[sub_resource type="ButtonGroup" id="ButtonGroup_0sxqk"]
+
+[node name="CharacterCreation" type="Control" unique_id=1021674631]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("1_5w2ck")
+
+[node name="CharacterCreation" type="TextureRect" parent="." unique_id=267437832]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("2_28tfh")
+expand_mode = 3
+stretch_mode = 6
+
+[node name="TextureRect" type="TextureRect" parent="." unique_id=629276060]
+layout_mode = 0
+offset_left = -23.0
+offset_top = -20.0
+offset_right = 1183.4697
+offset_bottom = 659.0
+texture = ExtResource("3_4xea1")
+expand_mode = 3
+stretch_mode = 5
+
+[node name="ScreenMargin" type="MarginContainer" parent="." unique_id=1705173103]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 50
+theme_override_constants/margin_top = 50
+theme_override_constants/margin_right = 50
+theme_override_constants/margin_bottom = 50
+
+[node name="RootVBox" type="VBoxContainer" parent="ScreenMargin" unique_id=724668887]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="TitleLabel" type="Label" parent="ScreenMargin/RootVBox" unique_id=1202104190]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.012617188, 0.012617188, 0.012617188, 1)
+text = "Creación de personaje"
+
+[node name="PagesTab" type="TabContainer" parent="ScreenMargin/RootVBox" unique_id=1008308162]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/outline_size = 2
+theme_override_styles/panel = SubResource("StyleBoxEmpty_cndol")
+current_tab = 0
+
+[node name="PageIdentity" type="VBoxContainer" parent="ScreenMargin/RootVBox/PagesTab" unique_id=258248321]
+unique_name_in_owner = true
+layout_mode = 2
+metadata/_tab_index = 0
+
+[node name="IdentitySection" type="HBoxContainer" parent="ScreenMargin/RootVBox/PagesTab/PageIdentity" unique_id=1290766972]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="PortraitBox" type="VBoxContainer" parent="ScreenMargin/RootVBox/PagesTab/PageIdentity/IdentitySection" unique_id=872812952]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="PortraitPreview" type="TextureRect" parent="ScreenMargin/RootVBox/PagesTab/PageIdentity/IdentitySection/PortraitBox" unique_id=1030706105]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(200, 300)
+layout_mode = 2
+expand_mode = 3
+stretch_mode = 5
+
+[node name="BtnChoosePortrait" type="Button" parent="ScreenMargin/RootVBox/PagesTab/PageIdentity/IdentitySection/PortraitBox" unique_id=1450813704]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Elegir Retrato"
+
+[node name="FieldsBox" type="VBoxContainer" parent="ScreenMargin/RootVBox/PagesTab/PageIdentity/IdentitySection" unique_id=304538158]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 33
+
+[node name="FirstNameRow" type="HBoxContainer" parent="ScreenMargin/RootVBox/PagesTab/PageIdentity/IdentitySection/FieldsBox" unique_id=1834219120]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="LblFirstName" type="Label" parent="ScreenMargin/RootVBox/PagesTab/PageIdentity/IdentitySection/FieldsBox/FirstNameRow" unique_id=766809597]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.012617188, 0.012617188, 0.012617188, 1)
+text = "Nombre"
+
+[node name="EditFirstName" type="LineEdit" parent="ScreenMargin/RootVBox/PagesTab/PageIdentity/IdentitySection/FieldsBox/FirstNameRow" unique_id=294786576]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="LastNameRow" type="HBoxContainer" parent="ScreenMargin/RootVBox/PagesTab/PageIdentity/IdentitySection/FieldsBox" unique_id=10323444]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="LblLastName" type="Label" parent="ScreenMargin/RootVBox/PagesTab/PageIdentity/IdentitySection/FieldsBox/LastNameRow" unique_id=1371005698]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.012617188, 0.012617188, 0.012617188, 1)
+text = "Apellido"
+
+[node name="EditLastName" type="LineEdit" parent="ScreenMargin/RootVBox/PagesTab/PageIdentity/IdentitySection/FieldsBox/LastNameRow" unique_id=394716245]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="GenderRow" type="HBoxContainer" parent="ScreenMargin/RootVBox/PagesTab/PageIdentity/IdentitySection/FieldsBox" unique_id=928057831]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="LblGender" type="Label" parent="ScreenMargin/RootVBox/PagesTab/PageIdentity/IdentitySection/FieldsBox/GenderRow" unique_id=1265558392]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.012617188, 0.012617188, 0.012617188, 1)
+text = "Genero"
+
+[node name="BtnMale" type="Button" parent="ScreenMargin/RootVBox/PagesTab/PageIdentity/IdentitySection/FieldsBox/GenderRow" unique_id=2099229057]
+unique_name_in_owner = true
+layout_mode = 2
+toggle_mode = true
+button_group = SubResource("ButtonGroup_5w2ck")
+text = "Hombre"
+
+[node name="BtnFemale" type="Button" parent="ScreenMargin/RootVBox/PagesTab/PageIdentity/IdentitySection/FieldsBox/GenderRow" unique_id=880879817]
+unique_name_in_owner = true
+layout_mode = 2
+toggle_mode = true
+button_group = SubResource("ButtonGroup_0sxqk")
+text = "Mujer"
+
+[node name="BioBox" type="VBoxContainer" parent="ScreenMargin/RootVBox/PagesTab/PageIdentity/IdentitySection" unique_id=527476409]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 15
+
+[node name="LblBio" type="Label" parent="ScreenMargin/RootVBox/PagesTab/PageIdentity/IdentitySection/BioBox" unique_id=310695663]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.011764706, 0.011764706, 0.011764706, 1)
+text = "Biografía (opcional)"
+
+[node name="EditBio" type="TextEdit" parent="ScreenMargin/RootVBox/PagesTab/PageIdentity/IdentitySection/BioBox" unique_id=181116256]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 250)
+layout_mode = 2
+
+[node name="PageTraits" type="VBoxContainer" parent="ScreenMargin/RootVBox/PagesTab" unique_id=1758495121]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+metadata/_tab_index = 1
+
+[node name="TraitsSection" type="HBoxContainer" parent="ScreenMargin/RootVBox/PagesTab/PageTraits" unique_id=1150637842]
+unique_name_in_owner = true
+layout_mode = 2
+offset_transform_enabled = true
+offset_transform_position = Vector2(0, 2)
+theme_override_constants/separation = 14
+alignment = 1
+
+[node name="AdvantagesBox" type="VBoxContainer" parent="ScreenMargin/RootVBox/PagesTab/PageTraits/TraitsSection" unique_id=112805649]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 400)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="LblAdvantages" type="Label" parent="ScreenMargin/RootVBox/PagesTab/PageTraits/TraitsSection/AdvantagesBox" unique_id=541339931]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.012617188, 0.012617188, 0.012617188, 1)
+text = "Ventajas (mínimo 3)"
+
+[node name="AdvantagesScroll" type="ScrollContainer" parent="ScreenMargin/RootVBox/PagesTab/PageTraits/TraitsSection/AdvantagesBox" unique_id=1452192155]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="AdvantagesList" type="VBoxContainer" parent="ScreenMargin/RootVBox/PagesTab/PageTraits/TraitsSection/AdvantagesBox/AdvantagesScroll" unique_id=1824144467]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="LblAdvantagesCount" type="Label" parent="ScreenMargin/RootVBox/PagesTab/PageTraits/TraitsSection/AdvantagesBox" unique_id=728630360]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.012617188, 0.012617188, 0.012617188, 1)
+
+[node name="DisadvantagesBox" type="VBoxContainer" parent="ScreenMargin/RootVBox/PagesTab/PageTraits/TraitsSection" unique_id=1992070537]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 400)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="LblDisadvantages" type="Label" parent="ScreenMargin/RootVBox/PagesTab/PageTraits/TraitsSection/DisadvantagesBox" unique_id=1151304524]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.012617188, 0.012617188, 0.012617188, 1)
+text = "Desventajas (mínimo 2)"
+
+[node name="DisadvantagesScroll" type="ScrollContainer" parent="ScreenMargin/RootVBox/PagesTab/PageTraits/TraitsSection/DisadvantagesBox" unique_id=857593205]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_colors/scroll_hint_vertical_color = Color(0, 0, 0, 1)
+theme_override_colors/scroll_hint_horizontal_color = Color(0, 0, 0, 1)
+
+[node name="DisadvantagesList" type="VBoxContainer" parent="ScreenMargin/RootVBox/PagesTab/PageTraits/TraitsSection/DisadvantagesBox/DisadvantagesScroll" unique_id=61447632]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="LblDisadvantagesCount" type="Label" parent="ScreenMargin/RootVBox/PagesTab/PageTraits/TraitsSection/DisadvantagesBox" unique_id=150836641]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.012617188, 0.012617188, 0.012617188, 1)
+
+[node name="PageStats" type="VBoxContainer" parent="ScreenMargin/RootVBox/PagesTab" unique_id=1600606452]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 50
+metadata/_tab_index = 2
+
+[node name="PersonalitySection" type="HBoxContainer" parent="ScreenMargin/RootVBox/PagesTab/PageStats" unique_id=1089645931]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="PersonalityRow" type="VBoxContainer" parent="ScreenMargin/RootVBox/PagesTab/PageStats/PersonalitySection" unique_id=590978148]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="LblPersonality" type="Label" parent="ScreenMargin/RootVBox/PagesTab/PageStats/PersonalitySection/PersonalityRow" unique_id=1057765946]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.012617188, 0.012617188, 0.012617188, 1)
+text = "Personalidad"
+
+[node name="OptPersonality" type="OptionButton" parent="ScreenMargin/RootVBox/PagesTab/PageStats/PersonalitySection/PersonalityRow" unique_id=98241343]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="AlignmentRow" type="VBoxContainer" parent="ScreenMargin/RootVBox/PagesTab/PageStats/PersonalitySection" unique_id=1972787426]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="LblAlignment" type="Label" parent="ScreenMargin/RootVBox/PagesTab/PageStats/PersonalitySection/AlignmentRow" unique_id=1896452377]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.012617188, 0.012617188, 0.012617188, 1)
+text = "Alineación"
+
+[node name="OptAlignment" type="OptionButton" parent="ScreenMargin/RootVBox/PagesTab/PageStats/PersonalitySection/AlignmentRow" unique_id=1822727075]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="FighterTypeRow" type="VBoxContainer" parent="ScreenMargin/RootVBox/PagesTab/PageStats/PersonalitySection" unique_id=1482113366]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="LblFighterType" type="Label" parent="ScreenMargin/RootVBox/PagesTab/PageStats/PersonalitySection/FighterTypeRow" unique_id=1713847982]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.012617188, 0.012617188, 0.012617188, 1)
+text = "Tipo de Luchador"
+
+[node name="OptFighterType" type="OptionButton" parent="ScreenMargin/RootVBox/PagesTab/PageStats/PersonalitySection/FighterTypeRow" unique_id=499211276]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="StatsSection" type="VBoxContainer" parent="ScreenMargin/RootVBox/PagesTab/PageStats" unique_id=1475299278]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(15, 0)
+layout_mode = 2
+
+[node name="PointsRemainingLabel" type="Label" parent="ScreenMargin/RootVBox/PagesTab/PageStats/StatsSection" unique_id=1129076418]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.011764706, 0.011764706, 0.011764706, 0)
+
+[node name="StatsGrid" type="GridContainer" parent="ScreenMargin/RootVBox/PagesTab/PageStats/StatsSection" unique_id=1053997169]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/h_separation = 15
+theme_override_constants/v_separation = 15
+columns = 4
+
+[node name="PageSkills" type="HBoxContainer" parent="ScreenMargin/RootVBox/PagesTab" unique_id=461299301]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 50
+alignment = 1
+metadata/_tab_index = 3
+
+[node name="GeneralSkillsBox" type="VBoxContainer" parent="ScreenMargin/RootVBox/PagesTab/PageSkills" unique_id=321094647]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 300)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="LblGeneralSkills" type="Label" parent="ScreenMargin/RootVBox/PagesTab/PageSkills/GeneralSkillsBox" unique_id=1477696267]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.011764706, 0.011764706, 0.011764706, 1)
+text = "Habilidades Generales"
+
+[node name="GeneralSkillsScroll" type="ScrollContainer" parent="ScreenMargin/RootVBox/PagesTab/PageSkills/GeneralSkillsBox" unique_id=963966623]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="GeneralSkillsList" type="VBoxContainer" parent="ScreenMargin/RootVBox/PagesTab/PageSkills/GeneralSkillsBox/GeneralSkillsScroll" unique_id=1547265807]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="CombatSkillsBox" type="VBoxContainer" parent="ScreenMargin/RootVBox/PagesTab/PageSkills" unique_id=2062253421]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 300)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="LblCombatSkills" type="Label" parent="ScreenMargin/RootVBox/PagesTab/PageSkills/CombatSkillsBox" unique_id=1947815079]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.011764706, 0.011764706, 0.011764706, 1)
+text = "Habilidades de Combate"
+
+[node name="CombatSkillsScroll" type="ScrollContainer" parent="ScreenMargin/RootVBox/PagesTab/PageSkills/CombatSkillsBox" unique_id=1217298709]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="CombatSkillsList" type="VBoxContainer" parent="ScreenMargin/RootVBox/PagesTab/PageSkills/CombatSkillsBox/CombatSkillsScroll" unique_id=2020752273]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="BattleSkillsBox" type="VBoxContainer" parent="ScreenMargin/RootVBox/PagesTab/PageSkills" unique_id=209846040]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 300)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="LblBattleSkills" type="Label" parent="ScreenMargin/RootVBox/PagesTab/PageSkills/BattleSkillsBox" unique_id=1548560359]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.011764706, 0.011764706, 0.011764706, 1)
+text = "Habilidades de Batalla"
+
+[node name="BattleSkillsScroll" type="ScrollContainer" parent="ScreenMargin/RootVBox/PagesTab/PageSkills/BattleSkillsBox" unique_id=2108127756]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="BattleSkillsList" type="VBoxContainer" parent="ScreenMargin/RootVBox/PagesTab/PageSkills/BattleSkillsBox/BattleSkillsScroll" unique_id=406495636]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="PageEquipment" type="VBoxContainer" parent="ScreenMargin/RootVBox/PagesTab" unique_id=703864230]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+metadata/_tab_index = 4
+
+[node name="LblEquipmentCount" type="Label" parent="ScreenMargin/RootVBox/PagesTab/PageEquipment" unique_id=2067593053]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.011764706, 0.011764706, 0.011764706, 1)
+
+[node name="EquipmentScroll" type="ScrollContainer" parent="ScreenMargin/RootVBox/PagesTab/PageEquipment" unique_id=1058577507]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 300)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="EquipmentList" type="VBoxContainer" parent="ScreenMargin/RootVBox/PagesTab/PageEquipment/EquipmentScroll" unique_id=362767576]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="BottomBar" type="HBoxContainer" parent="." unique_id=2067250269]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -1152.0
+offset_top = -28.0
+grow_horizontal = 0
+grow_vertical = 0
+alignment = 2
+
+[node name="BtnVolverMenu" type="Button" parent="BottomBar" unique_id=1468722541]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Volver"
+
+[node name="BtnContinuar" type="Button" parent="BottomBar" unique_id=1760652400]
+unique_name_in_owner = true
+layout_mode = 2
+disabled = true
+text = "Continuar"
+
+[node name="PortraitPickerPopup" type="PopupPanel" parent="." unique_id=1815636946]
+unique_name_in_owner = true
+size = Vector2i(600, 500)
+
+[node name="PopupMargin" type="MarginContainer" parent="PortraitPickerPopup" unique_id=1574759953]
+unique_name_in_owner = true
+offset_left = 4.0
+offset_top = 4.0
+offset_right = 596.0
+offset_bottom = 496.0
+
+[node name="PopupVBox" type="VBoxContainer" parent="PortraitPickerPopup/PopupMargin" unique_id=1526907805]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="PopupTitle" type="Label" parent="PortraitPickerPopup/PopupMargin/PopupVBox" unique_id=458756171]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Elige un retrato"
+
+[node name="PickerScroll" type="ScrollContainer" parent="PortraitPickerPopup/PopupMargin/PopupVBox" unique_id=139843870]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 400)
+layout_mode = 2
+
+[node name="PortraitGrid" type="GridContainer" parent="PortraitPickerPopup/PopupMargin/PopupVBox/PickerScroll" unique_id=321643027]
+unique_name_in_owner = true
+layout_mode = 2
+columns = 4
+
+[node name="BtnClosePopup" type="Button" parent="PortraitPickerPopup/PopupMargin/PopupVBox" unique_id=2024487803]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Cerrar"

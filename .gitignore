@@ -1,0 +1,19 @@
+# Godot 4+ specific ignores
+/android/
+
+# Carpetas de Godot generadas automáticamente
+.godot/
+.import/
+export.cfg
+export_presets.cfg
+
+# Archivos temporales del sistema operativo
+.DS_Store
+Thumbs.db
+
+# Builds/exportaciones (si exportas el juego, no subas los ejecutables pesados)
+export/
+builds/
+
+# Logs
+*.log

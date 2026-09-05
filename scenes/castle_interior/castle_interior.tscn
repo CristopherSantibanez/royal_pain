@@ -1,0 +1,27 @@
+[gd_scene format=3 uid="uid://c0eakow6uv7od"]
+
+[ext_resource type="Script" uid="uid://ba4vsyhm4ejs3" path="res://scenes/castle_interior/button.gd" id="1_lb4t4"]
+
+[node name="CastleInterior" type="Control" unique_id=998692166]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Label" type="Label" parent="." unique_id=1568882350]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 20.0
+text = "\"Interior del Castillo — Vista de [Rol] próximamente.
+Aquí irá la interfaz específica según tu rol (ciudad, barracas, administración, etc.)\""
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="ExitInterior" type="Button" parent="." unique_id=1695973937]
+layout_mode = 0
+offset_right = 8.0
+offset_bottom = 8.0
+text = "Vovler"
+script = ExtResource("1_lb4t4")

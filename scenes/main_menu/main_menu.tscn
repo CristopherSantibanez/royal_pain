@@ -1,0 +1,69 @@
+[gd_scene format=3 uid="uid://brpqws88wqht0"]
+
+[ext_resource type="Script" uid="uid://dytf4osjtdwqr" path="res://scenes/main_menu/main_menu.gd" id="1_fsom3"]
+[ext_resource type="Texture2D" uid="uid://b8i0hob6iwv4" path="res://assets/Main-Menu.png" id="2_0ebjn"]
+
+[node name="MainMenu" type="Control" unique_id=1138446230]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("1_fsom3")
+
+[node name="TextureRect" type="TextureRect" parent="." unique_id=1361468059]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("2_0ebjn")
+expand_mode = 3
+stretch_mode = 6
+
+[node name="ScreenMargin" type="MarginContainer" parent="." unique_id=1005298010]
+propagate_maximum_size = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 40
+theme_override_constants/margin_top = 40
+theme_override_constants/margin_right = 40
+theme_override_constants/margin_bottom = 40
+accessibility_region = true
+
+[node name="CenterBox" type="CenterContainer" parent="ScreenMargin" unique_id=1997010091]
+layout_mode = 2
+
+[node name="MenuVBox" type="VBoxContainer" parent="ScreenMargin/CenterBox" unique_id=790616597]
+layout_mode = 2
+theme_override_constants/separation = 16
+alignment = 1
+
+[node name="TitleLabel" type="Label" parent="ScreenMargin/CenterBox/MenuVBox" unique_id=1812759390]
+layout_mode = 2
+theme_override_font_sizes/font_size = 32
+text = "Royal Pain"
+
+[node name="BtnCombatePrueba" type="Button" parent="ScreenMargin/CenterBox/MenuVBox" unique_id=331482050]
+layout_mode = 2
+text = "Combate de prueba"
+
+[node name="BtnCrearPersonaje" type="Button" parent="ScreenMargin/CenterBox/MenuVBox" unique_id=1719078322]
+layout_mode = 2
+text = "Crear Personaje"
+
+[node name="BtnMapa" type="Button" parent="ScreenMargin/CenterBox/MenuVBox" unique_id=795181948]
+layout_mode = 2
+text = "Mapa"
+
+[node name="BtnSalir" type="Button" parent="ScreenMargin/CenterBox/MenuVBox" unique_id=270006974]
+layout_mode = 2
+text = "Salir"

@@ -1,0 +1,323 @@
+[gd_scene format=3 uid="uid://bfsewlkktikkj"]
+
+[ext_resource type="Script" uid="uid://cbniuq8pl7uu7" path="res://scenes/combat/combat.gd" id="1_5vqsm"]
+[ext_resource type="Texture2D" uid="uid://ddp5jumithj2k" path="res://assets/TurnFight-Trining_Ground.png" id="2_6aonj"]
+[ext_resource type="Texture2D" uid="uid://c2m81xvnrpxpt" path="res://assets/banner.png" id="3_ltalu"]
+[ext_resource type="Texture2D" uid="uid://ctjdv8av3xi4r" path="res://ui/00.png" id="3_pqpfu"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_tssee"]
+bg_color = Color(0.16862746, 0.09411765, 0.0627451, 1)
+shadow_size = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_m3rnj"]
+bg_color = Color(0.54509807, 0.11764706, 0.11764706, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ltalu"]
+bg_color = Color(0.5411765, 0.6039216, 0.35686275, 1)
+shadow_size = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_4voa6"]
+bg_color = Color(0.41960785, 0.5568628, 0.13725491, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_jgg25"]
+shadow_size = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ijgaf"]
+bg_color = Color(0.2901961, 0.4, 0.4392157, 1)
+
+[sub_resource type="FontVariation" id="FontVariation_ltalu"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_gwckk"]
+draw_center = false
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(0.47843137, 0.18039216, 0.18039216, 1)
+border_blend = true
+shadow_size = 5
+
+[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_u68i1"]
+texture = ExtResource("3_pqpfu")
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_tcauj"]
+bg_color = Color(0.16862746, 0.09411765, 0.0627451, 1)
+shadow_size = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_uy5uq"]
+bg_color = Color(0.54509807, 0.11764706, 0.11764706, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_pqpfu"]
+bg_color = Color(0.5411765, 0.6039216, 0.35686275, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_uakg0"]
+bg_color = Color(0.41960785, 0.5568628, 0.13725491, 1)
+shadow_size = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_8cw2p"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_4a6i5"]
+bg_color = Color(0.2901961, 0.4, 0.4392157, 1)
+shadow_size = 6
+
+[node name="Control" type="Control" unique_id=394767764]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("1_5vqsm")
+metadata/_edit_use_anchors_ = true
+
+[node name="TextureRect" type="TextureRect" parent="." unique_id=1950708207]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -1.0
+offset_bottom = -1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("2_6aonj")
+expand_mode = 3
+stretch_mode = 6
+
+[node name="ScreenMargin" type="MarginContainer" parent="." unique_id=968818066]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 40
+theme_override_constants/margin_top = 40
+theme_override_constants/margin_right = 30
+theme_override_constants/margin_bottom = 30
+
+[node name="Banner" type="Sprite2D" parent="ScreenMargin" unique_id=1777078801]
+position = Vector2(579.50006, 505.34378)
+scale = Vector2(0.613577, 0.52458894)
+texture = ExtResource("3_ltalu")
+
+[node name="MainHBox" type="HBoxContainer" parent="ScreenMargin" unique_id=1670707234]
+layout_mode = 2
+offset_transform_enabled = true
+theme_override_constants/separation = 40
+alignment = 1
+
+[node name="PlayerColumn" type="VBoxContainer" parent="ScreenMargin/MainHBox" unique_id=656091009]
+layout_mode = 2
+size_flags_vertical = 3
+size_flags_stretch_ratio = 1.1
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="PortraitPlayer" type="TextureRect" parent="ScreenMargin/MainHBox/PlayerColumn" unique_id=1873183201]
+custom_minimum_size = Vector2(220, 330)
+layout_mode = 2
+size_flags_vertical = 3
+expand_mode = 5
+stretch_mode = 5
+
+[node name="NamePlayer" type="Label" parent="ScreenMargin/MainHBox/PlayerColumn" unique_id=1259658914]
+layout_mode = 2
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="HealthBarPlayer" type="ProgressBar" parent="ScreenMargin/MainHBox/PlayerColumn" unique_id=369406779]
+layout_mode = 2
+theme_override_styles/background = SubResource("StyleBoxFlat_tssee")
+theme_override_styles/fill = SubResource("StyleBoxFlat_m3rnj")
+
+[node name="StaminaBarPlayer" type="ProgressBar" parent="ScreenMargin/MainHBox/PlayerColumn" unique_id=20586322]
+layout_mode = 2
+theme_override_styles/background = SubResource("StyleBoxFlat_ltalu")
+theme_override_styles/fill = SubResource("StyleBoxFlat_4voa6")
+
+[node name="MoraleBarPlayer" type="ProgressBar" parent="ScreenMargin/MainHBox/PlayerColumn" unique_id=10311269]
+layout_mode = 2
+theme_override_styles/background = SubResource("StyleBoxFlat_jgg25")
+theme_override_styles/fill = SubResource("StyleBoxFlat_ijgaf")
+
+[node name="StatusPlayer" type="Label" parent="ScreenMargin/MainHBox/PlayerColumn" unique_id=221926083]
+layout_mode = 2
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="PosturePlayer" type="Label" parent="ScreenMargin/MainHBox/PlayerColumn" unique_id=868125274]
+layout_mode = 2
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="CenterColumn" type="VBoxContainer" parent="ScreenMargin/MainHBox" unique_id=315604893]
+layout_mode = 2
+size_flags_vertical = 3
+size_flags_stretch_ratio = 0.7
+alignment = 1
+
+[node name="BtnVolverMenu" type="Button" parent="ScreenMargin/MainHBox/CenterColumn" unique_id=2077085288]
+layout_mode = 2
+text = "Volver al menu"
+
+[node name="LogLabel" type="Label" parent="ScreenMargin/MainHBox/CenterColumn" unique_id=1026799183]
+custom_minimum_size = Vector2(280, 60)
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_fonts/font = SubResource("FontVariation_ltalu")
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 3
+
+[node name="PostureBox" type="VBoxContainer" parent="ScreenMargin/MainHBox/CenterColumn" unique_id=79466832]
+layout_mode = 2
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="ActionLabel" type="Label" parent="ScreenMargin/MainHBox/CenterColumn/PostureBox" unique_id=330133949]
+custom_minimum_size = Vector2(1, 1)
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_styles/normal = SubResource("StyleBoxFlat_gwckk")
+text = "Posturas"
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 3
+
+[node name="PostureRow1" type="HBoxContainer" parent="ScreenMargin/MainHBox/CenterColumn/PostureBox" unique_id=148953139]
+layout_mode = 2
+alignment = 1
+
+[node name="BtnOfensiva" type="Button" parent="ScreenMargin/MainHBox/CenterColumn/PostureBox/PostureRow1" unique_id=19700464]
+layout_mode = 2
+theme_override_styles/normal_mirrored = SubResource("StyleBoxTexture_u68i1")
+text = "Ofensiva"
+
+[node name="BtnDefensiva" type="Button" parent="ScreenMargin/MainHBox/CenterColumn/PostureBox/PostureRow1" unique_id=699371784]
+layout_mode = 2
+text = "Defensiva
+"
+
+[node name="BtnEsgrima" type="Button" parent="ScreenMargin/MainHBox/CenterColumn/PostureBox/PostureRow1" unique_id=120123761]
+layout_mode = 2
+text = "Esgrima
+"
+
+[node name="PostureRow2" type="HBoxContainer" parent="ScreenMargin/MainHBox/CenterColumn/PostureBox" unique_id=1340804915]
+layout_mode = 2
+alignment = 1
+
+[node name="BtnMuro" type="Button" parent="ScreenMargin/MainHBox/CenterColumn/PostureBox/PostureRow2" unique_id=241489638]
+layout_mode = 2
+text = "Muro"
+
+[node name="BtnDesesperada" type="Button" parent="ScreenMargin/MainHBox/CenterColumn/PostureBox/PostureRow2" unique_id=1560533619]
+layout_mode = 2
+text = "Desesperada"
+
+[node name="ActionBox" type="VBoxContainer" parent="ScreenMargin/MainHBox/CenterColumn" unique_id=1674605611]
+layout_mode = 2
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="ActionLabel" type="Label" parent="ScreenMargin/MainHBox/CenterColumn/ActionBox" unique_id=1216806796]
+custom_minimum_size = Vector2(1, 1)
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_styles/normal = SubResource("StyleBoxFlat_gwckk")
+text = "Acciones"
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 3
+
+[node name="ActionRow1" type="HBoxContainer" parent="ScreenMargin/MainHBox/CenterColumn/ActionBox" unique_id=859923413]
+layout_mode = 2
+alignment = 1
+
+[node name="BtnAtacar" type="Button" parent="ScreenMargin/MainHBox/CenterColumn/ActionBox/ActionRow1" unique_id=1057163094]
+layout_mode = 2
+text = "Atacar"
+
+[node name="BtnDefender" type="Button" parent="ScreenMargin/MainHBox/CenterColumn/ActionBox/ActionRow1" unique_id=1153733010]
+layout_mode = 2
+text = "Defender"
+
+[node name="BtnEsquivar" type="Button" parent="ScreenMargin/MainHBox/CenterColumn/ActionBox/ActionRow1" unique_id=456705439]
+layout_mode = 2
+text = "Esquivar"
+
+[node name="BtnContraatacar" type="Button" parent="ScreenMargin/MainHBox/CenterColumn/ActionBox/ActionRow1" unique_id=424609566]
+layout_mode = 2
+text = "Contraatacar"
+
+[node name="ActionRow2" type="HBoxContainer" parent="ScreenMargin/MainHBox/CenterColumn/ActionBox" unique_id=1633447305]
+layout_mode = 2
+alignment = 1
+
+[node name="BtnDesarmar" type="Button" parent="ScreenMargin/MainHBox/CenterColumn/ActionBox/ActionRow2" unique_id=475570006]
+layout_mode = 2
+text = "Desarmar"
+
+[node name="BtnEmpujar" type="Button" parent="ScreenMargin/MainHBox/CenterColumn/ActionBox/ActionRow2" unique_id=303538462]
+layout_mode = 2
+text = "Empujar"
+
+[node name="BtnRendirse" type="Button" parent="ScreenMargin/MainHBox/CenterColumn/ActionBox/ActionRow2" unique_id=352743483]
+layout_mode = 2
+text = "Rendirse"
+
+[node name="BtnRetirarse" type="Button" parent="ScreenMargin/MainHBox/CenterColumn/ActionBox/ActionRow2" unique_id=246150482]
+layout_mode = 2
+text = "Retirarse"
+
+[node name="EnemyColumn" type="VBoxContainer" parent="ScreenMargin/MainHBox" unique_id=1457632913]
+layout_mode = 2
+size_flags_vertical = 3
+size_flags_stretch_ratio = 1.1
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="PortraitEnemy" type="TextureRect" parent="ScreenMargin/MainHBox/EnemyColumn" unique_id=478777845]
+custom_minimum_size = Vector2(220, 330)
+layout_mode = 2
+size_flags_vertical = 3
+expand_mode = 5
+stretch_mode = 5
+
+[node name="NameEnemy" type="Label" parent="ScreenMargin/MainHBox/EnemyColumn" unique_id=987178986]
+layout_mode = 2
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="HealthBarEnemy" type="ProgressBar" parent="ScreenMargin/MainHBox/EnemyColumn" unique_id=670429549]
+layout_mode = 2
+theme_override_styles/background = SubResource("StyleBoxFlat_tcauj")
+theme_override_styles/fill = SubResource("StyleBoxFlat_uy5uq")
+
+[node name="StaminaBarEnemy" type="ProgressBar" parent="ScreenMargin/MainHBox/EnemyColumn" unique_id=1860967463]
+layout_mode = 2
+theme_override_styles/background = SubResource("StyleBoxFlat_pqpfu")
+theme_override_styles/fill = SubResource("StyleBoxFlat_uakg0")
+
+[node name="MoraleBarEnemy" type="ProgressBar" parent="ScreenMargin/MainHBox/EnemyColumn" unique_id=1439845435]
+layout_mode = 2
+theme_override_styles/background = SubResource("StyleBoxFlat_8cw2p")
+theme_override_styles/fill = SubResource("StyleBoxFlat_4a6i5")
+
+[node name="StatusEnemy" type="Label" parent="ScreenMargin/MainHBox/EnemyColumn" unique_id=2139530770]
+layout_mode = 2
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="PostureEnemy" type="Label" parent="ScreenMargin/MainHBox/EnemyColumn" unique_id=1856888078]
+layout_mode = 2
+horizontal_alignment = 1
+vertical_alignment = 1

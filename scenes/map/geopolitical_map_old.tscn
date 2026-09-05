@@ -1,0 +1,129 @@
+[gd_scene format=3 uid="uid://l1s1u5vswl7c"]
+
+[sub_resource type="CompressedTexture2D" id="CompressedTexture2D_422cl"]
+load_path = "res://.godot/imported/Map.png-0823e9f6d345efe07b57eedf27d429f0.ctex"
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_sat2g"]
+
+[node name="GeopoliticalMap" type="Node2D" unique_id=1715539933]
+
+[node name="Camera2D" type="Camera2D" parent="." unique_id=331436558]
+
+[node name="MapBackground" type="Sprite2D" parent="." unique_id=1373851454]
+position = Vector2(-764, -506)
+texture = SubResource("CompressedTexture2D_422cl")
+centered = false
+region_enabled = true
+region_rect = Rect2(37, 13, 1536, 1024)
+
+[node name="CastlesContainer" type="Node2D" parent="." unique_id=1948933711]
+
+[node name="Castle1" type="Node2D" parent="CastlesContainer" unique_id=247656970]
+
+[node name="Area2D" type="Area2D" parent="CastlesContainer/Castle1" unique_id=152153843]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="CastlesContainer/Castle1/Area2D" unique_id=1626607634]
+shape = SubResource("CircleShape2D_sat2g")
+
+[node name="Sprite2D" type="Sprite2D" parent="CastlesContainer/Castle1/Area2D/CollisionShape2D" unique_id=491105698]
+
+[node name="Castle2" type="Node2D" parent="CastlesContainer" unique_id=603022870]
+
+[node name="Area2D" type="Area2D" parent="CastlesContainer/Castle2" unique_id=181208788]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="CastlesContainer/Castle2/Area2D" unique_id=617170331]
+shape = SubResource("CircleShape2D_sat2g")
+
+[node name="Sprite2D" type="Sprite2D" parent="CastlesContainer/Castle2/Area2D/CollisionShape2D" unique_id=1529167022]
+
+[node name="Castle3" type="Node2D" parent="CastlesContainer" unique_id=1734609882]
+
+[node name="Area2D" type="Area2D" parent="CastlesContainer/Castle3" unique_id=1618981179]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="CastlesContainer/Castle3/Area2D" unique_id=517563941]
+shape = SubResource("CircleShape2D_sat2g")
+
+[node name="Sprite2D" type="Sprite2D" parent="CastlesContainer/Castle3/Area2D/CollisionShape2D" unique_id=472246670]
+
+[node name="Castle4" type="Node2D" parent="CastlesContainer" unique_id=133974523]
+
+[node name="Area2D" type="Area2D" parent="CastlesContainer/Castle4" unique_id=548540586]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="CastlesContainer/Castle4/Area2D" unique_id=1423899666]
+shape = SubResource("CircleShape2D_sat2g")
+
+[node name="Sprite2D" type="Sprite2D" parent="CastlesContainer/Castle4/Area2D/CollisionShape2D" unique_id=1588657201]
+
+[node name="Castle5" type="Node2D" parent="CastlesContainer" unique_id=723103538]
+
+[node name="Area2D" type="Area2D" parent="CastlesContainer/Castle5" unique_id=209105107]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="CastlesContainer/Castle5/Area2D" unique_id=1784589142]
+shape = SubResource("CircleShape2D_sat2g")
+
+[node name="Sprite2D" type="Sprite2D" parent="CastlesContainer/Castle5/Area2D/CollisionShape2D" unique_id=868079488]
+
+[node name="Castle6" type="Node2D" parent="CastlesContainer" unique_id=1494255681]
+
+[node name="Area2D" type="Area2D" parent="CastlesContainer/Castle6" unique_id=1610673597]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="CastlesContainer/Castle6/Area2D" unique_id=958313129]
+shape = SubResource("CircleShape2D_sat2g")
+
+[node name="Sprite2D" type="Sprite2D" parent="CastlesContainer/Castle6/Area2D/CollisionShape2D" unique_id=1154710785]
+
+[node name="Castle7" type="Node2D" parent="CastlesContainer" unique_id=1050570046]
+
+[node name="Area2D" type="Area2D" parent="CastlesContainer/Castle7" unique_id=875992588]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="CastlesContainer/Castle7/Area2D" unique_id=1023168114]
+shape = SubResource("CircleShape2D_sat2g")
+
+[node name="Sprite2D" type="Sprite2D" parent="CastlesContainer/Castle7/Area2D/CollisionShape2D" unique_id=770949683]
+
+[node name="Castle8" type="Node2D" parent="CastlesContainer" unique_id=1644672638]
+
+[node name="Area2D" type="Area2D" parent="CastlesContainer/Castle8" unique_id=2041033533]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="CastlesContainer/Castle8/Area2D" unique_id=1351120873]
+shape = SubResource("CircleShape2D_sat2g")
+
+[node name="Sprite2D" type="Sprite2D" parent="CastlesContainer/Castle8/Area2D/CollisionShape2D" unique_id=1973434217]
+
+[node name="Castle9" type="Node2D" parent="CastlesContainer" unique_id=1309192356]
+
+[node name="Area2D" type="Area2D" parent="CastlesContainer/Castle9" unique_id=1974371429]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="CastlesContainer/Castle9/Area2D" unique_id=295920661]
+shape = SubResource("CircleShape2D_sat2g")
+
+[node name="Sprite2D" type="Sprite2D" parent="CastlesContainer/Castle9/Area2D/CollisionShape2D" unique_id=1233776833]
+
+[node name="Castle10" type="Node2D" parent="CastlesContainer" unique_id=575503930]
+
+[node name="Area2D" type="Area2D" parent="CastlesContainer/Castle10" unique_id=1818289207]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="CastlesContainer/Castle10/Area2D" unique_id=1769390600]
+shape = SubResource("CircleShape2D_sat2g")
+
+[node name="Sprite2D" type="Sprite2D" parent="CastlesContainer/Castle10/Area2D/CollisionShape2D" unique_id=1114826746]
+
+[node name="Castle11" type="Node2D" parent="CastlesContainer" unique_id=982141188]
+
+[node name="Area2D" type="Area2D" parent="CastlesContainer/Castle11" unique_id=1536998985]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="CastlesContainer/Castle11/Area2D" unique_id=339392176]
+shape = SubResource("CircleShape2D_sat2g")
+
+[node name="Sprite2D" type="Sprite2D" parent="CastlesContainer/Castle11/Area2D/CollisionShape2D" unique_id=1026208222]
+
+[node name="Castle12" type="Node2D" parent="CastlesContainer" unique_id=1072161865]
+
+[node name="Area2D" type="Area2D" parent="CastlesContainer/Castle12" unique_id=1831710905]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="CastlesContainer/Castle12/Area2D" unique_id=1049208280]
+shape = SubResource("CircleShape2D_sat2g")
+
+[node name="Sprite2D" type="Sprite2D" parent="CastlesContainer/Castle12/Area2D/CollisionShape2D" unique_id=1861892118]
+
+[node name="RoutesContainer" type="Node2D" parent="." unique_id=2122754938]

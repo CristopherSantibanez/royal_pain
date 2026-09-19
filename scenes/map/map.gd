@@ -106,6 +106,7 @@ func _show_castle_details(castle: Castle, is_visible: bool) -> void:
 func _on_enter_castle_pressed() -> void:
 	if selected_castle == null:
 		return
+	GameManager.current_castle = selected_castle
 	# Placeholder: la interfaz específica por rol (ciudad, barracas, etc.) se construye más adelante.
 	get_tree().change_scene_to_file("res://scenes/castle_interior/castle_interior.tscn")
 

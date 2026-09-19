@@ -1,32 +1,14 @@
-CAMBIOS - Interfaces por Rol dentro del Castillo
-===================================================
+FIX - current_castle faltante
+================================
 
-Reemplaza completos estos 2 archivos (ya existentes en tu proyecto):
+Error mío: al construir "Interfaces por rol" asumí que GameManager ya
+tenía un campo current_castle (lo vi en una revisión previa del repo,
+pero nunca llegó a existir realmente en tu código). castle_interior.gd
+lo lee, así que sin este fix la escena tira error al entrar a un castillo.
 
-- scenes/castle_interior/castle_interior.gd
-- scenes/castle_interior/castle_interior.tscn
+Reemplaza estos 2 archivos:
+- scripts/autoload/game_manager.gd  (+1 línea: var current_castle: Castle)
+- scenes/map/map.gd  (+1 línea en _on_enter_castle_pressed: asigna current_castle)
 
-QUÉ CAMBIÓ:
-- Ahora se muestra info del castillo actual (oro, comida, guarnición),
-  leyendo GameManager.current_castle (que map.gd ya llenaba desde antes).
-- Debajo de las stats aparece "Acciones de tu Rol": una lista de botones
-  que cambia según Character.role. Cada rol tiene 2 acciones:
-  una funcional (modifica oro/stats reales) y una marcada "(Próximamente)"
-  que queda deshabilitada porque depende de sistemas que aún no existen
-  (viajes, torneos, diplomacia, ejércitos).
-- El panel de ascenso (que ya tenías) se mantiene intacto, ahora debajo
-  de las acciones de rol.
-
-PRUEBA SUGERIDA:
-1. Entra a tu castillo como Campesino -> pulsa "Trabajar la Tierra"
-   varias veces, confirma que el oro sube.
-2. Asciende a Soldado -> aparecen "Entrenar Combate" y "Desertar".
-   Entrena unas veces, confirma que Combate sube (tope 20).
-3. Prueba "Desertar" -> deberías volver a ver las acciones de Campesino
-   sin recargar la escena.
-4. Si tienes forma de probar con Nobleza Baja/Alta/Regente (puedes forzar
-   character.role manualmente para probar), confirma que "Reclutar Milicia"
-   y "Recaudar Impuestos" afectan correctamente los datos del castillo.
-
-Los números de balance (oro ganado, costos, etc.) son ajustables al inicio
-del script en las constantes - cámbialos libremente.
+Con esto, castle_interior.gd (que ya tienes de la entrega anterior) debería
+funcionar sin error al pulsar "Entrar al Castillo" desde el mapa.

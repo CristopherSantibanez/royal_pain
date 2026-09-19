@@ -8,6 +8,7 @@ signal state_changed(new_state: int)
 const MONTHS_PER_YEAR := 12
 
 var player_character: Character
+var current_castle: Castle
 var current_month: int = 1
 var current_year: int = 1
 var current_state: int = GameStateEnums.State.MENU

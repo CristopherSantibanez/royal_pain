@@ -48,6 +48,11 @@ enum Personality {
 @export var current_morale: int = 100
 @export var honor: int = 50
 
+@export_group("Progresión Social")
+@export var gold: int = 100
+@export var duels_won: int = 0
+@export var duels_lost: int = 0
+
 @export_group("Habilidades")
 @export var general_skills: Array[Skill] = []
 @export var combat_skills: Array[Skill] = []
@@ -103,7 +108,10 @@ func _role_file_name() -> String:
 	return "campesino"
 
 func role_name() -> String:
-	match role:
+	return Character.role_name_for(role)
+
+static func role_name_for(r: int) -> String:
+	match r:
 		Role.CAMPESINO: return "Campesino"
 		Role.SOLDADO: return "Soldado"
 		Role.CABALLERO: return "Caballero"
@@ -176,3 +184,14 @@ func take_damage(amount: int) -> void:
 
 func can_fight_duels() -> bool:
 	return role != Role.CAMPESINO and role != Role.REGENTE
+
+# --- Progresión social ---
+
+func register_duel_win() -> void:
+	duels_won += 1
+	honor = clamp(honor + 10, 0, 100)
+	gold += 50
+
+func register_duel_loss() -> void:
+	duels_lost += 1
+	honor = clamp(honor - 5, 0, 100)

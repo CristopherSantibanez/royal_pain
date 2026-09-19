@@ -43,6 +43,7 @@ func _ready() -> void:
 	duel.log_message.connect(_on_log_message)
 	duel.duel_ended.connect(_on_duel_ended)
 	duel.state_updated.connect(_refresh_ui)
+	duel.character_demoted.connect(_on_character_demoted)
 	duel.start_duel(player_character, enemy_character)
 
 	_connect_buttons()
@@ -174,6 +175,12 @@ func _on_duel_ended(winner: Character, reason: String) -> void:
 	var winner_name := winner.full_name() if winner != null else "Nadie (huida)"
 	turn_log_buffer += "\n DUELO TERMINADO Ganador: %s" % winner_name
 	log_label.text = turn_log_buffer
+
+func _on_character_demoted(character: Character, _old_role: int, _new_role: int) -> void:
+	# Punto de extensión: aquí se puede disparar más adelante un efecto visual
+	# o popup especial. Por ahora el mensaje ya queda registrado en el log
+	# mediante log_message, así que no hace falta hacer nada más aquí.
+	pass
 
 func _on_volver_menu_pressed() -> void:
 	get_tree().change_scene_to_file("res://scenes/main_menu/main_menu.tscn")

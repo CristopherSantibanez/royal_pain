@@ -4,6 +4,7 @@ extends RefCounted
 signal log_message(text: String)
 signal duel_ended(winner: Character, reason: String)
 signal state_updated
+signal character_demoted(character: Character, old_role: int, new_role: int)
 
 var fighter_a: Character
 var fighter_b: Character
@@ -193,5 +194,26 @@ func _check_end() -> void:
 
 func _end_duel(winner: Character, reason: String) -> void:
 	is_over = true
+	_apply_duel_results(winner)
 	log_message.emit(reason)
 	duel_ended.emit(winner, reason)
+
+func _apply_duel_results(winner: Character) -> void:
+	# Solo se registran victorias/derrotas cuando hay un ganador claro
+	# (una huida exitosa con winner == null no cuenta como derrota de nadie).
+	if winner == null:
+		return
+	var loser := opponent_of(winner)
+	winner.register_duel_win()
+	loser.register_duel_loss()
+	_check_dishonor_demotion(loser)
+
+func _check_dishonor_demotion(character: Character) -> void:
+	if not RoleProgression.check_dishonor_demotion(character):
+		return
+	var old_role := character.role
+	RoleProgression.apply_dishonor_demotion(character)
+	log_message.emit("%s cae en deshonra y desciende de %s a %s." % [
+		character.full_name(), Character.role_name_for(old_role), character.role_name()
+	])
+	character_demoted.emit(character, old_role, character.role)

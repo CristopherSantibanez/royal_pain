@@ -1,27 +1,103 @@
-[gd_scene format=3 uid="uid://c0eakow6uv7od"]
+[gd_scene format=3]
 
-[ext_resource type="Script" uid="uid://ba4vsyhm4ejs3" path="res://scenes/castle_interior/button.gd" id="1_lb4t4"]
+[ext_resource type="Script" path="res://scenes/castle_interior/castle_interior.gd" id="castle_interior_script"]
 
-[node name="CastleInterior" type="Control" unique_id=998692166]
+[node name="CastleInterior" type="Control"]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+script = ExtResource("castle_interior_script")
 
-[node name="Label" type="Label" parent="." unique_id=1568882350]
-layout_mode = 0
-offset_right = 40.0
-offset_bottom = 20.0
-text = "\"Interior del Castillo — Vista de [Rol] próximamente.
-Aquí irá la interfaz específica según tu rol (ciudad, barracas, administración, etc.)\""
-horizontal_alignment = 1
-vertical_alignment = 1
+[node name="ScreenMargin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 50
+theme_override_constants/margin_top = 50
+theme_override_constants/margin_right = 50
+theme_override_constants/margin_bottom = 50
 
-[node name="ExitInterior" type="Button" parent="." unique_id=1695973937]
-layout_mode = 0
-offset_right = 8.0
-offset_bottom = 8.0
-text = "Vovler"
-script = ExtResource("1_lb4t4")
+[node name="RootVBox" type="VBoxContainer" parent="ScreenMargin"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="TitleLabel" type="Label" parent="ScreenMargin/RootVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "Interior del Castillo"
+
+[node name="RoleLabel" type="Label" parent="ScreenMargin/RootVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="CastleInfoLabel" type="Label" parent="ScreenMargin/RootVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+autowrap_mode = 3
+
+[node name="StatsBox" type="VBoxContainer" parent="ScreenMargin/RootVBox"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="HonorLabel" type="Label" parent="ScreenMargin/RootVBox/StatsBox"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="GoldLabel" type="Label" parent="ScreenMargin/RootVBox/StatsBox"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="DuelsLabel" type="Label" parent="ScreenMargin/RootVBox/StatsBox"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="RoleActionsSection" type="VBoxContainer" parent="ScreenMargin/RootVBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="RoleActionsTitle" type="Label" parent="ScreenMargin/RootVBox/RoleActionsSection"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Acciones de tu Rol"
+
+[node name="RoleActionsList" type="VBoxContainer" parent="ScreenMargin/RootVBox/RoleActionsSection"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="ActionFeedbackLabel" type="Label" parent="ScreenMargin/RootVBox/RoleActionsSection"]
+unique_name_in_owner = true
+layout_mode = 2
+autowrap_mode = 3
+custom_minimum_size = Vector2(500, 0)
+
+[node name="ProgressionBox" type="VBoxContainer" parent="ScreenMargin/RootVBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="ProgressionLabel" type="Label" parent="ScreenMargin/RootVBox/ProgressionBox"]
+unique_name_in_owner = true
+layout_mode = 2
+autowrap_mode = 3
+custom_minimum_size = Vector2(500, 0)
+
+[node name="BtnAscend" type="Button" parent="ScreenMargin/RootVBox/ProgressionBox"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 0
+text = "Ascender"
+
+[node name="BottomBar" type="HBoxContainer" parent="ScreenMargin/RootVBox"]
+layout_mode = 2
+
+[node name="BtnVolverMapa" type="Button" parent="ScreenMargin/RootVBox/BottomBar"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Volver al Mapa"

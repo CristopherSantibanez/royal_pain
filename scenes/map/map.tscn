@@ -40,11 +40,47 @@ script = ExtResource("2_tqkkf")
 
 [node name="RoutesContainer" type="Node2D" parent="." unique_id=1411630336]
 
+[node name="ArmiesContainer" type="Node2D" parent="."]
+
 [node name="UILayer" type="CanvasLayer" parent="." unique_id=571969811]
 
 [node name="SelectedCastleLabel" type="Label" parent="UILayer" unique_id=1462569735]
 offset_right = 40.0
 offset_bottom = 20.0
+
+[node name="TurnPanel" type="PanelContainer" parent="UILayer"]
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 16.0
+offset_top = -90.0
+offset_right = 260.0
+offset_bottom = -16.0
+grow_vertical = 0
+
+[node name="TurnMargin" type="MarginContainer" parent="UILayer/TurnPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 10
+
+[node name="TurnVBox" type="VBoxContainer" parent="UILayer/TurnPanel/TurnMargin"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="DateLabel" type="Label" parent="UILayer/TurnPanel/TurnMargin/TurnVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="TurnActionsLabel" type="Label" parent="UILayer/TurnPanel/TurnMargin/TurnVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="BtnAdvanceTurn" type="Button" parent="UILayer/TurnPanel/TurnMargin/TurnVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Avanzar Turno"
 
 [node name="CastleDetailsPanel" type="PanelContainer" parent="UILayer" unique_id=1339241652]
 unique_name_in_owner = true
@@ -94,6 +130,55 @@ layout_mode = 2
 text = "Entrar"
 
 [node name="BtnClosePanel" type="Button" parent="UILayer/CastleDetailsPanel/DetailsMargin/DetailsVBox" unique_id=1932871503]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Cerrar"
+
+[node name="ArmyPanel" type="PanelContainer" parent="UILayer"]
+unique_name_in_owner = true
+visible = false
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -300.0
+offset_top = -220.0
+offset_right = -16.0
+offset_bottom = -16.0
+grow_horizontal = 0
+grow_vertical = 0
+
+[node name="ArmyMargin" type="MarginContainer" parent="UILayer/ArmyPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
+
+[node name="ArmyVBox" type="VBoxContainer" parent="UILayer/ArmyPanel/ArmyMargin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="ArmyTitleLabel" type="Label" parent="UILayer/ArmyPanel/ArmyMargin/ArmyVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="ArmyStatusLabel" type="Label" parent="UILayer/ArmyPanel/ArmyMargin/ArmyVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+autowrap_mode = 3
+
+[node name="ArmyDestinationOption" type="OptionButton" parent="UILayer/ArmyPanel/ArmyMargin/ArmyVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="BtnMarchArmy" type="Button" parent="UILayer/ArmyPanel/ArmyMargin/ArmyVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Marchar"
+
+[node name="BtnCloseArmyPanel" type="Button" parent="UILayer/ArmyPanel/ArmyMargin/ArmyVBox"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Cerrar"

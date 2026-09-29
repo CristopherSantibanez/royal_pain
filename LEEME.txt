@@ -1,14 +1,50 @@
-FIX - current_castle faltante
-================================
+CAMBIOS - Sistema de Ejércitos
+=================================
 
-Error mío: al construir "Interfaces por rol" asumí que GameManager ya
-tenía un campo current_castle (lo vi en una revisión previa del repo,
-pero nunca llegó a existir realmente en tu código). castle_interior.gd
-lo lee, así que sin este fix la escena tira error al entrar a un castillo.
+IMPORTANTE: este paquete asume que ya aplicaste el zip anterior
+(royal_pain_turno.zip, el de "Turno Mensual"). Si no lo has hecho,
+aplica ese primero.
 
-Reemplaza estos 2 archivos:
-- scripts/autoload/game_manager.gd  (+1 línea: var current_castle: Castle)
-- scenes/map/map.gd  (+1 línea en _on_enter_castle_pressed: asigna current_castle)
+ARCHIVOS NUEVOS:
+- scripts/resources/army.gd
+- scripts/autoload/army_data.gd
+- scenes/map/army_marker.gd
+- scenes/map/army_marker.tscn
 
-Con esto, castle_interior.gd (que ya tienes de la entrega anterior) debería
-funcionar sin error al pulsar "Entrar al Castillo" desde el mapa.
+ARCHIVOS MODIFICADOS (reemplaza completos):
+- scenes/castle_interior/castle_interior.gd  (+ acción "Movilizar Ejército"
+  para Caballero, Nobleza Baja, Nobleza Alta, Regente)
+- scenes/map/map.gd  (+ dibuja ejércitos, panel de ejército, dar orden de marcha)
+- scenes/map/map.tscn  (+ nodo ArmiesContainer, + nodo ArmyPanel en UILayer)
+
+REGISTRAR EL AUTOLOAD (paso manual obligatorio):
+En Godot: Proyecto > Configuración del Proyecto > Autoload
+- Path: res://scripts/autoload/army_data.gd
+- Node Name: ArmyData
+- Clic en "Add"
+(el project.godot incluido en este zip ya tiene la línea agregada como
+referencia, pero es más seguro que lo agregues tú mismo desde el editor
+para que Godot genere el UID correctamente — así evitas conflictos si tu
+project.godot tiene otras diferencias respecto al mío)
+
+CÓMO FUNCIONA:
+1. En el castillo, con rol Caballero o superior, pulsa "Movilizar Ejército".
+   Convierte un % de la guarnición del castillo (30% normal, 50% Regente)
+   en un ejército marchante. Consume 1 acción del turno, como las demás.
+2. Vuelve al mapa: verás un círculo azul con el tamaño de tropas sobre
+   tu castillo. Haz clic en él para abrir el panel de ejército.
+3. Elige un castillo destino (solo los directamente conectados) y pulsa
+   "Marchar". El círculo pasa a amarillo y aparece una línea punteada
+   hacia el destino.
+4. Pulsa "Avanzar Turno". El ejército llega:
+   - Si el destino es de tu mismo reino: se disuelve y refuerza la
+     guarnición de ese castillo.
+   - Si es de otro reino: el círculo se pone rojo ("¡Batalla pendiente!")
+     y se queda ahí esperando — la resolución real llega con el
+     siguiente sistema (batalla táctica).
+
+LIMITACIÓN CONOCIDA (a propósito, por ahora):
+Solo se puede marchar a castillos DIRECTAMENTE conectados (1 salto = 1
+turno). Viajes de varios saltos se hacen dando la orden de nuevo cada
+turno al llegar. Rutas multi-salto automáticas quedan para más adelante
+si las necesitas.

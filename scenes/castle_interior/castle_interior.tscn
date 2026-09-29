@@ -42,6 +42,10 @@ unique_name_in_owner = true
 layout_mode = 2
 autowrap_mode = 3
 
+[node name="ActionsLabel" type="Label" parent="ScreenMargin/RootVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+
 [node name="StatsBox" type="VBoxContainer" parent="ScreenMargin/RootVBox"]
 layout_mode = 2
 theme_override_constants/separation = 4

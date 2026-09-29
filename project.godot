@@ -22,6 +22,7 @@ CreationState="*uid://cae177tg6a5vb"
 CombatSetup="*uid://caukhjd85i8i5"
 GameManager="*uid://kihvwyjrsou5"
 MapData="*uid://bo7ni712xogui"
+ArmyData="*res://scripts/autoload/army_data.gd"
 
 [display]
 

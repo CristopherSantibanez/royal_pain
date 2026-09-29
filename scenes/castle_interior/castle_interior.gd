@@ -9,6 +9,7 @@ extends Control
 @onready var btn_ascend: Button = %BtnAscend
 @onready var btn_volver_mapa: Button = %BtnVolverMapa
 @onready var castle_info_label: Label = %CastleInfoLabel
+@onready var actions_label: Label = %ActionsLabel
 @onready var role_actions_list: VBoxContainer = %RoleActionsList
 @onready var action_feedback_label: Label = %ActionFeedbackLabel
 
@@ -25,6 +26,9 @@ const RECAUDAR_BASE := 40
 const MILICIA_GARRISON_GAIN := 10
 const MILICIA_COST := 60
 const REGENTE_TAX_PER_CASTLE := 25
+const MOBILIZE_MIN_GARRISON := 40
+const MOBILIZE_FRACTION := 0.3
+const MOBILIZE_FRACTION_REGENTE := 0.5
 
 func _ready() -> void:
 	character = GameManager.player_character
@@ -37,11 +41,13 @@ func _ready() -> void:
 		honor_label.text = ""
 		gold_label.text = ""
 		duels_label.text = ""
+		actions_label.text = ""
 		progression_label.text = "Inicia una partida desde el menú principal para ver tu progresión."
 		castle_info_label.text = ""
 		btn_ascend.disabled = true
 		return
 
+	GameManager.refresh_actions_for_role_change()
 	btn_ascend.pressed.connect(_on_ascend_pressed)
 	_refresh_ui()
 	_build_role_actions()
@@ -52,6 +58,7 @@ func _refresh_ui() -> void:
 	honor_label.text = "Honor: %d / 100" % character.honor
 	gold_label.text = "Oro: %d" % character.gold
 	duels_label.text = "Duelos: %d ganados / %d perdidos" % [character.duels_won, character.duels_lost]
+	actions_label.text = "Acciones disponibles este turno: %d / %d" % [GameManager.actions_remaining, GameManager.actions_per_turn]
 
 	if castle != null:
 		castle_info_label.text = "%s (%s) — Oro del castillo: %d | Comida: %d | Guarnición: %d" % [
@@ -74,7 +81,9 @@ func _refresh_ui() -> void:
 
 func _on_ascend_pressed() -> void:
 	if RoleProgression.ascend(character):
+		GameManager.refresh_actions_for_role_change()
 		_refresh_ui()
+		_build_role_actions()
 
 func _on_volver_mapa_pressed() -> void:
 	get_tree().change_scene_to_file("res://scenes/map/map.tscn")
@@ -87,15 +96,30 @@ func _build_role_actions() -> void:
 		child.queue_free()
 
 	var actions: Array[Dictionary] = _get_actions_for_role(character.role)
+	var out_of_actions := not GameManager.has_actions_remaining()
 
 	for action in actions:
 		var btn := Button.new()
 		btn.text = action.label if not action.locked else "%s (Próximamente)" % action.label
 		btn.tooltip_text = action.tooltip
-		btn.disabled = action.locked
-		if not action.locked:
-			btn.pressed.connect(action.callback)
+
+		if action.locked:
+			btn.disabled = true
+		else:
+			btn.disabled = out_of_actions
+			if out_of_actions:
+				btn.tooltip_text += "\n(Sin acciones disponibles este turno — avanza el turno desde el mapa)"
+			btn.pressed.connect(_make_action_handler(action.callback))
+
 		role_actions_list.add_child(btn)
+
+func _make_action_handler(callback: Callable) -> Callable:
+	return func() -> void:
+		if not GameManager.consume_action():
+			_show_feedback("No te quedan acciones disponibles este turno.")
+			return
+		callback.call()
+		_build_role_actions()   # refresca qué botones quedan habilitados tras gastar la acción
 
 func _get_actions_for_role(role: int) -> Array[Dictionary]:
 	match role:
@@ -117,6 +141,8 @@ func _get_actions_for_role(role: int) -> Array[Dictionary]:
 			return [
 				{"label": "Mejorar las Tierras", "tooltip": "Inviertes %d de tu oro en el castillo, a cambio de oro y comida para él." % MEJORAR_TIERRAS_COST,
 					"locked": false, "callback": _action_mejorar_tierras},
+				{"label": "Movilizar Ejército", "tooltip": "Convierte %d%% de la guarnición en un ejército marchante que podrás mover desde el mapa." % int(MOBILIZE_FRACTION * 100),
+					"locked": false, "callback": func(): _action_mobilize(MOBILIZE_FRACTION)},
 				{"label": "Prepararse para Torneo", "tooltip": "Te entrenas para el próximo torneo de caballeros. Requiere el sistema de torneos.",
 					"locked": true, "callback": Callable()},
 			]
@@ -126,11 +152,15 @@ func _get_actions_for_role(role: int) -> Array[Dictionary]:
 					"locked": false, "callback": _action_recaudar},
 				{"label": "Reclutar Milicia", "tooltip": "Gastas %d de oro del castillo para sumar %d soldados a la guarnición." % [MILICIA_COST, MILICIA_GARRISON_GAIN],
 					"locked": false, "callback": _action_reclutar_milicia},
+				{"label": "Movilizar Ejército", "tooltip": "Convierte %d%% de la guarnición en un ejército marchante que podrás mover desde el mapa." % int(MOBILIZE_FRACTION * 100),
+					"locked": false, "callback": func(): _action_mobilize(MOBILIZE_FRACTION)},
 			]
 		Character.Role.NOBLEZA_ALTA:
 			return [
 				{"label": "Gobernar Territorio", "tooltip": "Administras tu región a mayor escala, recaudando más que un noble menor.",
 					"locked": false, "callback": _action_gobernar_territorio},
+				{"label": "Movilizar Ejército", "tooltip": "Convierte %d%% de la guarnición en un ejército marchante que podrás mover desde el mapa." % int(MOBILIZE_FRACTION * 100),
+					"locked": false, "callback": func(): _action_mobilize(MOBILIZE_FRACTION)},
 				{"label": "Negociar Alianza Regional", "tooltip": "Buscas aliados entre los reinos vecinos. Requiere el sistema de relaciones y diplomacia.",
 					"locked": true, "callback": Callable()},
 			]
@@ -138,8 +168,8 @@ func _get_actions_for_role(role: int) -> Array[Dictionary]:
 			return [
 				{"label": "Imponer Impuestos Reales", "tooltip": "Recaudas oro de todos los castillos del reino, para ti y para tus arcas.",
 					"locked": false, "callback": _action_impuestos_reales},
-				{"label": "Reclutar Ejército Completo", "tooltip": "Levantas un nuevo ejército real. Requiere el sistema de ejércitos.",
-					"locked": true, "callback": Callable()},
+				{"label": "Reclutar Ejército Real", "tooltip": "Convierte %d%% de la guarnición en un poderoso ejército real." % int(MOBILIZE_FRACTION_REGENTE * 100),
+					"locked": false, "callback": func(): _action_mobilize(MOBILIZE_FRACTION_REGENTE)},
 			]
 	return []
 
@@ -165,6 +195,7 @@ func _action_entrenar() -> void:
 
 func _action_desertar() -> void:
 	character.role = Character.Role.CAMPESINO
+	GameManager.refresh_actions_for_role_change()
 	_show_feedback("Desertaste y volviste a ser Campesino.")
 	_refresh_ui()
 	_build_role_actions()
@@ -220,4 +251,24 @@ func _action_impuestos_reales() -> void:
 		total_collected += REGENTE_TAX_PER_CASTLE
 	character.gold += total_collected
 	_show_feedback("Impusiste impuestos reales: %d de oro recaudado de %d castillos." % [total_collected, MapData.castles.size()])
+	_refresh_ui()
+
+# --- Movilización de ejércitos (disponible desde Caballero en adelante) ---
+
+func _action_mobilize(fraction: float) -> void:
+	if castle == null:
+		_show_feedback("No se pudo determinar el castillo actual.")
+		return
+	if castle.garrison_size < MOBILIZE_MIN_GARRISON:
+		_show_feedback("La guarnición es demasiado pequeña para movilizar tropas (necesitas al menos %d)." % MOBILIZE_MIN_GARRISON)
+		return
+
+	var mobilized: int = int(castle.garrison_size * fraction)
+	if mobilized <= 0:
+		_show_feedback("No hay suficientes tropas disponibles para movilizar.")
+		return
+
+	castle.garrison_size -= mobilized
+	ArmyData.create_army(character.full_name(), castle.kingdom, mobilized, castle.castle_id)
+	_show_feedback("Movilizaste un ejército de %d soldados desde %s. Ve al mapa para darle órdenes de marcha." % [mobilized, castle.castle_name])
 	_refresh_ui()

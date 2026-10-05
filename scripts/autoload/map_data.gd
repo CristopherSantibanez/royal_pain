@@ -9,6 +9,9 @@ var castles: Array[Castle] = []
 func _ready() -> void:
 	_load_castles()
 
+func reset() -> void:
+	_load_castles()
+
 func get_castle_by_id(id: String) -> Castle:
 	for c in castles:
 		if c.castle_id == id:

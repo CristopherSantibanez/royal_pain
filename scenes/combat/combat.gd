@@ -31,6 +31,12 @@ var player_turn := true
 const ENEMY_TURN_DELAY := 1.2  # segundos de pausa antes de que el enemigo actúe
 var current_round_log := ""  # Acumula los mensajes de la ronda actual (jugador + enemigo)
 
+# --- Duelo de campaña ---
+var is_campaign := false
+var _honor_before := 0
+var _gold_before := 0
+var _demotion_text := ""
+
 func _ready() -> void:
 	if player_character == null:
 		player_character = CombatSetup.player_character if CombatSetup.player_character != null \
@@ -49,6 +55,15 @@ func _ready() -> void:
 	_connect_buttons()
 	_refresh_ui()
 	_update_turn_indicator()
+
+	is_campaign = CombatSetup.is_campaign
+	if is_campaign:
+		_honor_before = player_character.honor
+		_gold_before = player_character.gold
+		# En campaña no se puede abandonar a mitad: para salir hay que rendirse o retirarse.
+		btn_volver_menu.text = "Volver al Castillo"
+		btn_volver_menu.disabled = true
+		btn_volver_menu.tooltip_text = "Termina el duelo (o ríndete / retírate) para volver."
 	# ------------------------------------------------------------------------------------
 
 func _connect_buttons() -> void:
@@ -176,13 +191,42 @@ func _on_duel_ended(winner: Character, reason: String) -> void:
 	turn_log_buffer += "\n DUELO TERMINADO Ganador: %s" % winner_name
 	log_label.text = turn_log_buffer
 
-func _on_character_demoted(character: Character, _old_role: int, _new_role: int) -> void:
-	# Punto de extensión: aquí se puede disparar más adelante un efecto visual
-	# o popup especial. Por ahora el mensaje ya queda registrado en el log
-	# mediante log_message, así que no hace falta hacer nada más aquí.
-	pass
+	if is_campaign:
+		CombatSetup.last_result_text = _campaign_summary(winner)
+		btn_volver_menu.disabled = false
+		btn_volver_menu.tooltip_text = ""
+
+func _campaign_summary(winner: Character) -> String:
+	var outcome: String
+	if winner == player_character:
+		outcome = "Venciste en duelo a %s." % enemy_character.full_name()
+	elif winner == null:
+		outcome = "El duelo contra %s terminó con una huida." % enemy_character.full_name()
+	else:
+		outcome = "%s te derrotó en duelo." % enemy_character.full_name()
+	var text := "%s Honor %+d, oro %+d. Duelos: %d ganados / %d perdidos." % [
+		outcome, player_character.honor - _honor_before, player_character.gold - _gold_before,
+		player_character.duels_won, player_character.duels_lost]
+	if not _demotion_text.is_empty():
+		text += " " + _demotion_text
+	return text
+
+func _on_character_demoted(character: Character, old_role: int, new_role: int) -> void:
+	# El mensaje ya queda en el log mediante log_message; en campaña además se
+	# guarda para mostrarlo al volver al castillo.
+	if is_campaign and character == player_character:
+		_demotion_text = "Caes en deshonra: de %s a %s." % [Character.role_name_for(old_role), Character.role_name_for(new_role)]
 
 func _on_volver_menu_pressed() -> void:
+	if is_campaign:
+		# Aún no hay sistema de heridas: el personaje se recupera por completo tras el duelo.
+		player_character.current_health = player_character.max_health
+		player_character.current_stamina = player_character.max_stamina
+		player_character.current_morale = player_character.max_morale
+		var scene := CombatSetup.return_scene
+		CombatSetup.clear()
+		get_tree().change_scene_to_file(scene)
+		return
 	get_tree().change_scene_to_file("res://scenes/main_menu/main_menu.tscn")
 
 

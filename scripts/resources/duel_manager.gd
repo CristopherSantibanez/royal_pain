@@ -105,12 +105,13 @@ func _do_attack(actor: Character, target: Character) -> String:
 		dmg = int(dmg * 0.8)
 	if CombatEnums.Status.INSPIRADO in statuses[actor]:
 		dmg = int(dmg * 1.2)
+	dmg = max(1, dmg)   # un golpe que conecta nunca hace 0 (evita duelos infinitos con moral baja)
 
 	var extra := ""
 	if countering[target]:
 		countering[target] = false
-		var counter_dmg := int(dmg * 0.5)
-		dmg = int(dmg * 0.5)
+		var counter_dmg: int = max(1, int(dmg * 0.5))
+		dmg = max(1, int(dmg * 0.5))
 		actor.take_damage(counter_dmg)
 		extra = " ¡Pero %s contraataca, causándole %d de daño!" % [target.full_name(), counter_dmg]
 

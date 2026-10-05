@@ -1,0 +1,130 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scenes/new_game/new_game.gd" id="1_newgm"]
+[ext_resource type="Texture2D" uid="uid://b8i0hob6iwv4" path="res://assets/Main-Menu.png" id="2_bgimg"]
+[ext_resource type="Texture2D" uid="uid://buefo3wn0eicc" path="res://assets/backboxScretch.png" id="3_backb"]
+
+[node name="NewGame" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_newgm")
+
+[node name="Background" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("2_bgimg")
+expand_mode = 3
+stretch_mode = 6
+
+[node name="BackboxScretch" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("3_backb")
+expand_mode = 5
+stretch_mode = 5
+
+[node name="ScreenMargin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 50
+theme_override_constants/margin_top = 50
+theme_override_constants/margin_right = 50
+theme_override_constants/margin_bottom = 50
+
+[node name="RootVBox" type="VBoxContainer" parent="ScreenMargin"]
+layout_mode = 2
+theme_override_constants/separation = 24
+alignment = 1
+
+[node name="TitleLabel" type="Label" parent="ScreenMargin/RootVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.011764706, 0.011764706, 0.011764706, 1)
+theme_override_font_sizes/font_size = 28
+text = "Nueva Partida"
+horizontal_alignment = 1
+
+[node name="SelectHBox" type="HBoxContainer" parent="ScreenMargin/RootVBox"]
+layout_mode = 2
+theme_override_constants/separation = 80
+alignment = 1
+
+[node name="CharacterBox" type="VBoxContainer" parent="ScreenMargin/RootVBox/SelectHBox"]
+layout_mode = 2
+
+[node name="LblCharacter" type="Label" parent="ScreenMargin/RootVBox/SelectHBox/CharacterBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.011764706, 0.011764706, 0.011764706, 1)
+text = "Personaje"
+
+[node name="CharacterOption" type="OptionButton" parent="ScreenMargin/RootVBox/SelectHBox/CharacterBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(280, 0)
+layout_mode = 2
+
+[node name="CastleBox" type="VBoxContainer" parent="ScreenMargin/RootVBox/SelectHBox"]
+layout_mode = 2
+
+[node name="LblCastle" type="Label" parent="ScreenMargin/RootVBox/SelectHBox/CastleBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.011764706, 0.011764706, 0.011764706, 1)
+text = "Castillo de origen"
+
+[node name="CastleOption" type="OptionButton" parent="ScreenMargin/RootVBox/SelectHBox/CastleBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(320, 0)
+layout_mode = 2
+
+[node name="RoleBox" type="VBoxContainer" parent="ScreenMargin/RootVBox/SelectHBox"]
+layout_mode = 2
+
+[node name="LblRole" type="Label" parent="ScreenMargin/RootVBox/SelectHBox/RoleBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.011764706, 0.011764706, 0.011764706, 1)
+text = "Rol inicial"
+
+[node name="RoleOption" type="OptionButton" parent="ScreenMargin/RootVBox/SelectHBox/RoleBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+
+[node name="InfoLabel" type="Label" parent="ScreenMargin/RootVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.011764706, 0.011764706, 0.011764706, 1)
+horizontal_alignment = 1
+
+[node name="BottomBar" type="HBoxContainer" parent="ScreenMargin/RootVBox"]
+layout_mode = 2
+theme_override_constants/separation = 16
+alignment = 1
+
+[node name="BtnVolverMenu" type="Button" parent="ScreenMargin/RootVBox/BottomBar"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Volver"
+
+[node name="BtnCrearPersonaje" type="Button" parent="ScreenMargin/RootVBox/BottomBar"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Crear Personaje"
+
+[node name="BtnComenzar" type="Button" parent="ScreenMargin/RootVBox/BottomBar"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Comenzar"

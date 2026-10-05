@@ -4,6 +4,7 @@ extends Control
 @onready var details_label: Label = %DetailsLabel
 @onready var btn_volver_editar: Button = %BtnVolverEditar
 @onready var btn_guardar: Button = %BtnGuardar
+@onready var btn_comenzar_partida: Button = %BtnComenzarPartida
 
 var character: Character
 
@@ -23,6 +24,7 @@ func _ready() -> void:
 
 	btn_volver_editar.pressed.connect(_on_volver_editar_pressed)
 	btn_guardar.pressed.connect(_on_guardar_pressed)
+	btn_comenzar_partida.pressed.connect(_on_comenzar_partida_pressed)
 
 func _build_summary_text() -> String:
 	var lines: Array[String] = []
@@ -80,5 +82,11 @@ func _on_guardar_pressed() -> void:
 	if result == OK:
 		btn_guardar.text = "¡Guardado!"
 		btn_guardar.disabled = true
+		CreationState.last_saved_path = save_path
+		btn_comenzar_partida.disabled = false
+		btn_comenzar_partida.tooltip_text = ""
 	else:
 		btn_guardar.text = "Error al guardar (código %d)" % result
+
+func _on_comenzar_partida_pressed() -> void:
+	get_tree().change_scene_to_file("res://scenes/new_game/new_game.tscn")

@@ -3,11 +3,6 @@ extends Node2D
 const CastleMarkerScene := preload("res://scenes/map/castle_marker.tscn")
 const ArmyMarkerScene := preload("res://scenes/map/army_marker.tscn")
 
-# --- Datos de prueba temporales, hasta tener sistema real de asignación de nobleza ---
-const TEST_PLAYER_ROLE: int = Character.Role.CABALLERO
-const TEST_PLAYER_HOME_CASTLE_ID: String = "carmesi"
-# ---------------------------------------------------------------------------------
-
 @onready var camera: Camera2D = $Camera2D
 @onready var castles_container: Node2D = $CastlesContainer
 @onready var routes_container: Node2D = $RoutesContainer
@@ -27,12 +22,23 @@ const TEST_PLAYER_HOME_CASTLE_ID: String = "carmesi"
 @onready var date_label: Label = %DateLabel
 @onready var turn_actions_label: Label = %TurnActionsLabel
 @onready var btn_advance_turn: Button = %BtnAdvanceTurn
+@onready var btn_main_menu: Button = %BtnMainMenu
+@onready var btn_save_game: Button = %BtnSaveGame
+@onready var events_label: Label = %EventsLabel
+
+@onready var event_overlay: Control = %EventOverlay
+@onready var event_title: Label = %EventTitle
+@onready var event_text: Label = %EventText
+@onready var event_options: VBoxContainer = %EventOptions
+@onready var event_result: Label = %EventResult
+@onready var btn_event_close: Button = %BtnEventClose
 
 @onready var army_panel: PanelContainer = %ArmyPanel
 @onready var army_title_label: Label = %ArmyTitleLabel
 @onready var army_status_label: Label = %ArmyStatusLabel
 @onready var army_destination_option: OptionButton = %ArmyDestinationOption
 @onready var btn_march_army: Button = %BtnMarchArmy
+@onready var btn_start_battle: Button = %BtnStartBattle
 @onready var btn_close_army_panel: Button = %BtnCloseArmyPanel
 
 var castle_markers: Dictionary = {}
@@ -44,7 +50,7 @@ func _ready() -> void:
 	camera.setup_bounds(MapData.MAP_WIDTH, MapData.MAP_HEIGHT)
 	_style_selected_label()
 
-	visible_castle_ids = MapVision.get_visible_castle_ids(TEST_PLAYER_ROLE, TEST_PLAYER_HOME_CASTLE_ID)
+	visible_castle_ids = _compute_visible_castle_ids()
 
 	_spawn_castles()
 	_apply_vision()
@@ -55,15 +61,29 @@ func _ready() -> void:
 	btn_close_panel.pressed.connect(_on_close_panel_pressed)
 
 	btn_advance_turn.pressed.connect(_on_advance_turn_pressed)
+	btn_save_game.pressed.connect(_on_save_game_pressed)
+	btn_main_menu.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/main_menu/main_menu.tscn"))
 	GameManager.turn_advanced.connect(_on_turn_advanced)
 	GameManager.actions_changed.connect(_on_actions_changed)
 	_refresh_turn_ui()
 
 	army_panel.visible = false
 	btn_march_army.pressed.connect(_on_march_army_pressed)
+	btn_start_battle.pressed.connect(_on_start_battle_pressed)
 	btn_close_army_panel.pressed.connect(_on_close_army_panel_pressed)
 	ArmyData.armies_changed.connect(_on_armies_changed)
+	ArmyData.events_changed.connect(_refresh_events)
 	_spawn_armies()
+	_refresh_events()
+
+	btn_event_close.pressed.connect(_on_event_close_pressed)
+	_show_pending_event()
+
+func _compute_visible_castle_ids() -> Array[String]:
+	# Sin partida activa (p. ej. "Ver Mapa" desde el menú) se muestra todo como vista previa.
+	if not GameManager.is_game_active or GameManager.player_character == null:
+		return MapVision._all_castle_ids()
+	return MapVision.get_visible_castle_ids(GameManager.player_character.role, GameManager.home_castle_id)
 
 func _spawn_castles() -> void:
 	for data: Castle in MapData.castles:
@@ -123,8 +143,12 @@ func _show_castle_details(castle: Castle, is_visible: bool) -> void:
 		details_gold.text = "Oro: ???"
 		details_food.text = "Comida: ???"
 
-	btn_enter_castle.disabled = (castle.castle_id != TEST_PLAYER_HOME_CASTLE_ID)
-	btn_enter_castle.tooltip_text = "" if not btn_enter_castle.disabled else "Solo puedes entrar a tu propio castillo por ahora."
+	if not GameManager.is_game_active:
+		btn_enter_castle.disabled = true
+		btn_enter_castle.tooltip_text = "Inicia una partida desde el menú principal para entrar a un castillo."
+	else:
+		btn_enter_castle.disabled = (castle.castle_id != GameManager.home_castle_id)
+		btn_enter_castle.tooltip_text = "" if not btn_enter_castle.disabled else "Solo puedes entrar a tu propio castillo por ahora."
 
 	castle_details_panel.visible = true
 
@@ -148,23 +172,43 @@ func _style_selected_label() -> void:
 
 func _on_advance_turn_pressed() -> void:
 	GameManager.advance_turn()
+	# Autoguardado mensual (si la partida terminó, se conserva el último guardado previo).
+	if GameManager.is_game_active:
+		SaveSystem.save_game()
+
+func _on_save_game_pressed() -> void:
+	var err := SaveSystem.save_game()
+	btn_save_game.text = "¡Partida guardada!" if err == OK else "Error al guardar (%d)" % err
+	get_tree().create_timer(2.0).timeout.connect(func():
+		if is_instance_valid(btn_save_game):
+			btn_save_game.text = "Guardar Partida")
 
 func _on_turn_advanced(_month: int, _year: int) -> void:
+	# Las conquistas (propias o ajenas) pueden cambiar lo que el jugador ve.
+	visible_castle_ids = _compute_visible_castle_ids()
+	_apply_vision()
 	_refresh_turn_ui()
+	_spawn_armies()
+	_refresh_events()
+	_show_pending_event()
 
 func _on_actions_changed(_remaining: int, _total: int) -> void:
 	_refresh_turn_ui()
 
 func _refresh_turn_ui() -> void:
 	if not GameManager.is_game_active:
-		date_label.text = "Sin partida activa"
+		date_label.text = "Partida terminada" if not GameManager.game_over_reason.is_empty() else "Sin partida activa"
 		turn_actions_label.text = ""
 		btn_advance_turn.disabled = true
+		btn_save_game.disabled = true
 		return
 
 	date_label.text = GameManager.get_date_string()
 	turn_actions_label.text = "Acciones: %d / %d" % [GameManager.actions_remaining, GameManager.actions_per_turn]
-	btn_advance_turn.disabled = false
+	# Hay que decidir el evento del mes antes de pasar al siguiente.
+	btn_advance_turn.disabled = GameManager.has_pending_event()
+	btn_advance_turn.tooltip_text = "Resuelve primero el evento de este mes." if GameManager.has_pending_event() else ""
+	btn_save_game.disabled = false
 
 # --- Ejércitos ---
 
@@ -175,6 +219,8 @@ func _spawn_armies() -> void:
 	# Agrupa ejércitos por castillo actual para poder separarlos visualmente si hay varios.
 	var by_castle: Dictionary = {}
 	for a: Army in ArmyData.armies:
+		if not _is_army_visible(a):
+			continue
 		if not by_castle.has(a.current_castle_id):
 			by_castle[a.current_castle_id] = []
 		by_castle[a.current_castle_id].append(a)
@@ -189,7 +235,7 @@ func _spawn_armies() -> void:
 			var offset := Vector2((i - (group.size() - 1) / 2.0) * 40.0, -55.0)
 			var marker := ArmyMarkerScene.instantiate()
 			armies_container.add_child(marker)
-			marker.setup(a, castle.position_on_map + offset)
+			marker.setup(a, castle.position_on_map + offset, ArmyData.is_player_army(a))
 			marker.army_clicked.connect(_on_army_clicked)
 
 			if a.is_marching():
@@ -198,7 +244,7 @@ func _spawn_armies() -> void:
 					var line := Line2D.new()
 					line.points = [castle.position_on_map + offset, destination.position_on_map]
 					line.width = 2.0
-					line.default_color = Color(0.9, 0.75, 0.15, 0.8)
+					line.default_color = Color(0.9, 0.75, 0.15, 0.8) if ArmyData.is_player_army(a) else Color(0.55, 0.2, 0.65, 0.8)
 					armies_container.add_child(line)
 
 	if selected_army != null and army_panel.visible:
@@ -213,12 +259,21 @@ func _refresh_army_panel() -> void:
 		army_panel.visible = false
 		return
 
-	army_title_label.text = "Ejército de %s (%d soldados)" % [selected_army.owner_name, selected_army.size]
+	var own := ArmyData.is_player_army(selected_army)
+	army_title_label.text = "Ejército de %s (%d soldados)%s" % [
+		selected_army.owner_name, selected_army.size, "" if own else " — enemigo"]
 	army_status_label.text = selected_army.status_text()
 
-	var can_give_orders := selected_army.is_idle()
+	var can_give_orders := own and selected_army.is_idle()
 	army_destination_option.disabled = not can_give_orders
 	btn_march_army.disabled = not can_give_orders
+
+	# Atacar con un ejército propio, o defender un castillo propio asediado por la IA.
+	var besieged := MapData.get_castle_by_id(selected_army.current_castle_id)
+	var can_fight := selected_army.pending_battle and GameManager.is_game_active \
+		and (own or ArmyData.is_player_defended(besieged))
+	btn_start_battle.visible = can_fight
+	btn_start_battle.text = "Iniciar Batalla" if own else "Defender Castillo"
 
 	army_destination_option.clear()
 	if can_give_orders:
@@ -242,9 +297,85 @@ func _on_march_army_pressed() -> void:
 	if ArmyData.set_destination(selected_army, destination_id):
 		_refresh_army_panel()
 
+func _on_start_battle_pressed() -> void:
+	if selected_army == null or not selected_army.pending_battle:
+		return
+	ArmyData.active_battle_army = selected_army
+	GameManager.change_state(GameStateEnums.State.BATTLE)
+	get_tree().change_scene_to_file("res://scenes/battle/battle.tscn")
+
 func _on_close_army_panel_pressed() -> void:
 	army_panel.visible = false
 	selected_army = null
 
 func _on_armies_changed() -> void:
 	_spawn_armies()
+
+func _is_army_visible(a: Army) -> bool:
+	if ArmyData.is_player_army(a):
+		return true
+	return a.current_castle_id in visible_castle_ids or a.destination_castle_id in visible_castle_ids
+
+# --- Noticias del reino ---
+
+func _refresh_events() -> void:
+	if not GameManager.game_over_reason.is_empty():
+		events_label.text = "FIN DE LA PARTIDA\n%s\nVuelve al menú principal para empezar de nuevo." % GameManager.game_over_reason
+		return
+	var lines: Array[String] = []
+	if not GameManager.last_annual_event.is_empty():
+		lines.append("• Año nuevo: " + GameManager.last_annual_event)
+	for e: Dictionary in ArmyData.turn_events:
+		if e.castle_id in visible_castle_ids:
+			lines.append("• " + e.text)
+	if lines.is_empty():
+		events_label.text = "Noticias del reino: sin novedades a la vista este mes."
+	else:
+		events_label.text = "Noticias del reino:\n" + "\n".join(lines)
+
+# --- Evento del mes ---
+
+func _show_pending_event() -> void:
+	if not GameManager.is_game_active or not GameManager.has_pending_event():
+		event_overlay.visible = false
+		return
+	var e: Dictionary = GameManager.pending_event
+	var player: Character = GameManager.player_character
+	var castle := MapData.get_castle_by_id(GameManager.home_castle_id)
+	event_title.text = e.title
+	event_text.text = e.text
+	event_result.visible = false
+	btn_event_close.visible = false
+
+	for child in event_options.get_children():
+		child.queue_free()
+	var options: Array = e.options
+	for i in range(options.size()):
+		var option: Dictionary = options[i]
+		var btn := Button.new()
+		btn.text = option.label
+		if option.has("chance"):
+			btn.text += " (%d%% de éxito)" % roundi(EventCatalog.success_chance(option, player) * 100)
+		if not EventCatalog.can_choose(option, player, castle):
+			btn.disabled = true
+			btn.tooltip_text = EventCatalog.requirement_text(option)
+		btn.pressed.connect(_on_event_option_pressed.bind(i))
+		event_options.add_child(btn)
+	event_overlay.visible = true
+
+func _on_event_option_pressed(index: int) -> void:
+	var result := GameManager.resolve_pending_event(index)
+	for child in event_options.get_children():
+		child.queue_free()
+	event_result.text = result
+	event_result.visible = true
+	btn_event_close.visible = true
+	_refresh_turn_ui()
+
+func _on_event_close_pressed() -> void:
+	event_overlay.visible = false
+	# Un descenso por deshonra cambia lo que el jugador ve.
+	visible_castle_ids = _compute_visible_castle_ids()
+	_apply_vision()
+	_spawn_armies()
+	_refresh_events()

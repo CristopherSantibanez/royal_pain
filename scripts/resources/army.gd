@@ -7,6 +7,7 @@ extends Resource
 @export var size: int = 0
 
 @export var current_castle_id: String = ""    # dónde está parado ahora
+@export var origin_castle_id: String = ""     # desde dónde partió la última marcha (para retirarse)
 @export var destination_castle_id: String = "" # "" si no está en marcha
 @export var turns_remaining: int = 0
 

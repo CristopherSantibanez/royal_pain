@@ -48,6 +48,34 @@ script = ExtResource("2_tqkkf")
 offset_right = 40.0
 offset_bottom = 20.0
 
+[node name="EventsPanel" type="PanelContainer" parent="UILayer"]
+unique_name_in_owner = true
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 276.0
+offset_top = -150.0
+offset_right = -316.0
+offset_bottom = -16.0
+grow_horizontal = 2
+grow_vertical = 0
+
+[node name="EventsMargin" type="MarginContainer" parent="UILayer/EventsPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 8
+
+[node name="EventsLabel" type="Label" parent="UILayer/EventsPanel/EventsMargin"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_font_sizes/font_size = 13
+autowrap_mode = 3
+clip_text = true
+
 [node name="TurnPanel" type="PanelContainer" parent="UILayer"]
 anchors_preset = 2
 anchor_top = 1.0
@@ -81,6 +109,17 @@ layout_mode = 2
 unique_name_in_owner = true
 layout_mode = 2
 text = "Avanzar Turno"
+
+[node name="BtnSaveGame" type="Button" parent="UILayer/TurnPanel/TurnMargin/TurnVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "La partida también se guarda sola al comienzo de cada mes."
+text = "Guardar Partida"
+
+[node name="BtnMainMenu" type="Button" parent="UILayer/TurnPanel/TurnMargin/TurnVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Menú Principal"
 
 [node name="CastleDetailsPanel" type="PanelContainer" parent="UILayer" unique_id=1339241652]
 unique_name_in_owner = true
@@ -178,7 +217,75 @@ unique_name_in_owner = true
 layout_mode = 2
 text = "Marchar"
 
+[node name="BtnStartBattle" type="Button" parent="UILayer/ArmyPanel/ArmyMargin/ArmyVBox"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+text = "Iniciar Batalla"
+
 [node name="BtnCloseArmyPanel" type="Button" parent="UILayer/ArmyPanel/ArmyMargin/ArmyVBox"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Cerrar"
+
+[node name="EventOverlay" type="ColorRect" parent="UILayer"]
+unique_name_in_owner = true
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.55)
+
+[node name="EventCenter" type="CenterContainer" parent="UILayer/EventOverlay"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="EventPanel" type="PanelContainer" parent="UILayer/EventOverlay/EventCenter"]
+custom_minimum_size = Vector2(540, 0)
+layout_mode = 2
+
+[node name="EventMargin" type="MarginContainer" parent="UILayer/EventOverlay/EventCenter/EventPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 18
+
+[node name="EventVBox" type="VBoxContainer" parent="UILayer/EventOverlay/EventCenter/EventPanel/EventMargin"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="EventTitle" type="Label" parent="UILayer/EventOverlay/EventCenter/EventPanel/EventMargin/EventVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.831, 0.686, 0.216, 1)
+theme_override_font_sizes/font_size = 22
+horizontal_alignment = 1
+
+[node name="EventText" type="Label" parent="UILayer/EventOverlay/EventCenter/EventPanel/EventMargin/EventVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+autowrap_mode = 3
+
+[node name="EventOptions" type="VBoxContainer" parent="UILayer/EventOverlay/EventCenter/EventPanel/EventMargin/EventVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="EventResult" type="Label" parent="UILayer/EventOverlay/EventCenter/EventPanel/EventMargin/EventVBox"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+autowrap_mode = 3
+
+[node name="BtnEventClose" type="Button" parent="UILayer/EventOverlay/EventCenter/EventPanel/EventMargin/EventVBox"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+text = "Continuar"

@@ -29,6 +29,7 @@ const REGENTE_TAX_PER_CASTLE := 25
 const MOBILIZE_MIN_GARRISON := 40
 const MOBILIZE_FRACTION := 0.3
 const MOBILIZE_FRACTION_REGENTE := 0.5
+const DUEL_TOOLTIP := "Retas a un rival de tu rango. Ganar da honor, oro y cuenta para ascender; perder resta honor."
 
 func _ready() -> void:
 	character = GameManager.player_character
@@ -51,6 +52,11 @@ func _ready() -> void:
 	btn_ascend.pressed.connect(_on_ascend_pressed)
 	_refresh_ui()
 	_build_role_actions()
+
+	# Al volver de un duelo de campaña se muestra su resultado.
+	if not CombatSetup.last_result_text.is_empty():
+		_show_feedback(CombatSetup.last_result_text)
+		CombatSetup.last_result_text = ""
 
 func _refresh_ui() -> void:
 	title_label.text = "Interior del Castillo — %s" % character.full_name()
@@ -132,6 +138,8 @@ func _get_actions_for_role(role: int) -> Array[Dictionary]:
 			]
 		Character.Role.SOLDADO:
 			return [
+				{"label": "Retar a Duelo", "tooltip": DUEL_TOOLTIP,
+					"locked": false, "callback": _action_retar_duelo},
 				{"label": "Entrenar Combate", "tooltip": "Mejora tu habilidad de combate en +%d (máximo 20)." % ENTRENAR_COMBAT_GAIN,
 					"locked": false, "callback": _action_entrenar},
 				{"label": "Desertar", "tooltip": "Abandonas tu puesto y vuelves a ser Campesino.",
@@ -139,6 +147,8 @@ func _get_actions_for_role(role: int) -> Array[Dictionary]:
 			]
 		Character.Role.CABALLERO:
 			return [
+				{"label": "Retar a Duelo", "tooltip": DUEL_TOOLTIP,
+					"locked": false, "callback": _action_retar_duelo},
 				{"label": "Mejorar las Tierras", "tooltip": "Inviertes %d de tu oro en el castillo, a cambio de oro y comida para él." % MEJORAR_TIERRAS_COST,
 					"locked": false, "callback": _action_mejorar_tierras},
 				{"label": "Movilizar Ejército", "tooltip": "Convierte %d%% de la guarnición en un ejército marchante que podrás mover desde el mapa." % int(MOBILIZE_FRACTION * 100),
@@ -148,6 +158,8 @@ func _get_actions_for_role(role: int) -> Array[Dictionary]:
 			]
 		Character.Role.NOBLEZA_BAJA:
 			return [
+				{"label": "Retar a Duelo", "tooltip": DUEL_TOOLTIP,
+					"locked": false, "callback": _action_retar_duelo},
 				{"label": "Recaudar Impuestos", "tooltip": "Recolectas impuestos de tu condado, proporcional a tu Liderazgo.",
 					"locked": false, "callback": _action_recaudar},
 				{"label": "Reclutar Milicia", "tooltip": "Gastas %d de oro del castillo para sumar %d soldados a la guarnición." % [MILICIA_COST, MILICIA_GARRISON_GAIN],
@@ -157,6 +169,8 @@ func _get_actions_for_role(role: int) -> Array[Dictionary]:
 			]
 		Character.Role.NOBLEZA_ALTA:
 			return [
+				{"label": "Retar a Duelo", "tooltip": DUEL_TOOLTIP,
+					"locked": false, "callback": _action_retar_duelo},
 				{"label": "Gobernar Territorio", "tooltip": "Administras tu región a mayor escala, recaudando más que un noble menor.",
 					"locked": false, "callback": _action_gobernar_territorio},
 				{"label": "Movilizar Ejército", "tooltip": "Convierte %d%% de la guarnición en un ejército marchante que podrás mover desde el mapa." % int(MOBILIZE_FRACTION * 100),
@@ -272,3 +286,13 @@ func _action_mobilize(fraction: float) -> void:
 	ArmyData.create_army(character.full_name(), castle.kingdom, mobilized, castle.castle_id)
 	_show_feedback("Movilizaste un ejército de %d soldados desde %s. Ve al mapa para darle órdenes de marcha." % [mobilized, castle.castle_name])
 	_refresh_ui()
+
+# --- Duelo de campaña (Soldado en adelante, excepto Regente) ---
+
+func _action_retar_duelo() -> void:
+	if not character.can_fight_duels():
+		_show_feedback("Tu rango no te permite batirte en duelo.")
+		return
+	var rival := CharacterLoader.make_rival(character)
+	CombatSetup.start_campaign_duel(character, rival)
+	get_tree().change_scene_to_file("res://scenes/combat/combat.tscn")

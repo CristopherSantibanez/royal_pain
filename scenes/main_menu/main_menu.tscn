@@ -52,6 +52,14 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 32
 text = "Royal Pain"
 
+[node name="BtnNuevaPartida" type="Button" parent="ScreenMargin/CenterBox/MenuVBox"]
+layout_mode = 2
+text = "Nueva Partida"
+
+[node name="BtnCargarPartida" type="Button" parent="ScreenMargin/CenterBox/MenuVBox"]
+layout_mode = 2
+text = "Cargar Partida"
+
 [node name="BtnCombatePrueba" type="Button" parent="ScreenMargin/CenterBox/MenuVBox" unique_id=331482050]
 layout_mode = 2
 text = "Combate de prueba"

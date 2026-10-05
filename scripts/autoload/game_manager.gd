@@ -5,6 +5,7 @@ signal turn_advanced(month: int, year: int)
 signal game_started(character: Character)
 signal state_changed(new_state: int)
 signal actions_changed(remaining: int, total: int)
+signal event_resolved(result_text: String)
 
 const MONTHS_PER_YEAR := 12
 
@@ -18,6 +19,13 @@ const ACTIONS_BASE_BY_ROLE := {
 }
 
 var player_character: Character
+var home_castle_id: String = ""   # castillo donde el jugador inicia y puede entrar
+var player_kingdom: int = -1        # reino al que sirve el jugador (el de su castillo de origen)
+var game_over_reason: String = ""   # no vacío cuando la partida terminó en derrota
+
+# Eventos (ver EventCatalog): el mensual espera la decisión del jugador; el anual ya se aplicó.
+var pending_event: Dictionary = {}
+var last_annual_event: String = ""
 var current_castle: Castle
 var current_month: int = 1
 var current_year: int = 1
@@ -27,13 +35,39 @@ var is_game_active: bool = false
 var actions_remaining: int = 0
 var actions_per_turn: int = 0
 
-func start_new_game(character: Character) -> void:
+func start_new_game(character: Character, start_castle_id: String) -> void:
+	# Reinicia el mundo para que una partida nueva no herede el estado de la anterior.
+	# (ArmyData se reinicia solo al escuchar game_started; referenciarlo aquí crearía un ciclo de dependencias.)
+	MapData.reset()
+
 	player_character = character
+	home_castle_id = start_castle_id
+	current_castle = MapData.get_castle_by_id(start_castle_id)
+	player_kingdom = current_castle.kingdom if current_castle != null else -1
+	game_over_reason = ""
+	pending_event = {}
+	last_annual_event = ""
 	current_month = 1
 	current_year = 1
 	is_game_active = true
 	_recalculate_actions_per_turn()
 	game_started.emit(character)
+
+# Restaura una partida guardada (ver SaveSystem). No emite game_started para no reiniciar el mundo.
+func restore_game(character: Character, start_castle_id: String, kingdom: int, month: int, year: int,
+		remaining: int, per_turn: int) -> void:
+	player_character = character
+	home_castle_id = start_castle_id
+	player_kingdom = kingdom
+	current_castle = MapData.get_castle_by_id(start_castle_id)
+	current_month = month
+	current_year = year
+	actions_per_turn = per_turn
+	actions_remaining = remaining
+	game_over_reason = ""
+	is_game_active = true
+	change_state(GameStateEnums.State.MAP)
+	actions_changed.emit(actions_remaining, actions_per_turn)
 
 func advance_turn() -> void:
 	if not is_game_active:
@@ -45,15 +79,31 @@ func advance_turn() -> void:
 		current_month = 1
 		current_year += 1
 
-	# --- Punto de extensión ---
-	# Aquí es donde, más adelante, se resolverán:
-	# - eventos aleatorios mensuales según personalidad/rol
-	# - eventos anuales globales (cuando current_month == 1)
-	# - actualización de recursos, relaciones y moral
-	# Por ahora, solo avanza la fecha y recarga las acciones disponibles.
+	# Eventos: el anual (cada enero) afecta a todos los castillos; el mensual espera decisión.
+	# (Pendiente para más adelante: relaciones y moral.)
+	last_annual_event = EventCatalog.roll_annual(MapData.castles) if current_month == 1 else ""
+	pending_event = EventCatalog.roll_monthly(player_character)
 
 	_recalculate_actions_per_turn()
 	turn_advanced.emit(current_month, current_year)
+
+func has_pending_event() -> bool:
+	return not pending_event.is_empty()
+
+func resolve_pending_event(option_index: int) -> String:
+	if pending_event.is_empty() or player_character == null:
+		return ""
+	var castle := MapData.get_castle_by_id(home_castle_id)
+	var option: Dictionary = pending_event.options[option_index]
+	if not EventCatalog.can_choose(option, player_character, castle):
+		return ""
+	var old_role := player_character.role
+	var text := EventCatalog.apply_option(pending_event, option_index, player_character, castle)
+	pending_event = {}
+	if player_character.role != old_role:
+		refresh_actions_for_role_change()
+	event_resolved.emit(text)
+	return text
 
 func _recalculate_actions_per_turn() -> void:
 	if player_character == null:
@@ -101,6 +151,13 @@ func change_state(new_state: int) -> void:
 	current_state = new_state
 	state_changed.emit(new_state)
 
-func end_game() -> void:
+func months_elapsed() -> int:
+	return (current_year - 1) * MONTHS_PER_YEAR + (current_month - 1)
+
+func end_game(reason: String = "") -> void:
 	is_game_active = false
+	game_over_reason = reason
+	pending_event = {}
 	player_character = null
+	home_castle_id = ""
+	current_castle = null

@@ -33,6 +33,8 @@ func _make_castle(id: String, n: String, kingdom: int, fx: float, fy: float, con
 	c.garrison_size = garrison
 	c.gold = gold
 	c.food = food
+	c.original_kingdom = kingdom
+	c.original_owner = owner_name
 	return c
 
 func _load_castles() -> void:

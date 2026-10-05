@@ -36,6 +36,7 @@ var is_campaign := false
 var _honor_before := 0
 var _gold_before := 0
 var _demotion_text := ""
+var _pending_next_round := false   # torneo: el botón lleva a la siguiente ronda
 
 func _ready() -> void:
 	if player_character == null:
@@ -64,6 +65,10 @@ func _ready() -> void:
 		btn_volver_menu.text = "Volver al Castillo"
 		btn_volver_menu.disabled = true
 		btn_volver_menu.tooltip_text = "Termina el duelo (o ríndete / retírate) para volver."
+		if CombatSetup.is_tournament():
+			turn_log_buffer = "TORNEO — Ronda %d de %d contra %s" % [
+				CombatSetup.tournament_round, CombatSetup.tournament_opponents.size(), enemy_character.full_name()]
+			log_label.text = turn_log_buffer
 	# ------------------------------------------------------------------------------------
 
 func _connect_buttons() -> void:
@@ -192,9 +197,48 @@ func _on_duel_ended(winner: Character, reason: String) -> void:
 	log_label.text = turn_log_buffer
 
 	if is_campaign:
-		CombatSetup.last_result_text = _campaign_summary(winner)
+		# La rivalidad se registra antes del resumen: vencer a un rival conocido suma honor.
+		var rivalry := RelationsData.register_duel(enemy_character, winner == player_character, winner == null)
 		btn_volver_menu.disabled = false
 		btn_volver_menu.tooltip_text = ""
+		if CombatSetup.is_tournament():
+			_tournament_round_ended(winner, rivalry)
+			return
+		# Las heridas ya no se curan solas al terminar: la vida se recupera con los meses.
+		var wound := player_character.after_fight_recovery()
+		CombatSetup.last_result_text = " ".join([_campaign_summary(winner), rivalry, wound]).strip_edges()
+
+func _tournament_round_ended(winner: Character, rivalry: String) -> void:
+	var round_num := CombatSetup.tournament_round
+	var total := CombatSetup.tournament_opponents.size()
+	var won := winner == player_character
+	var badly_hurt := player_character.current_health < player_character.max_health * Character.SEVERE_WOUND_RATIO
+	if won:
+		player_character.honor = clampi(player_character.honor + CombatSetup.TOURNAMENT_ROUND_HONOR, 0, 100)
+
+	if won and not CombatSetup.is_final_round() and not badly_hurt:
+		_pending_next_round = true
+		btn_volver_menu.text = "Siguiente ronda (%d/%d)" % [round_num + 1, total]
+		turn_log_buffer += "\n¡Pasas a la ronda %d!" % (round_num + 1)
+		log_label.text = turn_log_buffer
+		return
+
+	var text: String
+	if won and CombatSetup.is_final_round():
+		player_character.gold += CombatSetup.TOURNAMENT_PRIZE_GOLD
+		player_character.honor = clampi(player_character.honor + CombatSetup.TOURNAMENT_PRIZE_HONOR, 0, 100)
+		text = "¡Campeón del torneo! Vences las %d rondas y ganas %d de oro y %d de honor." % [
+			total, CombatSetup.TOURNAMENT_PRIZE_GOLD, CombatSetup.TOURNAMENT_PRIZE_HONOR]
+	elif won:
+		text = "Ganas la ronda %d, pero tus heridas te obligan a retirarte del torneo." % round_num
+	else:
+		text = "Quedas eliminado en la ronda %d del torneo." % round_num
+	text += " Balance del torneo: honor %+d, oro %+d." % [
+		player_character.honor - CombatSetup.tournament_honor_start, player_character.gold - CombatSetup.tournament_gold_start]
+	var wound := player_character.after_fight_recovery()
+	CombatSetup.last_result_text = " ".join([text, rivalry, _demotion_text, wound]).strip_edges()
+	turn_log_buffer += "\n" + text
+	log_label.text = turn_log_buffer
 
 func _campaign_summary(winner: Character) -> String:
 	var outcome: String
@@ -218,11 +262,11 @@ func _on_character_demoted(character: Character, old_role: int, new_role: int) -
 		_demotion_text = "Caes en deshonra: de %s a %s." % [Character.role_name_for(old_role), Character.role_name_for(new_role)]
 
 func _on_volver_menu_pressed() -> void:
+	if _pending_next_round:
+		CombatSetup.advance_tournament_round()
+		get_tree().change_scene_to_file("res://scenes/combat/combat.tscn")
+		return
 	if is_campaign:
-		# Aún no hay sistema de heridas: el personaje se recupera por completo tras el duelo.
-		player_character.current_health = player_character.max_health
-		player_character.current_stamina = player_character.max_stamina
-		player_character.current_morale = player_character.max_morale
 		var scene := CombatSetup.return_scene
 		CombatSetup.clear()
 		get_tree().change_scene_to_file(scene)

@@ -24,6 +24,8 @@ const ArmyMarkerScene := preload("res://scenes/map/army_marker.tscn")
 @onready var btn_advance_turn: Button = %BtnAdvanceTurn
 @onready var btn_main_menu: Button = %BtnMainMenu
 @onready var btn_save_game: Button = %BtnSaveGame
+@onready var btn_relations: Button = %BtnRelations
+@onready var objective_label: Label = %ObjectiveLabel
 @onready var events_label: Label = %EventsLabel
 
 @onready var event_overlay: Control = %EventOverlay
@@ -62,6 +64,7 @@ func _ready() -> void:
 
 	btn_advance_turn.pressed.connect(_on_advance_turn_pressed)
 	btn_save_game.pressed.connect(_on_save_game_pressed)
+	btn_relations.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/relations/relations.tscn"))
 	btn_main_menu.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/main_menu/main_menu.tscn"))
 	GameManager.turn_advanced.connect(_on_turn_advanced)
 	GameManager.actions_changed.connect(_on_actions_changed)
@@ -78,6 +81,7 @@ func _ready() -> void:
 
 	btn_event_close.pressed.connect(_on_event_close_pressed)
 	_show_pending_event()
+	_check_end_conditions()
 
 func _compute_visible_castle_ids() -> Array[String]:
 	# Sin partida activa (p. ej. "Ver Mapa" desde el menú) se muestra todo como vista previa.
@@ -177,11 +181,9 @@ func _on_advance_turn_pressed() -> void:
 		SaveSystem.save_game()
 
 func _on_save_game_pressed() -> void:
-	var err := SaveSystem.save_game()
-	btn_save_game.text = "¡Partida guardada!" if err == OK else "Error al guardar (%d)" % err
-	get_tree().create_timer(2.0).timeout.connect(func():
-		if is_instance_valid(btn_save_game):
-			btn_save_game.text = "Guardar Partida")
+	SaveSystem.slots_mode = "save"
+	SaveSystem.slots_return_scene = "res://scenes/map/map.tscn"
+	get_tree().change_scene_to_file("res://scenes/save_slots/save_slots.tscn")
 
 func _on_turn_advanced(_month: int, _year: int) -> void:
 	# Las conquistas (propias o ajenas) pueden cambiar lo que el jugador ve.
@@ -191,6 +193,7 @@ func _on_turn_advanced(_month: int, _year: int) -> void:
 	_spawn_armies()
 	_refresh_events()
 	_show_pending_event()
+	_check_end_conditions()
 
 func _on_actions_changed(_remaining: int, _total: int) -> void:
 	_refresh_turn_ui()
@@ -198,17 +201,28 @@ func _on_actions_changed(_remaining: int, _total: int) -> void:
 func _refresh_turn_ui() -> void:
 	if not GameManager.is_game_active:
 		date_label.text = "Partida terminada" if not GameManager.game_over_reason.is_empty() else "Sin partida activa"
+		objective_label.text = ""
 		turn_actions_label.text = ""
 		btn_advance_turn.disabled = true
 		btn_save_game.disabled = true
+		btn_relations.disabled = true
 		return
 
 	date_label.text = GameManager.get_date_string()
+	if SkillEffects.is_winter(GameManager.current_month):
+		date_label.text += " — Invierno"
 	turn_actions_label.text = "Acciones: %d / %d" % [GameManager.actions_remaining, GameManager.actions_per_turn]
 	# Hay que decidir el evento del mes antes de pasar al siguiente.
 	btn_advance_turn.disabled = GameManager.has_pending_event()
 	btn_advance_turn.tooltip_text = "Resuelve primero el evento de este mes." if GameManager.has_pending_event() else ""
 	btn_save_game.disabled = false
+	btn_relations.disabled = false
+	var goal := GameManager.evaluate_goal()
+	objective_label.text = "Objetivo — %s: %s\n%s" % [
+		VictoryRules.goal_title(GameManager.starting_role),
+		VictoryRules.goal_description(GameManager.starting_role), goal.progress]
+	if GameManager.victory_achieved:
+		objective_label.text += "\n¡Objetivo cumplido!"
 
 # --- Ejércitos ---
 
@@ -276,14 +290,23 @@ func _refresh_army_panel() -> void:
 	btn_start_battle.text = "Iniciar Batalla" if own else "Defender Castillo"
 
 	army_destination_option.clear()
+	btn_march_army.tooltip_text = ""
 	if can_give_orders:
 		var origin := MapData.get_castle_by_id(selected_army.current_castle_id)
 		if origin != null:
-			for neighbor_id in origin.connected_castle_ids:
-				var neighbor := MapData.get_castle_by_id(neighbor_id)
-				if neighbor != null:
-					army_destination_option.add_item(neighbor.castle_name)
-					army_destination_option.set_item_metadata(army_destination_option.item_count - 1, neighbor_id)
+			var player: Character = GameManager.player_character
+			var hops := SkillEffects.max_march_hops(player)
+			for dest_id in SkillEffects.march_destinations(origin.castle_id, MapData.castles, hops):
+				var dest := MapData.get_castle_by_id(dest_id)
+				if dest == null:
+					continue
+				var far := not origin.connected_castle_ids.has(dest_id)
+				army_destination_option.add_item(dest.castle_name + (" (2 saltos, Viajero)" if far else ""))
+				army_destination_option.set_item_metadata(army_destination_option.item_count - 1, dest_id)
+			if SkillEffects.march_turns(GameManager.current_month, player) > 1:
+				btn_march_army.tooltip_text = "Es invierno: la marcha tardará %d turnos (la habilidad Paso Invernal lo evita)." % SkillEffects.WINTER_MARCH_TURNS
+			elif SkillEffects.is_winter(GameManager.current_month):
+				btn_march_army.tooltip_text = "Es invierno, pero tu Paso Invernal mantiene la marcha en 1 turno."
 
 	army_panel.visible = true
 
@@ -374,8 +397,52 @@ func _on_event_option_pressed(index: int) -> void:
 
 func _on_event_close_pressed() -> void:
 	event_overlay.visible = false
+	for child in event_options.get_children():
+		child.queue_free()
+	if _check_end_conditions():
+		return
 	# Un descenso por deshonra cambia lo que el jugador ve.
 	visible_castle_ids = _compute_visible_castle_ids()
 	_apply_vision()
 	_spawn_armies()
 	_refresh_events()
+
+# --- Victoria y derrota ---
+# Devuelve true si se mostró un anuncio (victoria) o terminó la partida (derrota).
+
+func _check_end_conditions() -> bool:
+	if not GameManager.is_game_active or event_overlay.visible:
+		return false   # si hay un evento abierto, se revisa al cerrarlo
+
+	if GameManager.check_defeat():
+		_refresh_turn_ui()
+		_refresh_events()
+		return true
+
+	if not GameManager.victory_achieved and GameManager.evaluate_goal().done:
+		GameManager.victory_achieved = true
+		_show_victory()
+		_refresh_turn_ui()
+		return true
+	return false
+
+func _show_victory() -> void:
+	var role := GameManager.starting_role
+	event_title.text = "¡Victoria! — %s" % VictoryRules.goal_title(role)
+	event_text.text = "%s\n\nHas cumplido tu destino en %s. Tu nombre quedará en las crónicas del reino." % [
+		VictoryRules.goal_description(role), GameManager.get_date_string()]
+	event_result.visible = false
+	btn_event_close.visible = false
+	for child in event_options.get_children():
+		child.queue_free()
+
+	var btn_continue := Button.new()
+	btn_continue.text = "Seguir jugando"
+	btn_continue.pressed.connect(func(): event_overlay.visible = false)
+	event_options.add_child(btn_continue)
+
+	var btn_menu := Button.new()
+	btn_menu.text = "Volver al Menú Principal"
+	btn_menu.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/main_menu/main_menu.tscn"))
+	event_options.add_child(btn_menu)
+	event_overlay.visible = true

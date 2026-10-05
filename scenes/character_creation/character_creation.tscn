@@ -9,8 +9,6 @@ content_margin_top = 30.0
 
 [sub_resource type="ButtonGroup" id="ButtonGroup_5w2ck"]
 
-[sub_resource type="ButtonGroup" id="ButtonGroup_0sxqk"]
-
 [node name="CharacterCreation" type="Control" unique_id=1021674631]
 layout_mode = 3
 anchors_preset = 15
@@ -154,7 +152,7 @@ text = "Hombre"
 unique_name_in_owner = true
 layout_mode = 2
 toggle_mode = true
-button_group = SubResource("ButtonGroup_0sxqk")
+button_group = SubResource("ButtonGroup_5w2ck")
 text = "Mujer"
 
 [node name="BioBox" type="VBoxContainer" parent="ScreenMargin/RootVBox/PagesTab/PageIdentity/IdentitySection" unique_id=527476409]
@@ -425,6 +423,12 @@ offset_top = -28.0
 grow_horizontal = 0
 grow_vertical = 0
 alignment = 2
+
+[node name="BtnAleatorio" type="Button" parent="BottomBar"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Rellena todo el personaje con parámetros al azar (puedes retocarlo después)."
+text = "Aleatorio"
 
 [node name="BtnVolverMenu" type="Button" parent="BottomBar" unique_id=1468722541]
 unique_name_in_owner = true

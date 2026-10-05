@@ -13,9 +13,18 @@ const WALL_FACTOR := 1.5
 const RECRUIT_PER_MONTH := 2
 const GARRISON_CAP := 200
 const LOSER_ATTACKER_SURVIVAL := 0.3
+const HOSTILE_TARGET_FACTOR := 0.6    # un señor hostil ve los castillos del jugador como más débiles (los prefiere)
+const RECONQUEST_TARGET_FACTOR := 0.5  # recuperar un castillo propio perdido es prioritario
+const WAR_ATTACK_CHANCE := 0.4         # en guerra (o para reconquistar) la IA ataca más a menudo...
+const WAR_CONFIDENCE := 0.45           # ...y se arriesga con menos ventaja
 
 # Devuelve una lista de ataques: [{from_id, to_id, size}]
-static func plan_attacks(castles: Array[Castle], armies: Array[Army], player_kingdom: int, months_elapsed: int, player_name: String) -> Array[Dictionary]:
+# Relaciones: los reinos aliados nunca atacan castillos del jugador; los hostiles los prefieren.
+# Entre reinos de la IA solo hay ataques si están en guerra (wars, ver KingdomDiplomacy),
+# salvo para reconquistar un castillo que era suyo. Sin "wars" (null) cualquiera puede atacar.
+static func plan_attacks(castles: Array[Castle], armies: Array[Army], player_kingdom: int, months_elapsed: int, player_name: String,
+		player_castle_ids: Array = [], allied_kingdoms: Array = [], hostile_kingdoms: Array = [],
+		wars = null) -> Array[Dictionary]:
 	var plans: Array[Dictionary] = []
 	if months_elapsed < GRACE_MONTHS:
 		return plans
@@ -41,21 +50,39 @@ static func plan_attacks(castles: Array[Castle], armies: Array[Army], player_kin
 			break
 		if c.kingdom == player_kingdom or c.owner_name == player_name:
 			continue
-		if c.garrison_size < MIN_GARRISON_TO_ATTACK or randf() >= ATTACK_CHANCE:
+		var in_war: bool = wars != null and _kingdom_at_war(wars, c.kingdom)
+		if c.garrison_size < MIN_GARRISON_TO_ATTACK or randf() >= (WAR_ATTACK_CHANCE if in_war else ATTACK_CHANCE):
 			continue
 
 		var size: int = int(c.garrison_size * MOBILIZE_FRACTION)
 		var best: Castle = null
 		var best_defense := INF
+		var best_score := INF
+		var best_confidence := ATTACK_CONFIDENCE
 		for neighbor_id in c.connected_castle_ids:
 			var n: Castle = by_id.get(neighbor_id)
 			if n == null or n.kingdom == c.kingdom or targeted.has(n.castle_id):
 				continue
+			var is_player_castle := n.castle_id in player_castle_ids
+			if is_player_castle and c.kingdom in allied_kingdoms:
+				continue
+			var reconquest := n.original_kingdom == c.kingdom
+			# Las tierras sin señor (Isla Neutral) se pueden tomar sin declarar la guerra.
+			var unclaimed := n.kingdom == KingdomEnums.Kingdom.NEUTRAL
+			var needs_war := not is_player_castle and not reconquest and not unclaimed
+			if needs_war and wars != null and not KingdomDiplomacy.at_war(wars, c.kingdom, n.kingdom):
+				continue
 			var defense: float = n.garrison_size * WALL_FACTOR
-			if defense < best_defense:
+			var score := defense * (HOSTILE_TARGET_FACTOR if is_player_castle and c.kingdom in hostile_kingdoms else 1.0)
+			if reconquest:
+				score *= RECONQUEST_TARGET_FACTOR
+			if score < best_score:
+				best_score = score
 				best_defense = defense
 				best = n
-		if best == null or size < best_defense * ATTACK_CONFIDENCE:
+				var hot := reconquest or (wars != null and KingdomDiplomacy.at_war(wars, c.kingdom, n.kingdom))
+				best_confidence = WAR_CONFIDENCE if hot else ATTACK_CONFIDENCE
+		if best == null or size < best_defense * best_confidence:
 			continue
 
 		plans.append({"from_id": c.castle_id, "to_id": best.castle_id, "size": size})
@@ -84,3 +111,10 @@ static func auto_resolve(attacker_size: int, defender_size: int) -> Dictionary:
 static func recruit(castles: Array[Castle]) -> void:
 	for c: Castle in castles:
 		c.garrison_size = mini(GARRISON_CAP, c.garrison_size + RECRUIT_PER_MONTH) if c.garrison_size < GARRISON_CAP else c.garrison_size
+
+static func _kingdom_at_war(wars: Dictionary, kingdom: int) -> bool:
+	for key: String in wars.keys():
+		var parts := key.split("|")
+		if int(parts[0]) == kingdom or int(parts[1]) == kingdom:
+			return true
+	return false

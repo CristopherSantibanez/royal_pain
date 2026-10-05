@@ -54,8 +54,9 @@ func _ready() -> void:
 	board.cell_clicked.connect(_on_cell_clicked)
 
 	var player: Character = GameManager.player_character
-	var attacker_cmd: Character = null if player_defending else player
-	var defender_cmd: Character = player if player_defending else null
+	# Los señores de la IA comandan con su propia ficha (liderazgo, estrategia y habilidades de batalla).
+	var attacker_cmd: Character = RelationsData.character_of(army.owner_name) if player_defending else player
+	var defender_cmd: Character = player if player_defending else RelationsData.character_of(castle.owner_name)
 	battle.player_side = BattleEnums.Side.DEFENSOR if player_defending else BattleEnums.Side.ATACANTE
 	battle.start_battle(army.size, castle.garrison_size, true, attacker_cmd, defender_cmd, castle.castle_name)
 	_refresh()

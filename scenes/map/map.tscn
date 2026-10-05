@@ -105,15 +105,28 @@ layout_mode = 2
 unique_name_in_owner = true
 layout_mode = 2
 
+[node name="ObjectiveLabel" type="Label" parent="UILayer/TurnPanel/TurnMargin/TurnVBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(224, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.831, 0.686, 0.216, 1)
+theme_override_font_sizes/font_size = 12
+autowrap_mode = 3
+
 [node name="BtnAdvanceTurn" type="Button" parent="UILayer/TurnPanel/TurnMargin/TurnVBox"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Avanzar Turno"
 
+[node name="BtnRelations" type="Button" parent="UILayer/TurnPanel/TurnMargin/TurnVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Relaciones"
+
 [node name="BtnSaveGame" type="Button" parent="UILayer/TurnPanel/TurnMargin/TurnVBox"]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "La partida también se guarda sola al comienzo de cada mes."
+tooltip_text = "Elige una ranura. La partida también se guarda sola (autoguardado) al comienzo de cada mes."
 text = "Guardar Partida"
 
 [node name="BtnMainMenu" type="Button" parent="UILayer/TurnPanel/TurnMargin/TurnVBox"]

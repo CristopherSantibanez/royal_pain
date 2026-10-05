@@ -26,6 +26,13 @@ var game_over_reason: String = ""   # no vacío cuando la partida terminó en de
 # Eventos (ver EventCatalog): el mensual espera la decisión del jugador; el anual ya se aplicó.
 var pending_event: Dictionary = {}
 var last_annual_event: String = ""
+
+# Victoria (ver VictoryRules): la meta depende del rol con el que se empezó la partida.
+var starting_role: int = -1
+var victory_achieved: bool = false   # ya se anunció la victoria (se puede seguir jugando)
+
+var active_edict: String = ""        # edicto del Regente vigente (ver EdictCatalog)
+var last_tournament_year: int = 0    # año del último torneo disputado (uno por año)
 var current_castle: Castle
 var current_month: int = 1
 var current_year: int = 1
@@ -47,6 +54,10 @@ func start_new_game(character: Character, start_castle_id: String) -> void:
 	game_over_reason = ""
 	pending_event = {}
 	last_annual_event = ""
+	starting_role = character.role
+	victory_achieved = false
+	active_edict = ""
+	last_tournament_year = 0
 	current_month = 1
 	current_year = 1
 	is_game_active = true
@@ -84,8 +95,25 @@ func advance_turn() -> void:
 	last_annual_event = EventCatalog.roll_annual(MapData.castles) if current_month == 1 else ""
 	pending_event = EventCatalog.roll_monthly(player_character)
 
+	if player_character != null:
+		player_character.monthly_recovery()
 	_recalculate_actions_per_turn()
 	turn_advanced.emit(current_month, current_year)
+
+# --- Victoria y derrota ---
+
+func evaluate_goal() -> Dictionary:
+	return VictoryRules.evaluate(starting_role, player_character, MapData.castles, player_kingdom, home_castle_id)
+
+# Devuelve true si la partida terminó por deshonra total.
+func check_defeat() -> bool:
+	if not is_game_active:
+		return false
+	var reason := VictoryRules.check_defeat(player_character)
+	if reason.is_empty():
+		return false
+	end_game(reason)
+	return true
 
 func has_pending_event() -> bool:
 	return not pending_event.is_empty()

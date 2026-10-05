@@ -8,7 +8,7 @@ class_name EventCatalog
 #   {label, requires?: {gold, castle_gold}, effects: {...}, result: "texto"}
 #   o con azar: {label, chance, chance_stat?, success: {effects, result}, failure: {effects, result}}
 # Efectos posibles: gold, honor, combat, leadership, charisma, strategy, defense,
-#   castle_gold, castle_food, garrison
+#   castle_gold, castle_food, garrison, health (puede causar una herida grave)
 
 const MONTHLY_EVENT_CHANCE := 0.6
 const CHANCE_PER_STAT_POINT := 0.03   # cada punto de la stat por encima/debajo de 10 ajusta la probabilidad
@@ -36,7 +36,7 @@ const EVENTS := [
 		"options": [
 			{"label": "Enfrentarlos", "chance": 0.55, "chance_stat": "combat",
 				"success": {"effects": {"gold": 40, "honor": 6}, "result": "Los pones en fuga y recuperas parte del botín."},
-				"failure": {"effects": {"honor": -4}, "result": "Te superan en número y debes retirarte, herido en tu orgullo."}},
+				"failure": {"effects": {"honor": -4, "health": -40}, "result": "Te superan en número y debes retirarte malherido."}},
 			{"label": "Avisar a la guardia y no intervenir", "effects": {"honor": -2},
 				"result": "La guardia llega tarde. Algunos murmuran que no hiciste nada."},
 		],
@@ -115,7 +115,7 @@ const EVENTS := [
 		"options": [
 			{"label": "Inscribirte", "chance": 0.5, "chance_stat": "combat",
 				"success": {"effects": {"gold": 60, "honor": 8}, "result": "¡Vences el torneo y te aclaman!"},
-				"failure": {"effects": {"honor": -3}, "result": "Caes del caballo en la segunda justa."}},
+				"failure": {"effects": {"honor": -3, "health": -35}, "result": "Caes del caballo en la segunda justa y te rompes varias costillas."}},
 			{"label": "No participar", "effects": {},
 				"result": "Otros se llevan la gloria esta vez."},
 		],
@@ -276,6 +276,12 @@ static func _apply_effects(effects: Dictionary, character: Character, castle: Ca
 				if castle != null:
 					castle.food = maxi(0, castle.food + amount)
 					parts.append("Comida del castillo %+d" % amount)
+			"health":
+				character.current_health = clampi(character.current_health + amount, 0, character.max_health)
+				parts.append("Vida %+d" % amount)
+				var wound := character.after_fight_recovery()
+				if wound != "":
+					parts.append(wound)
 			"garrison":
 				if castle != null:
 					castle.garrison_size = maxi(0, castle.garrison_size + amount)

@@ -22,6 +22,7 @@ extends Control
 
 @onready var btn_volver_menu: Button = %BtnVolverMenu
 @onready var btn_continuar: Button = %BtnContinuar
+@onready var btn_aleatorio: Button = %BtnAleatorio
 
 @onready var portrait_popup: PopupPanel = %PortraitPickerPopup
 @onready var portrait_grid: GridContainer = %PortraitGrid
@@ -70,6 +71,7 @@ func _ready() -> void:
 	btn_volver_menu.pressed.connect(_on_volver_menu_pressed)
 	edit_bio.text_changed.connect(_on_bio_changed)
 	btn_continuar.pressed.connect(_on_continuar_pressed)
+	btn_aleatorio.pressed.connect(_randomize_all)
 
 	_populate_personality_options()
 	_populate_alignment_options()
@@ -377,3 +379,69 @@ func _on_continuar_pressed() -> void:
 	character.apply_trait_and_equipment_modifiers()
 	CreationState.pending_character = character
 	get_tree().change_scene_to_file("res://scenes/character_summary/character_summary.tscn")
+
+# --- Personaje aleatorio ---
+# Rellena todos los campos usando los mismos controles de la interfaz, así se respetan
+# las mismas reglas (puntos, mínimos de rasgos, máximo de equipo) y el jugador puede retocarlo.
+
+const RANDOM_BIOS := [
+	"Hijo de una familia humilde, creció entre campos y caminos soñando con algo más.",
+	"Sobrevivió a una peste que se llevó a los suyos y juró no volver a ser débil.",
+	"Sirvió como escudero de un caballero caído en desgracia, y aprendió de sus errores.",
+	"Vendió todo lo que tenía para comprar una espada y un nombre.",
+	"Creció en la corte, entre intrigas, y aprendió pronto en quién no confiar.",
+	"Peregrinó durante años antes de volver a su tierra con nuevas ambiciones.",
+]
+
+func _randomize_all() -> void:
+	# Identidad
+	var gender: int = [CharacterEnums.Gender.MASCULINO, CharacterEnums.Gender.FEMENINO].pick_random()
+	if gender == CharacterEnums.Gender.MASCULINO:
+		btn_male.button_pressed = true
+	else:
+		btn_female.button_pressed = true
+	_set_gender(gender)
+	edit_first_name.text = CharacterLoader.random_first_name(gender)
+	_on_first_name_changed(edit_first_name.text)
+	edit_last_name.text = CharacterLoader.random_last_name()
+	_on_last_name_changed(edit_last_name.text)
+	var portraits := PortraitGallery.get_portraits_for_gender(gender)
+	if not portraits.is_empty():
+		_select_portrait(load(portraits.pick_random()))
+
+	# Personalidad, alineación y tipo de luchador (reinician el reparto de puntos)
+	for opt: OptionButton in [opt_personality, opt_alignment, opt_fighter_type]:
+		opt.select(randi() % opt.item_count)
+	_recalculate_points()
+	var stat_keys := STAT_LABELS.keys()
+	while allocator.points_remaining() > 0:
+		var possible := stat_keys.filter(func(k): return allocator.can_increase(k))
+		if possible.is_empty():
+			break
+		allocator.increase(possible.pick_random())
+
+	# Rasgos, habilidades y equipo
+	_randomize_checkboxes(advantages_list, 3)
+	_randomize_checkboxes(disadvantages_list, 2)
+	_randomize_checkboxes(general_skills_list, 1)
+	_randomize_checkboxes(combat_skills_list, 1)
+	_randomize_checkboxes(battle_skills_list, 1)
+	_randomize_checkboxes(equipment_list, randi_range(0, 2))
+
+	edit_bio.text = RANDOM_BIOS.pick_random()
+	_on_bio_changed()
+	_update_continue_button()
+
+func _randomize_checkboxes(list: Container, count: int) -> void:
+	var boxes: Array = []
+	for child in list.get_children():
+		if child is CheckBox and not child.is_queued_for_deletion():
+			boxes.append(child)
+	# Primero se desmarcan todas (los handlers quitan cada elemento del personaje)...
+	for cb: CheckBox in boxes:
+		if cb.button_pressed:
+			cb.button_pressed = false
+	# ...y luego se marcan al azar las necesarias.
+	boxes.shuffle()
+	for cb: CheckBox in boxes.slice(0, mini(count, boxes.size())):
+		cb.button_pressed = true

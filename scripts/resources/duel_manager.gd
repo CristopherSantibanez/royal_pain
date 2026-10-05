@@ -107,13 +107,24 @@ func _do_attack(actor: Character, target: Character) -> String:
 		dmg = int(dmg * 1.2)
 	dmg = max(1, dmg)   # un golpe que conecta nunca hace 0 (evita duelos infinitos con moral baja)
 
+	# Golpe crítico: 5% base, más con la habilidad Golpe Certero.
 	var extra := ""
+	var crit_chance: float = SkillEffects.GOLPE_CERTERO_CRIT_CHANCE if SkillEffects.has(actor, SkillEffects.GOLPE_CERTERO) else SkillEffects.CRIT_CHANCE
+	if randf() < crit_chance:
+		dmg = int(dmg * SkillEffects.CRIT_MULTIPLIER)
+		extra += " ¡Golpe crítico!"
+	# Piel de Hierro: el objetivo herido aguanta mejor los golpes.
+	var target_wounded: bool = target.current_health < target.max_health * 0.3
+	if target_wounded and SkillEffects.has(target, SkillEffects.PIEL_DE_HIERRO):
+		dmg = max(1, int(dmg * SkillEffects.PIEL_DE_HIERRO_FACTOR))
+		extra += " (La Piel de Hierro de %s amortigua el golpe.)" % target.full_name()
+
 	if countering[target]:
 		countering[target] = false
 		var counter_dmg: int = max(1, int(dmg * 0.5))
 		dmg = max(1, int(dmg * 0.5))
 		actor.take_damage(counter_dmg)
-		extra = " ¡Pero %s contraataca, causándole %d de daño!" % [target.full_name(), counter_dmg]
+		extra += " ¡Pero %s contraataca, causándole %d de daño!" % [target.full_name(), counter_dmg]
 
 	target.take_damage(dmg)
 	target.current_morale = max(0, target.current_morale - 4)
@@ -126,6 +137,10 @@ func _do_disarm(actor: Character, target: Character) -> String:
 		disarmed_turns[target] = 2
 		if not CombatEnums.Status.DESARMADO in statuses[target]:
 			statuses[target].append(CombatEnums.Status.DESARMADO)
+		if SkillEffects.has(actor, SkillEffects.DESARME_FULMINANTE):
+			# El turno extra: aprovecha el descuido para golpear de inmediato.
+			return "y logra desarmar a %s! Desarme Fulminante: aprovecha el descuido %s" % [
+				target.full_name(), _do_attack(actor, target)]
 		return "y logra desarmar a %s!" % target.full_name()
 	else:
 		return "e intenta desarmar a %s, pero falla." % target.full_name()

@@ -47,6 +47,7 @@ enum Personality {
 @export var max_morale: int = 100
 @export var current_morale: int = 100
 @export var honor: int = 50
+@export var wound_months: int = 0   # meses que faltan para curar una herida grave (no puede batirse)
 
 @export_group("Progresión Social")
 @export var gold: int = 100
@@ -184,6 +185,47 @@ func take_damage(amount: int) -> void:
 
 func can_fight_duels() -> bool:
 	return role != Role.CAMPESINO and role != Role.REGENTE
+
+# --- Heridas ---
+const SEVERE_WOUND_RATIO := 0.3
+const SEVERE_WOUND_MONTHS := 2
+const FALLEN_WOUND_MONTHS := 3      # si cayó (vida 0)
+const FALLEN_HEALTH_RATIO := 0.1    # con cuánta vida queda quien cae en duelo
+const MONTHLY_HEAL := 25
+
+func is_wounded() -> bool:
+	return wound_months > 0
+
+# Tras un combate: recupera aliento y ánimo (la vida no) y, si quedó muy maltrecho,
+# sufre una herida grave. Devuelve un texto para el jugador ("" si no hay herida).
+func after_fight_recovery() -> String:
+	current_stamina = max_stamina
+	current_morale = max_morale
+	var months := 0
+	if current_health <= 0:
+		current_health = maxi(1, int(max_health * FALLEN_HEALTH_RATIO))
+		months = FALLEN_WOUND_MONTHS
+	elif current_health < max_health * SEVERE_WOUND_RATIO:
+		months = SEVERE_WOUND_MONTHS
+	if months > wound_months:
+		wound_months = months
+	if months > 0:
+		return "Quedas gravemente herido (vida %d/%d): no podrás batirte durante %d meses." % [current_health, max_health, wound_months]
+	return ""
+
+# Una vez por mes: se recupera vida y avanza la curación de las heridas graves.
+func monthly_recovery() -> void:
+	current_health = mini(max_health, current_health + MONTHLY_HEAL)
+	current_stamina = max_stamina
+	current_morale = max_morale
+	if wound_months > 0:
+		wound_months -= 1
+
+func health_text() -> String:
+	var text := "Vida %d/%d" % [current_health, max_health]
+	if is_wounded():
+		text += " — herido (%d %s)" % [wound_months, "mes" if wound_months == 1 else "meses"]
+	return text
 
 # --- Progresión social ---
 

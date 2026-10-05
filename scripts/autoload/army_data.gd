@@ -72,14 +72,35 @@ func set_destination(army: Army, destination_castle_id: String) -> bool:
 	if not army.is_idle():
 		return false
 	var origin: Castle = MapData.get_castle_by_id(army.current_castle_id)
-	if origin == null or not origin.connected_castle_ids.has(destination_castle_id):
+	if origin == null:
+		return false
+	# Habilidades del comandante: Viajero permite marchar a 2 saltos; Paso Invernal evita
+	# que el invierno (diciembre a febrero) duplique la duración de la marcha.
+	var commander := army_commander(army)
+	var hops := SkillEffects.max_march_hops(commander) if is_player_army(army) else 1
+	if not destination_castle_id in SkillEffects.march_destinations(origin.castle_id, MapData.castles, hops):
 		return false
 
 	army.origin_castle_id = army.current_castle_id
 	army.destination_castle_id = destination_castle_id
-	army.turns_remaining = 1   # por ahora, 1 salto = 1 turno, siempre a castillos directamente conectados
+	army.turns_remaining = SkillEffects.march_turns(GameManager.current_month, commander)
+
+	# Diplomacia: marchar contra un señor sin guerra declarada (o contra un aliado) tiene consecuencias.
+	var target: Castle = MapData.get_castle_by_id(destination_castle_id)
+	if is_player_army(army) and target != null and target.kingdom != army.kingdom:
+		var note := RelationsData.on_player_marches_against(target.owner_name)
+		if not note.is_empty():
+			_add_event(note, target.castle_id)
+			events_changed.emit()
+
 	armies_changed.emit()
 	return true
+
+# El jugador comanda sus ejércitos; los de la IA los comanda el señor que los movilizó.
+func army_commander(army: Army) -> Character:
+	if is_player_army(army):
+		return GameManager.player_character
+	return RelationsData.character_of(army.owner_name)
 
 func disband_army(army: Army) -> void:
 	armies.erase(army)
@@ -106,11 +127,19 @@ func _on_turn_advanced(_month: int, _year: int) -> void:
 		if a.turns_remaining <= 0:
 			_resolve_arrival(a)
 
-	# 3. Reclutamiento natural en todos los castillos.
+	# 3. Reclutamiento natural en todos los castillos, y el edicto del Regente si hay uno.
 	KingdomAI.recruit(MapData.castles)
+	var edict_note := EdictCatalog.apply_monthly(GameManager.active_edict, GameManager.player_character,
+		MapData.castles, GameManager.player_kingdom, RelationsData.relations)
+	if not edict_note.is_empty():
+		_add_event(edict_note, GameManager.home_castle_id)
 
-	# 4. Los reinos de la IA deciden nuevos ataques.
+	# 4. Diplomacia entre reinos y rebeliones; luego los reinos de la IA deciden nuevos ataques.
 	if GameManager.is_game_active:
+		for news: Dictionary in KingdomDiplomacy.monthly_update(MapData.castles, RelationsData.kingdom_wars,
+				RelationsData.kingdom_alliances, GameManager.months_elapsed(), GameManager.player_kingdom):
+			_add_event(news.text, news.castle_id)
+		_check_rebellions()
 		_run_kingdom_ai()
 
 	armies_changed.emit()
@@ -118,7 +147,12 @@ func _on_turn_advanced(_month: int, _year: int) -> void:
 
 func _run_kingdom_ai() -> void:
 	var player_name: String = GameManager.player_character.full_name() if GameManager.player_character != null else ""
-	var plans := KingdomAI.plan_attacks(MapData.castles, armies, GameManager.player_kingdom, GameManager.months_elapsed(), player_name)
+	var player_castle_ids: Array[String] = []
+	for c: Castle in MapData.castles:
+		if is_player_defended(c):
+			player_castle_ids.append(c.castle_id)
+	var plans := KingdomAI.plan_attacks(MapData.castles, armies, GameManager.player_kingdom, GameManager.months_elapsed(), player_name,
+		player_castle_ids, RelationsData.allied_kingdoms(), RelationsData.hostile_kingdoms(), RelationsData.kingdom_wars)
 	for plan: Dictionary in plans:
 		var origin: Castle = MapData.get_castle_by_id(plan.from_id)
 		var target: Castle = MapData.get_castle_by_id(plan.to_id)
@@ -127,7 +161,10 @@ func _run_kingdom_ai() -> void:
 		origin.garrison_size -= plan.size
 		var army := create_army(origin.owner_name, origin.kingdom, plan.size, origin.castle_id)
 		set_destination(army, target.castle_id)
-		var warning := " ¡Va hacia tu castillo!" if is_player_defended(target) else ""
+		var warning := ""
+		if is_player_defended(target):
+			warning = " ¡Va hacia tu castillo!"
+			RelationsData.on_attacked_by(origin.owner_name)
 		_add_event("%s moviliza %d soldados desde %s hacia %s.%s" % [
 			origin.owner_name, plan.size, origin.castle_name, target.castle_name, warning], target.castle_id)
 
@@ -186,6 +223,11 @@ func resolve_battle(army: Army, attacker_won: bool, attacker_survivors: int, def
 
 	if attacker_won:
 		var old_kingdom: int = castle.kingdom
+		var old_owner: String = castle.owner_name
+		# Entre reinos de la IA, perder un castillo es casus belli: queda declarada la guerra.
+		if not player_attacking and old_kingdom != GameManager.player_kingdom and army.kingdom != GameManager.player_kingdom:
+			KingdomDiplomacy.declare_war(RelationsData.kingdom_wars, RelationsData.kingdom_alliances,
+				old_kingdom, army.kingdom, GameManager.months_elapsed())
 		castle.kingdom = army.kingdom
 		castle.owner_name = army.owner_name
 		castle.garrison_size = attacker_survivors
@@ -198,6 +240,9 @@ func resolve_battle(army: Army, attacker_won: bool, attacker_survivors: int, def
 			player.gold += loot
 			player.honor = clamp(player.honor + VICTORY_HONOR, 0, 100)
 			lines.append("Ganas %d de honor y saqueas %d de oro." % [VICTORY_HONOR, loot])
+			var grudge := RelationsData.on_player_conquered(old_owner)
+			if not grudge.is_empty():
+				lines.append(grudge)
 		elif player_defending:
 			_apply_player_defeat(lines)
 			if castle.castle_id == GameManager.home_castle_id:
@@ -261,3 +306,27 @@ func _handle_home_castle_lost(lost: Castle, lines: Array[String]) -> void:
 	var reason := "%s ha caído y no te queda ningún castillo donde refugiarte." % lost.castle_name
 	lines.append(reason + " Fin de la partida.")
 	GameManager.end_game(reason)
+
+# --- Rebeliones en castillos conquistados por el jugador ---
+
+func _check_rebellions() -> void:
+	var player: Character = GameManager.player_character
+	if player == null:
+		return
+	var tregua := GameManager.active_edict == EdictCatalog.TREGUA
+	for c: Castle in MapData.castles:
+		if c.owner_name != player.full_name() or c.castle_id == GameManager.home_castle_id:
+			continue
+		if c.original_kingdom < 0 or c.original_kingdom == c.kingdom:
+			continue   # solo se sublevan los castillos arrebatados a otro reino
+		if randf() < KingdomDiplomacy.rebellion_chance(player.honor, c.garrison_size, tregua):
+			_rebel(c)
+
+func _rebel(c: Castle) -> void:
+	var lost := c.garrison_size - int(c.garrison_size * KingdomDiplomacy.REBEL_GARRISON_FACTOR)
+	c.garrison_size = maxi(1, c.garrison_size - lost)
+	c.kingdom = c.original_kingdom
+	c.owner_name = c.original_owner
+	_add_event("¡Rebelión en %s! El pueblo se alza y devuelve el castillo a %s (%s)." % [
+		c.castle_name, c.original_owner, KingdomEnums.kingdom_name(c.original_kingdom)], c.castle_id)
+	armies_changed.emit()

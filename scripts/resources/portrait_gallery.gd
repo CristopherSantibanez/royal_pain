@@ -12,8 +12,15 @@ static func get_portraits_for_gender(gender: int) -> Array[String]:
 	dir.list_dir_begin()
 	var file_name := dir.get_next()
 	while file_name != "":
-		if not dir.current_is_dir() and _is_image(file_name):
-			result.append(path + file_name)
+		if not dir.current_is_dir():
+			# En un juego exportado las imágenes solo aparecen como "x.png.import": se usa la ruta
+			# original, que load() resuelve igual. En el editor se exige que la imagen exista, para
+			# ignorar .import huérfanos de imágenes borradas.
+			var image_name := file_name.trim_suffix(".import")
+			var full := path + image_name
+			var exists := FileAccess.file_exists(full) if not OS.has_feature("template") else ResourceLoader.exists(full)
+			if _is_image(image_name) and not full in result and exists:
+				result.append(full)
 		file_name = dir.get_next()
 	dir.list_dir_end()
 

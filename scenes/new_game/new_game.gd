@@ -93,6 +93,8 @@ func _refresh_info() -> void:
 		lines.append("Liderazgo %d · Carisma %d · Estrategia %d · Combate %d · Defensa %d" % [
 			c.leadership, c.charisma, c.strategy, c.combat, c.defense])
 		lines.append("Honor %d · Oro %d" % [c.honor, c.gold])
+		var role := role_option.get_selected_id()
+		lines.append("Objetivo — %s: %s" % [VictoryRules.goal_title(role), VictoryRules.goal_description(role)])
 	else:
 		lines.append("No se pudo leer este personaje.")
 

@@ -12,3 +12,7 @@ extends Resource
 @export var garrison_size: int = 50
 @export var gold: int = 200
 @export var food: int = 150
+
+@export_group("Origen")
+@export var original_kingdom: int = -1        # reino al que pertenecía al empezar la partida
+@export var original_owner: String = ""       # su señor original (para rebeliones y reconquistas)

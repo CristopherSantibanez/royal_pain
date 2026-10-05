@@ -65,24 +65,24 @@ func _make_skill(n: String, d: String, cat: int) -> Skill:
 
 func _load_general_skills() -> void:
 	general_skills = [
-		_make_skill("Paso Invernal", "Bono de movimiento en terreno nevado.", CharacterEnums.SkillCategory.GENERAL),
-		_make_skill("Reclutador Nato", "Recluta soldados con menor costo y más rápido.", CharacterEnums.SkillCategory.GENERAL),
-		_make_skill("Administrador", "Recauda impuestos con mayor eficiencia.", CharacterEnums.SkillCategory.GENERAL),
-		_make_skill("Viajero", "Se mueve más rápido entre territorios.", CharacterEnums.SkillCategory.GENERAL),
+		_make_skill("Paso Invernal", "Tus ejércitos marchan en 1 turno también en invierno (dic–feb), cuando los demás tardan 2.", CharacterEnums.SkillCategory.GENERAL),
+		_make_skill("Reclutador Nato", "La milicia cuesta un tercio menos y suma un 50% más de soldados; movilizas un 10% más de la guarnición.", CharacterEnums.SkillCategory.GENERAL),
+		_make_skill("Administrador", "+25% de oro en impuestos, gobierno, impuestos reales y el edicto de impuestos.", CharacterEnums.SkillCategory.GENERAL),
+		_make_skill("Viajero", "Tus ejércitos pueden marchar a castillos a 2 saltos de distancia en un solo turno.", CharacterEnums.SkillCategory.GENERAL),
 	]
 
 func _load_combat_skills() -> void:
 	combat_skills = [
-		_make_skill("Desarme Fulminante", "Al desarmar al enemigo, ganas un turno extra.", CharacterEnums.SkillCategory.COMBATE),
-		_make_skill("Piel de Hierro", "Reduce el daño recibido mientras estás herido.", CharacterEnums.SkillCategory.COMBATE),
-		_make_skill("Golpe Certero", "Mayor probabilidad de crítico al atacar.", CharacterEnums.SkillCategory.COMBATE),
+		_make_skill("Desarme Fulminante", "Al desarmar al enemigo, aprovechas para golpearlo de inmediato (turno extra).", CharacterEnums.SkillCategory.COMBATE),
+		_make_skill("Piel de Hierro", "Recibes un 30% menos de daño mientras estás herido (vida bajo el 30%).", CharacterEnums.SkillCategory.COMBATE),
+		_make_skill("Golpe Certero", "20% de probabilidad de golpe crítico (×1.5 de daño), frente al 5% normal.", CharacterEnums.SkillCategory.COMBATE),
 	]
 
 func _load_battle_skills() -> void:
 	battle_skills = [
-		_make_skill("Grito de Guerra", "Aumenta la moral de tu pelotón al iniciar la batalla.", CharacterEnums.SkillCategory.BATALLA),
-		_make_skill("Táctica Defensiva", "Tus unidades reciben menos daño en terreno fortificado.", CharacterEnums.SkillCategory.BATALLA),
-		_make_skill("Carga Letal", "Bono de daño para unidades de caballería bajo tu mando.", CharacterEnums.SkillCategory.BATALLA),
+		_make_skill("Grito de Guerra", "Tus pelotones empiezan la batalla con +15 de moral.", CharacterEnums.SkillCategory.BATALLA),
+		_make_skill("Táctica Defensiva", "Tus pelotones en colina o muralla reciben un 20% menos de daño.", CharacterEnums.SkillCategory.BATALLA),
+		_make_skill("Carga Letal", "Tu caballería causa un 25% más de daño.", CharacterEnums.SkillCategory.BATALLA),
 	]
 
 func _make_trait(n: String, d: String, is_adv: bool, mods: Dictionary) -> CharacterTrait:

@@ -10,6 +10,10 @@ extends Resource
 @export var player: Character
 @export var home_castle_id: String = ""
 @export var player_kingdom: int = -1
+@export var starting_role: int = -1
+@export var victory_achieved: bool = false
+@export var active_edict: String = ""
+@export var last_tournament_year: int = 0
 
 @export_group("Tiempo")
 @export var month: int = 1
@@ -24,3 +28,10 @@ extends Resource
 @export var armies: Array[Army] = []
 @export var next_army_id: int = 1
 @export var turn_events: Array[Dictionary] = []
+@export var relations: Array[Relationship] = []
+@export var used_portraits: Array[String] = []
+@export var kingdom_wars: Dictionary = {}
+@export var kingdom_alliances: Dictionary = {}
+@export var liege_name: String = ""
+@export var spouse_name: String = ""
+@export var spouse_family: String = ""

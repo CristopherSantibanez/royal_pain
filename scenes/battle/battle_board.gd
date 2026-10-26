@@ -20,6 +20,7 @@ const MOVE_HIGHLIGHT := Color(1, 1, 1, 0.30)
 const TARGET_HIGHLIGHT := Color(1, 0.15, 0.15, 0.45)
 const MORALE_BAR_COLOR := Color(1.0, 0.85, 0.25)
 const COMPANION_BADGE_COLOR := Color("f0d48a")
+const LEADER_FACE_SIZE := 24.0
 
 # --- Animaciones de combate ---
 const FX_SPACING := 0.45      # segundos entre ataques encadenados (el turno de la IA ocurre de golpe)
@@ -201,20 +202,53 @@ func _draw() -> void:
 		draw_string(font, inner.position + Vector2(4, inner.size.y - 9), str(u.soldiers),
 			HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color.WHITE)
 
-		# Pelotón al mando de un compañero: insignia dorada con su inicial.
-		if u.companion != null:
-			var badge := inner.position + Vector2(inner.size.x - 9, 9)
-			draw_circle(badge, 8, COMPANION_BADGE_COLOR)
-			draw_arc(badge, 8, 0, TAU, 16, Color.BLACK, 1.5)
-			draw_string(font, badge + Vector2(-8, 5), u.companion.first_name.left(1), HORIZONTAL_ALIGNMENT_CENTER, 16, 12, Color.BLACK)
+		# La cara de quien lo dirige, siempre a la vista: marco dorado si es un compañero,
+		# blanco si es el comandante y del color del bando si es un capitán de tropa.
+		var leader := u.leader()
+		if leader != null:
+			var face_rect := Rect2(inner.end.x - LEADER_FACE_SIZE + 3, inner.position.y - 3, LEADER_FACE_SIZE, LEADER_FACE_SIZE)
+			var frame := color.lightened(0.35)
+			if u.companion != null:
+				frame = COMPANION_BADGE_COLOR
+			elif leader == battle.attacker_cmd or leader == battle.defender_cmd:
+				frame = Color.WHITE
+			draw_rect(face_rect.grow(2), frame)
+			var face := leader.get_face()
+			if face != null:
+				draw_texture_rect(face, face_rect, false)
 
 		if u == selected:
 			draw_rect(rect.grow(-2), SELECT_COLOR, false, 3.0)
 
+	if has_focus() and cursor.x >= 0:
+		draw_rect(_cell_rect(cursor).grow(-1), CURSOR_COLOR, false, 2.0)
+
 	_draw_fx(font)
+
+# Cursor de teclado y mando: flechas o cruceta para moverlo, Intro o A para actuar en la casilla.
+var cursor := Vector2i(-1, -1)
+const CURSOR_COLOR := Color(1, 1, 1, 0.9)
+
+func _move_cursor(step: Vector2i) -> void:
+	if cursor.x < 0:
+		cursor = selected.cell if selected != null else Vector2i(0, BattleManager.GRID_H / 2)
+	else:
+		cursor = Vector2i(clampi(cursor.x + step.x, 0, BattleManager.GRID_W - 1), clampi(cursor.y + step.y, 0, BattleManager.GRID_H - 1))
+	_hover_cell = cursor
+	cell_hovered.emit(cursor)
+	queue_redraw()
 
 func _gui_input(event: InputEvent) -> void:
 	if battle == null:
+		return
+	for dir in [["ui_left", Vector2i.LEFT], ["ui_right", Vector2i.RIGHT], ["ui_up", Vector2i.UP], ["ui_down", Vector2i.DOWN]]:
+		if event.is_action_pressed(dir[0], true):
+			_move_cursor(dir[1])
+			accept_event()
+			return
+	if event.is_action_pressed("ui_accept") and cursor.x >= 0:
+		cell_clicked.emit(cursor)
+		accept_event()
 		return
 	if event is InputEventMouseMotion:
 		var hover := Vector2i(int(event.position.x / CELL_SIZE), int(event.position.y / CELL_SIZE))

@@ -14,6 +14,7 @@ var _buttons := {}
 var _current := ""
 
 func _ready() -> void:
+	(func(): UiAnim.focus_first(self)).call_deferred()   # teclado y mando
 	var group := ButtonGroup.new()
 	for category: String in GlossaryData.CATEGORIES:
 		var b := Button.new()

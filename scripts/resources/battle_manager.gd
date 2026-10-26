@@ -72,6 +72,8 @@ func start_battle(attacker_size: int, defender_size: int, walls: bool, a_cmd: Ch
 	wounded_companions.clear()
 	_assign_companions(player_side, player_companions)
 	_assign_companions(_other_side(player_side), enemy_companions)
+	_assign_captains(BattleEnums.Side.ATACANTE)
+	_assign_captains(BattleEnums.Side.DEFENSOR)
 	_initial_soldiers = {
 		BattleEnums.Side.ATACANTE: total_soldiers(BattleEnums.Side.ATACANTE),
 		BattleEnums.Side.DEFENSOR: total_soldiers(BattleEnums.Side.DEFENSOR),
@@ -624,6 +626,32 @@ func _assign_companions(side: int, companions: Array[Character]) -> void:
 			morale_bonus -= FACTION_MORALE_PENALTY
 		unit.morale = clampi(unit.morale + morale_bonus, 0, 100)
 		log_message.emit("%s dirige un pelotón de %s (%s)." % [c.full_name(), BattleEnums.unit_type_name(unit.type).to_lower(), _side_label(side)])
+
+# Cada pelotón tiene a alguien al mando: el comandante encabeza el mayor pelotón sin compañero
+# (caballería si la hay) y el resto lo dirigen capitanes de tropa, con el retrato de su oficio.
+func _assign_captains(side: int) -> void:
+	var commander := _commander(side)
+	var free: Array[BattleUnit] = []
+	for u: BattleUnit in units:
+		if u.side == side and u.companion == null:
+			free.append(u)
+	free.sort_custom(func(a: BattleUnit, b: BattleUnit) -> bool:
+		return (a.type == BattleEnums.UnitType.CABALLERIA) and not (b.type == BattleEnums.UnitType.CABALLERIA) or a.soldiers > b.soldiers)
+	for i in free.size():
+		if i == 0 and commander != null:
+			free[i].captain = commander
+		else:
+			free[i].captain = _make_captain(free[i].type)
+
+func _make_captain(type: int) -> Character:
+	var c := Character.new()
+	var cavalry := type == BattleEnums.UnitType.CABALLERIA
+	c.first_name = "Capitán de caballería" if cavalry else "Capitán de arqueros" if type == BattleEnums.UnitType.ARQUEROS else "Capitán de infantería"
+	c.role = Character.Role.CABALLERO if cavalry else Character.Role.SOLDADO
+	var portrait_path := "res://assets/portraits/roles/%s.png" % ("caballero" if cavalry else "soldado")
+	if ResourceLoader.exists(portrait_path):
+		c.portrait = load(portrait_path)
+	return c
 
 func companions_of(side: int) -> Array[Character]:
 	var result: Array[Character] = []

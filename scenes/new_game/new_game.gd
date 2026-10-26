@@ -43,6 +43,7 @@ func _ready() -> void:
 
 	_refresh_info()
 	UiAnim.stagger_in(%RootVBox, 0.06)
+	(btn_comenzar if not btn_comenzar.disabled else btn_crear_personaje).grab_focus.call_deferred()
 
 func _refresh_world_label() -> void:
 	%WorldLabel.text = MapData.world_summary() if not GameManager.is_game_active else "Hay una partida en curso: al comenzar se generará un mundo nuevo."
@@ -156,7 +157,7 @@ func _on_comenzar_pressed() -> void:
 		return
 
 	# Se carga una copia fresca (sin caché) para que los duelos de prueba no contaminen la partida.
-	var character := ResourceLoader.load(available_paths[idx], "", ResourceLoader.CACHE_MODE_IGNORE) as Character
+	var character := CharacterLoader.load_character(available_paths[idx])
 	if character == null:
 		info_label.text = "Error al cargar el personaje."
 		return

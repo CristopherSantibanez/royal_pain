@@ -60,6 +60,9 @@ func _ready() -> void:
 	battle.state_updated.connect(_refresh)
 	battle.battle_ended.connect(_on_battle_ended)
 	board.setup(battle)
+	# Teclado y mando: el tablero tiene el foco (cursor con flechas o cruceta, Intro o A para actuar).
+	board.focus_mode = Control.FOCUS_ALL
+	board.grab_focus.call_deferred()
 	board.cell_clicked.connect(_on_cell_clicked)
 	board.cell_hovered.connect(_on_cell_hovered)
 
@@ -144,8 +147,9 @@ func _on_cell_clicked(cell: Vector2i) -> void:
 		return
 
 	if clicked != null:
-		# Enemigo fuera de alcance: solo se muestra su información.
+		# Enemigo fuera de alcance: solo se muestra su información (y quién lo dirige).
 		unit_info_label.text = "Enemigo: %s\nTerreno: %s" % [clicked.describe(), BattleEnums.terrain_name(battle.terrain_at(clicked.cell))]
+		_show_leader(clicked)
 		return
 
 	selected = null
@@ -200,12 +204,39 @@ func _refresh() -> void:
 			status = "Ya se movió; aún puede atacar."
 		unit_info_label.text = "%s\nTerreno: %s\n%s" % [
 			selected.describe(), BattleEnums.terrain_name(battle.terrain_at(selected.cell)), status]
+		_show_leader(selected)
 	elif not battle.is_over:
+		_show_leader(null)
 		unit_info_label.text = (DEFENDER_HINT + "\n" if player_defending and battle.turn <= 2 else "") + IDLE_HINT
 	board.set_selection(selected, moves, targets)
 
 	btn_end_turn.disabled = battle.is_over
 	btn_retreat.disabled = battle.is_over
+
+# Cara y nombre de quien dirige el pelotón elegido (al pulsar la cara se ve su retrato completo).
+var _leader_row: HBoxContainer
+
+func _show_leader(unit: BattleUnit) -> void:
+	if _leader_row != null:
+		_leader_row.queue_free()
+		_leader_row = null
+	var leader: Character = unit.leader() if unit != null else null
+	if leader == null:
+		return
+	_leader_row = HBoxContainer.new()
+	_leader_row.add_theme_constant_override("separation", 10)
+	var mine := battle.is_player_unit(unit)
+	var frame := BattleBoard.COMPANION_BADGE_COLOR if unit.companion != null else (BattleBoard.PLAYER_COLOR if mine else BattleBoard.ENEMY_COLOR)
+	_leader_row.add_child(FaceIcon.make(leader, 64, frame))
+	var who := Label.new()
+	who.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	who.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	who.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var post := "Compañero al mando" if unit.companion != null else "Comandante" if leader == battle.attacker_cmd or leader == battle.defender_cmd else "Capitán"
+	who.text = "%s\n%s · %s" % [leader.full_name(), post, "tu bando" if mine else "enemigo"]
+	_leader_row.add_child(who)
+	unit_info_label.get_parent().add_child(_leader_row)
+	unit_info_label.get_parent().move_child(_leader_row, unit_info_label.get_index())
 
 # Barra de fuerzas: tu parte en azul sobre fondo rojo (el enemigo).
 func _style_forces_bar() -> void:
@@ -254,6 +285,7 @@ func _on_battle_ended(winner_side: int, report: Dictionary) -> void:
 	Music.stop(0.8)
 	Sfx.play("victory" if player_won else "defeat", 0.0, 0.0)
 	result_overlay.visible = true
+	btn_back_to_map.grab_focus.call_deferred()
 	UiAnim.fade_in(result_panel, 0.3)
 
 func _on_back_to_map_pressed() -> void:
@@ -263,3 +295,9 @@ func _on_back_to_map_pressed() -> void:
 		return
 	GameManager.change_state(GameStateEnums.State.MAP)
 	get_tree().change_scene_to_file("res://scenes/map/map.tscn")
+
+# T o el botón Y del mando terminan el turno.
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("end_turn") and battle != null and not battle.is_over:
+		get_viewport().set_input_as_handled()
+		_on_end_turn_pressed()

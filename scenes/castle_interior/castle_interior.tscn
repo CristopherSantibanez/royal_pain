@@ -85,6 +85,13 @@ size_flags_vertical = 4
 tooltip_text = "Campesinos, soldados y cortesanos de este lugar: habla con ellos, rétalos o súmalos a tu séquito."
 text = "Gente del lugar"
 
+[node name="BtnArmeria" type="Button" parent="ScreenMargin/RootVBox/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+tooltip_text = "Compra y vende armas, armaduras, escudos, monturas y accesorios. El surtido cambia cada mes."
+text = "Armería"
+
 [node name="BtnEncargos" type="Button" parent="ScreenMargin/RootVBox/Header"]
 unique_name_in_owner = true
 layout_mode = 2

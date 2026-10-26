@@ -11,8 +11,8 @@ const WorldEventCatalog = preload("res://scripts/resources/world_event_catalog.g
 signal notification_added
 
 # --- Balance ---
-const WORLD_EVENT_CHANCE := 0.3          # prob. mensual de un suceso del mundo (sin decisión)
-const PLAYER_EVENT_CHANCE := 0.15        # prob. mensual de un suceso global que pide decisión
+const WORLD_EVENT_CHANCE := 0.2          # prob. mensual de un suceso del mundo (sin decisión)
+const PLAYER_EVENT_CHANCE := 0.08        # prob. mensual de un suceso global que pide decisión
 const LORD_DEATH_CHANCE := 0.005         # por señor y mes (~6% al año)
 const LORD_MARRIAGE_CHANCE := 0.01       # por señor soltero y mes
 const MARRIAGE_ALLIANCE_CHANCE := 0.5    # una boda entre casas de reinos en paz puede sellar una alianza
@@ -23,6 +23,8 @@ const DEATH_CAUSES := ["unas fiebres", "una caída del caballo", "una vieja heri
 	"un mal de pecho", "un veneno, según murmuran algunos", "una cacería que salió mal"]
 
 var notifications: Array[Dictionary] = []    # [{title, text}] pendientes de mostrar
+var chronicle: Array[Dictionary] = []        # todas las noticias de la partida: {m, y, text, castle_id, personal}
+const CHRONICLE_MAX := 600
 var married_lords: Dictionary = {}           # señor -> nombre de su cónyuge
 var deferred_event: Dictionary = {}          # suceso global con decisión que esperó a un mes libre
 
@@ -32,6 +34,7 @@ func _ready() -> void:
 
 func reset() -> void:
 	notifications.clear()
+	chronicle.clear()
 	married_lords.clear()
 	deferred_event = {}
 	_initial_diplomacy()
@@ -52,6 +55,17 @@ func _initial_diplomacy() -> void:
 		KingdomDiplomacy.declare_war(RelationsData.kingdom_wars, RelationsData.kingdom_alliances, pairs[i][0], pairs[i][1], month)
 	for i in range(INITIAL_WARS, mini(INITIAL_WARS + INITIAL_ALLIANCES, pairs.size())):
 		RelationsData.kingdom_alliances[KingdomDiplomacy.pair_key(pairs[i][0], pairs[i][1])] = true
+
+# --- Crónica ---
+
+## Apunta una noticia en la crónica de la partida. personal: decisiones y sucesos del propio jugador.
+func record(text: String, castle_id: String = "", personal: bool = false) -> void:
+	if text.strip_edges().is_empty():
+		return
+	chronicle.append({"m": GameManager.current_month, "y": GameManager.current_year,
+		"text": text.strip_edges(), "castle_id": castle_id, "personal": personal})
+	if chronicle.size() > CHRONICLE_MAX:
+		chronicle = chronicle.slice(chronicle.size() - CHRONICLE_MAX)
 
 # --- Notificaciones ---
 
@@ -76,6 +90,8 @@ func _news(text: String, castle_id: String, important_title: String = "") -> voi
 func _on_month_passed(_month: int, _year: int) -> void:
 	if not GameManager.is_game_active:
 		return
+	if not GameManager.last_annual_event.is_empty():
+		record("Año nuevo: " + GameManager.last_annual_event)
 	_world_event()
 	_lords_life()
 	_player_global_event()
@@ -182,7 +198,8 @@ func _castle_of(kingdom: int) -> String:
 # --- Guardado (datos planos) ---
 
 func save_state() -> Dictionary:
-	return {"notifications": notifications.duplicate(true), "married_lords": married_lords.duplicate(), "deferred_event": deferred_event.duplicate(true)}
+	return {"notifications": notifications.duplicate(true), "married_lords": married_lords.duplicate(),
+		"deferred_event": deferred_event.duplicate(true), "chronicle": chronicle.duplicate(true)}
 
 func load_state(data: Dictionary) -> void:
 	notifications.clear()
@@ -190,3 +207,6 @@ func load_state(data: Dictionary) -> void:
 		notifications.append(n)
 	married_lords = data.get("married_lords", {}).duplicate()
 	deferred_event = data.get("deferred_event", {}).duplicate(true)
+	chronicle.clear()
+	for e in data.get("chronicle", []):
+		chronicle.append(e)

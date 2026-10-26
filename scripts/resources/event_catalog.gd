@@ -14,7 +14,7 @@ class_name EventCatalog
 # fame: fama del jugador. Las pérdidas (números negativos) se multiplican por PENALTY_SCALE.
 # Requisitos: gold, castle_gold, healthy (poder batirse en duelo).
 
-const MONTHLY_EVENT_CHANCE := 0.5
+const MONTHLY_EVENT_CHANCE := 0.3
 const FAME_EVENT_BONUS := 0.003       # +0,3% de probabilidad de evento por punto de fama (la fama atrae sucesos)
 const MAX_EVENT_CHANCE := 0.85
 const PENALTY_SCALE := 1.25           # dificultad: las pérdidas de los eventos pesan un 25% más que las ganancias

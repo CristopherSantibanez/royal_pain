@@ -1,27 +1,47 @@
 class_name CharacterLoader
 
+# Personajes guardados (editor de personajes y PNJ guardados desde su ficha): archivos JSON
+# en <datos>/characters (ver DataCodec). Los .tres de versiones anteriores se convierten al listarlos.
+
+static func characters_dir() -> String:
+	return DataPaths.path("characters")
+
 static func get_saved_character_paths() -> Array[String]:
 	var result: Array[String] = []
-	var dir := DirAccess.open("user://characters")
+	var dir := DirAccess.open(characters_dir())
 	if dir == null:
 		return result
-
-	dir.list_dir_begin()
-	var file_name := dir.get_next()
-	while file_name != "":
-		if not dir.current_is_dir() and file_name.ends_with(".tres"):
-			result.append("user://characters/" + file_name)
-		file_name = dir.get_next()
-	dir.list_dir_end()
-
+	_migrate_legacy_characters(dir)
+	for file_name in dir.get_files():
+		if file_name.ends_with(".json"):
+			result.append("%s/%s" % [characters_dir(), file_name])
 	result.sort()
 	return result
 
+## Carga un personaje guardado; cada llamada devuelve una copia nueva. null si el archivo no vale.
 static func load_character(path: String) -> Character:
-	var res = ResourceLoader.load(path)
-	if res is Character:
-		return res
-	return null
+	return DataCodec.read_file(path) as Character
+
+## Guarda un personaje sin pisar otro con el mismo nombre. Devuelve la ruta, o "" si falla.
+static func save_character(character: Character, overwrite: bool = false) -> String:
+	var base_name := character.full_name().strip_edges().to_lower().replace(" ", "_")
+	if base_name.is_empty():
+		base_name = "personaje_sin_nombre"
+	var path := "%s/%s.json" % [characters_dir(), base_name]
+	var n := 2
+	while not overwrite and FileAccess.file_exists(path):
+		path = "%s/%s_%d.json" % [characters_dir(), base_name, n]
+		n += 1
+	return path if DataCodec.write_file(path, character) == OK else ""
+
+static func _migrate_legacy_characters(dir: DirAccess) -> void:
+	for file_name in dir.get_files():
+		if not file_name.ends_with(".tres"):
+			continue
+		var old_path := "%s/%s" % [characters_dir(), file_name]
+		var old := ResourceLoader.load(old_path, "", ResourceLoader.CACHE_MODE_IGNORE) as Character
+		if old != null and DataCodec.write_file(old_path.trim_suffix(".tres") + ".json", old) == OK:
+			DirAccess.rename_absolute(old_path, old_path + ".migrado")
 
 const MALE_NAMES := ["Godofredo", "Bertrand", "Rodrigo", "Aldric", "Tristán", "Leopoldo", "Hugo", "Gonzalo", "Wulfric", "Anselmo",
 	"Álvaro", "Beltrán", "Diego", "Fadrique", "Guillén", "Íñigo", "Lope", "Martín", "Nuño", "Ordoño", "Pelayo", "Sancho", "Tello", "Vela"]
@@ -32,7 +52,6 @@ const LAST_NAMES := ["de Valcerro", "Piedrahíta", "del Roble", "Mantonegro", "d
 	"Valdecuervo", "de la Ribera", "Lobonegro", "de Castroverde"]
 const RIVAL_STAT_SPREAD := 2
 const ContentCatalog = preload("res://scripts/resources/content_catalog.gd")
-const CHARACTERS_DIR := "user://characters"
 
 # Calidad de los PNJ según su rango: puntos libres de estadística y número de habilidades por categoría.
 const NPC_FREE_POINTS := {
@@ -139,7 +158,6 @@ static func _free_portrait(gender: int) -> String:
 static func save_npc(character: Character) -> String:
 	if character == null:
 		return ""
-	DirAccess.make_dir_recursive_absolute(CHARACTERS_DIR)
 	var copy := character.duplicate(true) as Character
 	copy.current_health = copy.max_health
 	copy.current_stamina = copy.max_stamina
@@ -147,15 +165,7 @@ static func save_npc(character: Character) -> String:
 	copy.wound_months = 0
 	for meta in copy.get_meta_list():
 		copy.remove_meta(meta)
-	var base_name := character.full_name().strip_edges().to_lower().replace(" ", "_")
-	if base_name.is_empty():
-		base_name = "personaje_sin_nombre"
-	var path := "%s/%s.tres" % [CHARACTERS_DIR, base_name]
-	var n := 2
-	while FileAccess.file_exists(path):
-		path = "%s/%s_%d.tres" % [CHARACTERS_DIR, base_name, n]
-		n += 1
-	return path if ResourceSaver.save(copy, path) == OK else ""
+	return save_character(copy)
 
 static func _pick(source: Array, count: int) -> Array:
 	var copy := source.duplicate()

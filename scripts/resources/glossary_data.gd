@@ -86,6 +86,7 @@ const ENTRIES := {
 		["Equipo", "Cada personaje lleva hasta 2 piezas de equipo que modifican sus atributos."],
 	],
 	"Economía y castillo": [
+		["Armería", "En tu castillo puedes comprar y vender equipo. El surtido cambia cada mes y mejora con tu rango (los Campesinos y Soldados solo encuentran piezas comunes). Tu Carisma rebaja o encarece el precio; al vender recuperas el 40%. Una pieza por ranura: la nueva sustituye a la anterior, que se entrega a cuenta."],
 		["Oro propio y oro del castillo", "Tu oro es tuyo; el tesoro del castillo paga la tropa y lo usan las acciones de gobierno."],
 		["Recaudar y gobernar", "Lo recaudado se reparte: 60% para ti y 40% para el castillo."],
 		["Mantenimiento", "Cada mes el castillo recauda impuestos, paga a la guarnición y consume comida. Sin comida o sin paga, la guarnición pierde soldados."],
@@ -144,6 +145,8 @@ const ENTRIES := {
 		["Duelos de exhibición", "Como Caballero pueden asignarte duelos de exhibición contra caballeros de otros reinos."],
 	],
 	"Eventos y noticias": [
+		["Crónica completa", "Menú ▸ Crónica (tecla C) guarda todas las noticias y tus decisiones desde el comienzo de la partida, mes a mes. Solo aparece lo que ocurre en castillos que puedes ver."],
+		["Frecuencia", "Alrededor de la mitad de los meses traen una decisión: el suceso del mes, una iniciativa de un rival o un amor, un encargo o un suceso global."],
 		["Eventos del mes", "Casi cada mes ocurre algo que requiere una decisión. Algunas opciones dependen del azar y de tus atributos (se muestra el % de éxito)."],
 		["Eventos globales", "Pestes, buenas cosechas, rutas comerciales... afectan a todo el mundo; a veces puedes decidir cómo te afectan a ti."],
 		["Noticias de otros reinos", "Bodas, muertes y declaraciones de guerra de otros señores aparecen en la crónica; las importantes se anuncian en pantalla."],
@@ -160,10 +163,13 @@ const ENTRIES := {
 		["Seguir jugando", "Al cumplir tu destino puedes seguir jugando la misma partida."],
 	],
 	"Interfaz y atajos": [
-		["Duelo", "Teclas 1–8: acciones. Q, W, E, R, T: posturas. Pasa el ratón sobre una orden para ver su efecto y sus probabilidades."],
-		["Mapa", "Rueda del ratón: zoom. Botón derecho: arrastrar. Clic en un castillo o ejército para ver sus datos."],
+		["Duelo", "Teclas 1–8: acciones. Q, W, E, R, T: posturas. Pasa el ratón sobre una orden para ver su efecto y sus probabilidades. Con mando: cruceta y A."],
+		["Mapa", "Rueda del ratón, +/− o L1/R1: zoom. Botón derecho, WASD o stick izquierdo: mover la cámara. Tab o clic del stick derecho: recorrer castillos. T o Y: avanzar turno. R o X: relaciones. E: encargos. C: crónica. Esc, M o Start: menú."],
+		["Batalla", "Con el tablero enfocado, flechas o cruceta mueven un cursor (con la previsión de bajas) e Intro o A actúa en la casilla. T o Y: terminar turno."],
+		["Teclado y mando", "Todas las pantallas abren con un botón enfocado: flechas o cruceta para moverse, Intro o A para aceptar, Esc o B para volver."],
+		["Caras y retratos", "En listas, mapa y batallas se ve la cara de cada personaje; al pulsarla aparece su retrato completo (o su ficha, en Relaciones)."],
 		["Opciones", "Volumen por separado de música, ambiente y efectos, y pantalla completa."],
-		["Guardado", "La partida se guarda sola cada mes (autoguardado) y puedes usar tres ranuras manuales."],
+		["Guardado", "La partida se guarda sola cada mes (autoguardado) y puedes usar tres ranuras manuales. Las partidas y los personajes se guardan como datos (JSON): un archivo modificado o compartido no puede ejecutar nada. Si un guardado se daña, se recupera la copia anterior."],
 	],
 }
 

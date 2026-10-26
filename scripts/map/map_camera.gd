@@ -26,7 +26,18 @@ func setup_bounds(map_width: float, map_height: float) -> void:
 	# Centrar la cámara en medio del mapa
 	position = Vector2(map_width / 2.0, map_height / 2.0)
 
+const KEY_PAN_SPEED := 700.0   # píxeles de pantalla por segundo con WASD o el stick
+
+func _process(delta: float) -> void:
+	var dir := Input.get_vector("cam_left", "cam_right", "cam_up", "cam_down")
+	if dir != Vector2.ZERO:
+		position += dir * KEY_PAN_SPEED * delta / zoom.x
+
 func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("cam_zoom_in"):
+		_zoom_at(1.0 + zoom_speed)
+	elif event.is_action_pressed("cam_zoom_out"):
+		_zoom_at(1.0 - zoom_speed)
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP and event.pressed:
 			_zoom_at(1.0 - zoom_speed)

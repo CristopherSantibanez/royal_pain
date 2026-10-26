@@ -348,7 +348,7 @@ theme_override_constants/separation = 14
 
 [node name="EventSpeakerPortrait" type="TextureRect" parent="UILayer/EventOverlay/EventCenter/EventPanel/EventVBox/EventSpeaker"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(84, 112)
+custom_minimum_size = Vector2(96, 96)
 layout_mode = 2
 expand_mode = 1
 stretch_mode = 5

@@ -162,6 +162,7 @@ func disband_army(army: Army) -> void:
 
 func _add_event(text: String, castle_id: String) -> void:
 	turn_events.append({"text": text, "castle_id": castle_id})
+	WorldEvents.record(text, castle_id)   # la crónica guarda todas las noticias, no solo las del mes
 
 # --- Turno mensual ---
 

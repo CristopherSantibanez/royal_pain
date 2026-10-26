@@ -1,5 +1,7 @@
 extends Control
 
+const ShopPanel = preload("res://scripts/ui/shop_panel.gd")
+
 const MissionsPanel = preload("res://scripts/ui/missions_panel.gd")
 
 @onready var title_label: Label = %TitleLabel
@@ -63,6 +65,9 @@ func _ready() -> void:
 		RelationsData.set("requested_tab", "lugar")
 		get_tree().change_scene_to_file("res://scenes/relations/relations.tscn"))
 	%BtnEncargos.pressed.connect(func(): MissionsPanel.open(self))
+	%BtnArmeria.pressed.connect(func():
+		var shop: Control = ShopPanel.open(self)
+		shop.purchased.connect(_refresh_ui))
 	MissionData.missions_changed.connect(_refresh_missions_button)
 	_refresh_missions_button()
 
@@ -83,6 +88,8 @@ func _ready() -> void:
 	_refresh_ui()
 	_build_role_actions()
 	UiAnim.stagger_in(%RootVBox, 0.08)
+	# Teclado y mando: el foco empieza en la primera acción disponible.
+	(func(): if UiAnim.focus_first(role_actions_list) == null: btn_volver_mapa.grab_focus()).call_deferred()
 
 	# Al volver de un duelo de campaña se muestra su resultado.
 	if not CombatSetup.last_result_text.is_empty():

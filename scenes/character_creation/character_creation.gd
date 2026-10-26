@@ -52,6 +52,7 @@ const STAT_LABELS := {
 var stat_value_labels: Dictionary = {}
 
 func _ready() -> void:
+	(func(): UiAnim.focus_first(self)).call_deferred()   # teclado y mando
 	_setup_tabs()
 
 	character = Character.new()

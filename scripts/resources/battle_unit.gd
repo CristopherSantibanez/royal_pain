@@ -17,6 +17,11 @@ var last_move_distance: int = 0   # casillas recorridas en su último movimiento
 var has_acted: bool = false
 var routed: bool = false
 var companion: Character           # compañero (séquito o de facción) que dirige este pelotón, o null
+var captain: Character             # quien manda el pelotón si no hay compañero: el comandante o un capitán
+
+## Quien encabeza el pelotón (su cara se ve sobre él en el tablero).
+func leader() -> Character:
+	return companion if companion != null else captain
 
 func is_active() -> bool:
 	return not routed and soldiers > 0

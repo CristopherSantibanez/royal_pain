@@ -9,7 +9,7 @@ const CharacterProfile = preload("res://scripts/ui/character_profile.gd")
 @onready var btn_back: Button = %BtnBack
 
 const AFFINITY_BAR_WIDTH := 150
-const PORTRAIT_SIZE := Vector2(56, 74)
+const FACE_SIZE := 64
 # [clave, título]: clave es la que usa RelationsData.requested_tab para abrir una pestaña concreta.
 const TAB_KEYS := [["lugar", "Tu zona"], ["afectos", "Afectos"], ["sequito", "Séquito"], ["rivales", "Rivales"], ["senores", "Señores"], ["reinos", "Reinos"]]
 const RULES_TEXT := "Los señores aliados no atacan tus castillos; los hostiles te prefieren como blanco. Atacar o conquistar a un señor empeora la relación. Las alianzas requieren 40 de afinidad y rango de Nobleza. El matrimonio político (afinidad 60, Caballero o más) une a la familia como aliada; casarte con la familia de tu soberano te pone en la línea de sucesión al trono. Marchar contra un señor sin declararle la guerra lo ofende; marchar contra un aliado es traición."
@@ -38,6 +38,8 @@ func _ready() -> void:
 		_show_feedback("\n".join(RelationsData.retinue_news), false)
 		RelationsData.retinue_news.clear()
 	UiAnim.stagger_in(%RootVBox, 0.06)
+	# Teclado y mando: izquierda/derecha cambian de pestaña y abajo entra en la lista.
+	tabs.get_tab_bar().grab_focus.call_deferred()
 
 func _build_tabs() -> void:
 	for entry in TAB_KEYS:
@@ -137,16 +139,12 @@ func _add_row(list: VBoxContainer, r: Relationship) -> void:
 	hbox.add_theme_constant_override("separation", 14)
 	panel.add_child(hbox)
 
-	# El retrato abre la ficha completa del personaje.
-	var portrait := TextureButton.new()
-	portrait.custom_minimum_size = PORTRAIT_SIZE
-	portrait.ignore_texture_size = true
-	portrait.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	portrait.texture_normal = r.character.get_portrait() if r.character != null else null
-	portrait.tooltip_text = "Ver ficha de %s" % r.person_name
-	portrait.disabled = r.character == null
-	portrait.pressed.connect(func(): CharacterProfile.open(self, r))
-	hbox.add_child(portrait)
+	# La cara abre la ficha completa del personaje (con su retrato entero).
+	if r.character != null:
+		var face := FaceIcon.make(r.character, FACE_SIZE, FaceIcon.FRAME_COLOR, true, func(): CharacterProfile.open(self, r))
+		face.tooltip_text = "Ver ficha de %s" % r.person_name
+		face.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		hbox.add_child(face)
 
 	var name_box := VBoxContainer.new()
 	name_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL

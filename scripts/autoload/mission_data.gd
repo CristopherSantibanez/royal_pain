@@ -12,7 +12,7 @@ signal missions_changed
 
 # --- Balance ---
 const MAX_ACTIVE := 2
-const OFFER_CHANCE := 0.3               # prob. mensual de que tu señor te encargue algo...
+const OFFER_CHANCE := 0.18               # prob. mensual de que tu señor te encargue algo...
 const FAME_OFFER_BONUS := 0.004         # ...más alta cuanto más famoso eres
 const MAX_OFFER_CHANCE := 0.7
 const MARRIAGE_OFFER_CHANCE := 0.05     # prob. mensual de que tu señor te ofrezca una boda política

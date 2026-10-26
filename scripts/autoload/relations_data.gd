@@ -103,8 +103,8 @@ const SUITOR_CHANCE := 0.15
 const SUITOR_MIN_AFFECTION := 40
 const SUITOR_MONTHLY_DECAY := 5
 const SUITOR_DUEL_AFFECTION := 20
-const ROMANCE_EVENT_CHANCE := 0.2
-const SPOUSE_EVENT_CHANCE := 0.2
+const ROMANCE_EVENT_CHANCE := 0.12
+const SPOUSE_EVENT_CHANCE := 0.12
 const SPOUSE_START_AFFECTION := 60
 
 const DUEL_POWER_WINDOW := 3             # cortesanos válidos como rival: combate+defensa a ±3 del jugador

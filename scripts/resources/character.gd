@@ -108,6 +108,31 @@ func get_portrait() -> Texture2D:
 
 	return null
 
+const FaceRects = preload("res://scripts/resources/face_rects.gd")
+static var _face_cache := {}   # ruta del retrato -> AtlasTexture con la cara
+
+## Solo la cara del retrato (recorte calculado por tools/build_face_rects.py).
+## Se usa en listas, el mapa y la batalla; el retrato completo queda para la ficha.
+func get_face() -> Texture2D:
+	var tex := get_portrait()
+	if tex == null:
+		return null
+	var path := tex.resource_path
+	if _face_cache.has(path):
+		return _face_cache[path]
+	var atlas := AtlasTexture.new()
+	atlas.atlas = tex
+	var r: Array = FaceRects.RECTS.get(path, [])
+	if r.size() == 3:
+		atlas.region = Rect2(r[0], r[1], r[2], r[2])
+	else:
+		# Retrato sin recorte calculado: franja superior centrada.
+		var side := tex.get_width() * 0.4
+		atlas.region = Rect2(tex.get_width() * 0.3, tex.get_height() * 0.03, side, side)
+	if not path.is_empty():
+		_face_cache[path] = atlas
+	return atlas
+
 func _role_file_name() -> String:
 	match role:
 		Role.CAMPESINO: return "campesino"
@@ -171,6 +196,35 @@ func apply_trait_and_equipment_modifiers() -> void:
 	# Ventajas como Robusto o desventajas como Viejas Heridas cambian la vida máxima.
 	max_health = maxi(40, 100 + roundi(SkillEffects.fx(self, "max_health")))
 	current_health = max_health
+
+## Se equipa una pieza (tienda, botín): sus bonos se suman a los atributos. Si ya había otra en la
+## misma ranura, la quita (restando sus bonos) y la devuelve; si no, devuelve null.
+func equip(item: Equipment) -> Equipment:
+	var replaced: Equipment = null
+	for e: Equipment in equipment:
+		if e.slot == item.slot:
+			replaced = e
+			break
+	if replaced != null:
+		unequip(replaced)
+	equipment.append(item)
+	_apply_item_mods(item, 1)
+	return replaced
+
+func unequip(item: Equipment) -> void:
+	if equipment.has(item):
+		equipment.erase(item)
+		_apply_item_mods(item, -1)
+
+func _apply_item_mods(item: Equipment, sign: int) -> void:
+	leadership = clampi(leadership + item.leadership_mod * sign, 1, 20)
+	charisma = clampi(charisma + item.charisma_mod * sign, 1, 20)
+	strategy = clampi(strategy + item.strategy_mod * sign, 1, 20)
+	combat = clampi(combat + item.combat_mod * sign, 1, 20)
+	defense = clampi(defense + item.defense_mod * sign, 1, 20)
+	var old_max := max_health
+	max_health = maxi(40, 100 + roundi(SkillEffects.fx(self, "max_health")))
+	current_health = clampi(current_health + max_health - old_max, 1, max_health)
 
 # --- Validación de reglas de creación ---
 

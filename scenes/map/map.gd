@@ -6,7 +6,8 @@ const MissionsPanel = preload("res://scripts/ui/missions_panel.gd")
 const GLOSSARY_SCENE := "res://scenes/glossary/glossary.tscn"
 
 # Opciones del menú desplegable de la barra superior.
-enum MenuItem { GUARDAR, OPCIONES, GLOSARIO, MENU_PRINCIPAL }
+enum MenuItem { GUARDAR, OPCIONES, GLOSARIO, MENU_PRINCIPAL, CRONICA }
+const ChroniclePanel = preload("res://scripts/ui/chronicle_panel.gd")
 
 @onready var camera: Camera2D = $Camera2D
 @onready var castles_container: Node2D = $CastlesContainer
@@ -67,6 +68,7 @@ var _pending_duel_rival: Character   # rival de un reto aceptado en un evento
 var _showing_notification := false   # el panel de eventos muestra ahora una noticia importante
 
 func _ready() -> void:
+	_add_player_face()
 	camera.setup_bounds(MapData.MAP_WIDTH, MapData.MAP_HEIGHT)
 	_style_selected_label()
 
@@ -110,9 +112,73 @@ func _ready() -> void:
 		_show_message("Resultado del duelo", CombatSetup.last_result_text)
 		CombatSetup.last_result_text = ""
 	_show_next_notification()
+	for panel: Control in [event_overlay, castle_details_panel, army_panel]:
+		panel.visibility_changed.connect(_focus_default, CONNECT_DEFERRED)
+	_focus_default.call_deferred()
+
+# --- Teclado y mando ---
+# Siempre hay algo con el foco: la decisión abierta, el panel abierto o «Avanzar Turno».
+
+func _focus_default() -> void:
+	var target: Control = null
+	if event_overlay.visible:
+		for child in event_options.get_children():
+			if child is Button and not child.disabled and not child.is_queued_for_deletion():
+				target = child
+				break
+		if target == null and btn_event_close.visible:
+			target = btn_event_close
+	elif castle_details_panel.visible:
+		target = btn_enter_castle if not btn_enter_castle.disabled else btn_close_panel
+	elif army_panel.visible:
+		target = btn_march_army if not btn_march_army.disabled else btn_close_army_panel
+	elif not btn_advance_turn.disabled:
+		target = btn_advance_turn
+	if target != null and target.is_visible_in_tree():
+		target.grab_focus()
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event_overlay.visible:
+		return
+	if event.is_action_pressed("ui_cancel") or event.is_action_pressed("map_menu"):
+		if castle_details_panel.visible:
+			_on_close_panel_pressed()
+		elif army_panel.visible:
+			_on_close_army_panel_pressed()
+		else:
+			btn_menu.show_popup()
+	elif event.is_action_pressed("end_turn") and not btn_advance_turn.disabled:
+		btn_advance_turn.pressed.emit()
+	elif event.is_action_pressed("map_relations"):
+		btn_relations.pressed.emit()
+	elif event.is_action_pressed("map_missions"):
+		btn_missions.pressed.emit()
+	elif event.is_action_pressed("map_chronicle"):
+		ChroniclePanel.open($UILayer, visible_castle_ids)
+	elif event.is_action_pressed("map_next_castle"):
+		_select_next_castle(-1 if Input.is_key_pressed(KEY_SHIFT) else 1)
+	else:
+		return
+	get_viewport().set_input_as_handled()
+
+# Recorre los castillos que ves (Tab / clic del stick derecho): centra la cámara y abre su ficha.
+func _select_next_castle(step: int) -> void:
+	var ids: Array[String] = visible_castle_ids.duplicate()
+	ids.sort()
+	if ids.is_empty():
+		return
+	var current := ids.find(selected_castle.castle_id) if selected_castle != null else -1
+	var next_castle := MapData.get_castle_by_id(ids[(current + step + ids.size()) % ids.size()])
+	if next_castle == null:
+		return
+	camera.position = next_castle.position_on_map
+	_on_castle_clicked(next_castle)
 
 func _setup_menu() -> void:
 	var popup := btn_menu.get_popup()
+	popup.add_item("Crónica completa  [C]", MenuItem.CRONICA)
+	popup.add_item("Relaciones  [R] · Encargos [E] · Avanzar turno [T] · Castillos [Tab]", -1)
+	popup.set_item_disabled(popup.item_count - 1, true)
 	popup.add_item("Guardar partida", MenuItem.GUARDAR)
 	popup.add_item("Opciones", MenuItem.OPCIONES)
 	popup.add_item("Glosario", MenuItem.GLOSARIO)
@@ -123,6 +189,8 @@ func _setup_menu() -> void:
 
 func _on_menu_item(id: int) -> void:
 	match id:
+		MenuItem.CRONICA:
+			ChroniclePanel.open($UILayer, visible_castle_ids)
 		MenuItem.GUARDAR:
 			_on_save_game_pressed()
 		MenuItem.OPCIONES:
@@ -159,6 +227,17 @@ func _show_message(title: String, text: String) -> void:
 	btn_event_close.visible = true
 	event_overlay.visible = true
 	UiAnim.fade_in(event_panel, 0.25)
+
+# Tu cara arriba a la izquierda; al pulsarla se ve el retrato completo.
+func _add_player_face() -> void:
+	var player: Character = GameManager.player_character
+	if player == null:
+		return
+	var face := FaceIcon.make(player, 52, Color("d4af5a"))
+	face.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var bar: HBoxContainer = $UILayer/TopBar/TopHBox
+	bar.add_child(face)
+	bar.move_child(face, 0)
 
 func _compute_visible_castle_ids() -> Array[String]:
 	# Sin partida activa (p. ej. "Ver Mapa" desde el menú) se muestra todo como vista previa.
@@ -512,7 +591,7 @@ func _show_pending_event() -> void:
 	var speaker: Relationship = RelationsData.get_relation(e.get("speaker", ""))
 	event_speaker.visible = speaker != null and speaker.character != null
 	if event_speaker.visible:
-		event_speaker_portrait.texture = speaker.character.get_portrait()
+		event_speaker_portrait.texture = speaker.character.get_face()
 		event_speaker_name.text = "%s · %s" % [speaker.person_name, DialogueCatalog.personality_name(speaker.character.personality)]
 		event_speaker_line.text = "«%s»" % e.get("quote", "") if not str(e.get("quote", "")).is_empty() else ""
 
@@ -532,19 +611,24 @@ func _show_pending_event() -> void:
 		event_options.add_child(btn)
 	event_overlay.visible = true
 	UiAnim.fade_in(event_panel, 0.25)
+	_focus_default.call_deferred()
 
 func _on_event_option_pressed(index: int) -> void:
 	var e: Dictionary = GameManager.pending_event
 	var target: Relationship = RelationsData.get_relation(e.get("target", e.get("speaker", "")))
 	var duel_rival: Relationship = RelationsData.get_relation(e.get("duel_with", e.get("speaker", "")))
 	var starts_duel: bool = e.options[index].get("start_duel", false)
+	var chosen_label: String = e.options[index].get("label", "")
 	var result := GameManager.resolve_pending_event(index, target)
+	# Tus decisiones también quedan en la crónica.
+	WorldEvents.record("%s: %s. %s" % [e.get("title", "Suceso"), chosen_label, result.get_slice("\n", 0)], "", true)
 	for child in event_options.get_children():
 		child.queue_free()
 	event_result.text = result
 	event_result.visible = true
 	btn_event_close.visible = true
 	_refresh_turn_ui()
+	_focus_default.call_deferred()
 	# Aceptar un reto lleva directamente al duelo; al terminar se vuelve al mapa.
 	_pending_duel_rival = duel_rival.character if starts_duel and duel_rival != null else null
 	if _pending_duel_rival != null:

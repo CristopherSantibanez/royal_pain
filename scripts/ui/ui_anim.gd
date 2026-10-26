@@ -21,3 +21,18 @@ static func pulse(node: CanvasItem, color: Color = Color(1.25, 1.15, 0.9)) -> Tw
 	tw.tween_property(node, "modulate", color, 0.6).set_trans(Tween.TRANS_SINE)
 	tw.tween_property(node, "modulate", Color.WHITE, 0.6).set_trans(Tween.TRANS_SINE)
 	return tw
+
+## Da el foco al primer control usable dentro de un nodo (para teclado y mando): todas las
+## pantallas deben abrir con algo enfocado. Devuelve el control enfocado o null.
+static func focus_first(root: Node) -> Control:
+	for child in root.get_children():
+		if child is Control and not (child as Control).is_visible_in_tree():
+			continue
+		if child is BaseButton and not child.disabled and child.focus_mode != Control.FOCUS_NONE \
+				or child is LineEdit and child.editable or child is TabBar:
+			(child as Control).grab_focus()
+			return child
+		var found := focus_first(child)
+		if found != null:
+			return found
+	return null

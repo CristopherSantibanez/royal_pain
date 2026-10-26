@@ -118,12 +118,7 @@ func _ask_champion(champions: Array[Character]) -> Character:
 	candidates.append_array(champions)
 	for c: Character in candidates:
 		var card := VBoxContainer.new()
-		var pic := TextureRect.new()
-		pic.texture = c.get_portrait()
-		pic.custom_minimum_size = Vector2(110, 150)
-		pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		card.add_child(pic)
+		card.add_child(FaceIcon.make(c, 110, Color("d4af5a") if c == _owner else FaceIcon.FRAME_COLOR))
 		var btn := Button.new()
 		btn.text = "Yo mismo" if c == _owner else c.first_name
 		btn.tooltip_text = "%s · Combate %d, Defensa %d · Vida %d/%d" % [c.full_name(), c.combat, c.defense, c.current_health, c.max_health]
@@ -161,6 +156,7 @@ func _begin() -> void:
 	_spoken[player_character] = {"hurt": false, "low": false, "cooldown": 0}
 	_spoken[enemy_character] = {"hurt": false, "low": false, "cooldown": 0}
 	_opening_lines()
+	_focus_attack()
 	if duel.roll_first(player_character, enemy_character) == enemy_character:
 		_enemy_opens()
 	if is_campaign:
@@ -326,7 +322,7 @@ func _order_button(parent: Node, text: String, key: Key, description: String) ->
 	b.text = text
 	var key_name := OS.get_keycode_string(key)
 	b.tooltip_text = "%s  [tecla %s]" % [description, key_name]
-	b.focus_mode = Control.FOCUS_NONE   # las teclas 1–8 / Q–T son el atajo; el foco solo estorbaría
+	b.focus_mode = Control.FOCUS_ALL    # mando y flechas; las teclas 1–8 / Q–T siguen siendo atajos
 	b.add_theme_font_size_override("font_size", 14)
 	b.custom_minimum_size = Vector2(0, 34)
 	parent.add_child(b)
@@ -445,6 +441,7 @@ func _enemy_turn() -> void:
 	player_turn = true
 	_refresh_ui()
 	_set_buttons_enabled(not duel.is_over)
+	_focus_attack()
 	_update_turn_indicator()
 
 func _refresh_ui() -> void:
@@ -713,6 +710,11 @@ func _on_volver_menu_pressed() -> void:
 		return
 	get_tree().change_scene_to_file("res://scenes/main_menu/main_menu.tscn")
 
+
+# Teclado y mando: en tu turno el foco vuelve a «Atacar».
+func _focus_attack() -> void:
+	if not _action_buttons.is_empty() and not duel.is_over:
+		_action_buttons[0].grab_focus.call_deferred()
 
 func _set_buttons_enabled(enabled: bool) -> void:
 	for b: Button in _action_buttons:

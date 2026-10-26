@@ -17,6 +17,7 @@ func _ready() -> void:
 	btn_back.text = "Volver al Mapa" if saving else "Volver al Menú"
 	btn_back.pressed.connect(func(): get_tree().change_scene_to_file(SaveSystem.slots_return_scene))
 	_rebuild()
+	(func(): UiAnim.focus_first(self)).call_deferred()   # teclado y mando
 
 func _rebuild() -> void:
 	for child in rows.get_children():

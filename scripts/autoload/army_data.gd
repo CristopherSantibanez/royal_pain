@@ -9,6 +9,17 @@ signal events_changed
 const VICTORY_HONOR := 10
 const DEFEAT_HONOR := 5
 const LOOT_FRACTION := 0.3   # parte del oro del castillo conquistado que se lleva el jugador
+const FAME_CONQUEST := 8     # fama por conquistar un castillo
+const FAME_DEFENSE := 5      # ...por rechazar un asalto a tu castillo
+const FAME_DEFEAT := -3      # ...y la que se pierde con una derrota
+
+# --- Asedio: un ejército del jugador que espera ante un castillo enemigo lo desgasta cada mes ---
+const SIEGE_ATTRITION := 0.08           # guarnición que pierde el castillo sitiado al mes
+const SIEGE_STARVED_ATTRITION := 0.15   # ...si además se quedó sin comida
+const SIEGE_UPKEEP_PER_SOLDIERS := 10   # el jugador paga 1 de oro al mes por cada 10 sitiadores
+const SIEGE_UNPAID_DESERTION := 0.05    # sin paga, desertan sitiadores
+const COMMAND_LEADERSHIP_GAIN := 1      # Liderazgo por batalla ganada al mando (máx. una vez al mes)
+const MAX_STAT := 20
 
 var armies: Array[Army] = []
 var _next_id: int = 1
@@ -42,6 +53,49 @@ func create_army(owner_name: String, kingdom: int, size: int, castle_id: String)
 	armies.append(a)
 	armies_changed.emit()
 	return a
+
+# Suma tropas del jugador a su ejército parado en ese castillo (o crea uno nuevo si no hay).
+func add_player_troops(castle_id: String, kingdom: int, size: int) -> Army:
+	var existing := idle_player_army_at(castle_id)
+	if existing != null:
+		existing.size += size
+		armies_changed.emit()
+		return existing
+	return create_army(GameManager.player_character.full_name(), kingdom, size, castle_id)
+
+func idle_player_army_at(castle_id: String) -> Army:
+	for a: Army in armies:
+		if a.current_castle_id == castle_id and a.is_idle() and is_player_army(a):
+			return a
+	return null
+
+func idle_player_armies_at(castle_id: String) -> Array[Army]:
+	var result: Array[Army] = []
+	for a: Army in armies:
+		if a.current_castle_id == castle_id and a.is_idle() and is_player_army(a):
+			result.append(a)
+	return result
+
+# Reúne en uno todos los ejércitos parados del jugador en un castillo. Devuelve el resultante (o null).
+func merge_armies(castle_id: String) -> Army:
+	var group := idle_player_armies_at(castle_id)
+	if group.is_empty():
+		return null
+	var main: Army = group[0]
+	for i in range(1, group.size()):
+		main.size += group[i].size
+		armies.erase(group[i])
+	armies_changed.emit()
+	return main
+
+# Un ejército propio parado en un castillo propio vuelve a la guarnición.
+func garrison_army(army: Army) -> bool:
+	var castle: Castle = MapData.get_castle_by_id(army.current_castle_id)
+	if castle == null or not army.is_idle() or castle.kingdom != army.kingdom:
+		return false
+	castle.garrison_size += army.size
+	disband_army(army)
+	return true
 
 func get_armies_at(castle_id: String) -> Array[Army]:
 	var result: Array[Army] = []
@@ -88,7 +142,7 @@ func set_destination(army: Army, destination_castle_id: String) -> bool:
 	# Diplomacia: marchar contra un señor sin guerra declarada (o contra un aliado) tiene consecuencias.
 	var target: Castle = MapData.get_castle_by_id(destination_castle_id)
 	if is_player_army(army) and target != null and target.kingdom != army.kingdom:
-		var note := RelationsData.on_player_marches_against(target.owner_name)
+		var note: String = RelationsData.on_player_marches_against(target.owner_name)
 		if not note.is_empty():
 			_add_event(note, target.castle_id)
 			events_changed.emit()
@@ -114,10 +168,12 @@ func _add_event(text: String, castle_id: String) -> void:
 func _on_turn_advanced(_month: int, _year: int) -> void:
 	turn_events.clear()
 
-	# 1. Las defensas que el jugador no jugó se resuelven solas.
+	# 1. Las defensas que el jugador no jugó se resuelven solas; sus asedios desgastan al castillo.
 	for a: Army in armies.duplicate():
 		if a.pending_battle and not is_player_army(a):
 			_auto_resolve_battle(a)
+		elif a.pending_battle:
+			_siege_month(a)
 
 	# 2. Movimiento (se recorre una copia: las llegadas pueden disolver ejércitos).
 	for a: Army in armies.duplicate():
@@ -127,8 +183,19 @@ func _on_turn_advanced(_month: int, _year: int) -> void:
 		if a.turns_remaining <= 0:
 			_resolve_arrival(a)
 
-	# 3. Reclutamiento natural en todos los castillos, y el edicto del Regente si hay uno.
+	# 3. Reclutamiento natural, paga y comida de las guarniciones, rentas del jugador y edicto del Regente.
 	KingdomAI.recruit(MapData.castles)
+	var own_castles: Array[String] = []
+	for c: Castle in MapData.castles:
+		if is_player_defended(c):
+			own_castles.append(c.castle_id)
+	var upkeep_factor := SkillEffects.upkeep_multiplier(GameManager.player_character) if GameManager.player_character != null else 1.0
+	for t: Dictionary in KingdomAI.castle_economy(MapData.castles, SkillEffects.is_winter(GameManager.current_month), own_castles, upkeep_factor):
+		var c: Castle = t.castle
+		_add_event("Por %s, %d soldados abandonan %s." % [t.reason, t.lost, c.castle_name], c.castle_id)
+	var player: Character = GameManager.player_character
+	if player != null and player.rent > 0:
+		player.gold += player.rent
 	var edict_note := EdictCatalog.apply_monthly(GameManager.active_edict, GameManager.player_character,
 		MapData.castles, GameManager.player_kingdom, RelationsData.relations)
 	if not edict_note.is_empty():
@@ -139,6 +206,9 @@ func _on_turn_advanced(_month: int, _year: int) -> void:
 		for news: Dictionary in KingdomDiplomacy.monthly_update(MapData.castles, RelationsData.kingdom_wars,
 				RelationsData.kingdom_alliances, GameManager.months_elapsed(), GameManager.player_kingdom):
 			_add_event(news.text, news.castle_id)
+			# Las declaraciones de guerra se avisan aunque ocurran lejos: cambian el equilibrio del mundo.
+			if news.get("kind", "") == "war":
+				WorldEvents.notify("Declaración de guerra", news.text)
 		_check_rebellions()
 		_run_kingdom_ai()
 
@@ -151,8 +221,16 @@ func _run_kingdom_ai() -> void:
 	for c: Castle in MapData.castles:
 		if is_player_defended(c):
 			player_castle_ids.append(c.castle_id)
+	# Reinos cuyos señores están en guerra declarada con el jugador (las guerras del jugador viven en sus relaciones).
+	var player_war_kingdoms: Array[int] = []
+	for r: Relationship in RelationsData.lords():
+		if r.at_war:
+			for c: Castle in RelationsData.castles_of(r.person_name):
+				if not c.kingdom in player_war_kingdoms:
+					player_war_kingdoms.append(c.kingdom)
 	var plans := KingdomAI.plan_attacks(MapData.castles, armies, GameManager.player_kingdom, GameManager.months_elapsed(), player_name,
-		player_castle_ids, RelationsData.allied_kingdoms(), RelationsData.hostile_kingdoms(), RelationsData.kingdom_wars)
+		player_castle_ids, RelationsData.allied_kingdoms(), RelationsData.hostile_kingdoms(), RelationsData.kingdom_wars,
+		player_war_kingdoms)
 	for plan: Dictionary in plans:
 		var origin: Castle = MapData.get_castle_by_id(plan.from_id)
 		var target: Castle = MapData.get_castle_by_id(plan.to_id)
@@ -179,7 +257,11 @@ func _resolve_arrival(army: Army) -> void:
 	army.destination_castle_id = ""
 
 	if destination.kingdom == army.kingdom:
-		# Territorio aliado: el ejército se disuelve y refuerza la guarnición local.
+		if is_player_army(army):
+			# El jugador conserva su ejército (para reunir fuerzas); si ya tenía otro allí, se juntan.
+			merge_armies(destination.castle_id)
+			return
+		# Territorio aliado: el ejército de la IA se disuelve y refuerza la guarnición local.
 		destination.garrison_size += army.size
 		disband_army(army)
 		return
@@ -201,7 +283,8 @@ func _auto_resolve_battle(army: Army) -> void:
 		disband_army(army)
 		return
 	var defending := is_player_defended(castle)
-	var r := KingdomAI.auto_resolve(army.size, castle.garrison_size)
+	var r := KingdomAI.auto_resolve(army.size, castle.garrison_size,
+		KingdomAI.PLAYER_SIDE_UNPLAYED_FACTOR if defending else 1.0)
 	var summary := resolve_battle(army, r.attacker_won, r.attacker_survivors, r.defender_survivors, defending)
 	var prefix := "Sin tu mando, la defensa se libra sola: " if defending else ""
 	_add_event(prefix + summary.replace("\n", " "), castle.castle_id)
@@ -234,13 +317,15 @@ func resolve_battle(army: Army, attacker_won: bool, attacker_survivors: int, def
 		disband_army(army)
 		lines.append("%s cae en manos de %s (antes: %s). Guarnición: %d soldados." % [
 			castle.castle_name, KingdomEnums.kingdom_name(castle.kingdom), KingdomEnums.kingdom_name(old_kingdom), attacker_survivors])
-		if player_attacking:
+		if player_attacking and player != null:
+			_grant_command_experience(lines)
 			var loot := int(castle.gold * LOOT_FRACTION)
 			castle.gold -= loot
 			player.gold += loot
 			player.honor = clamp(player.honor + VICTORY_HONOR, 0, 100)
-			lines.append("Ganas %d de honor y saqueas %d de oro." % [VICTORY_HONOR, loot])
-			var grudge := RelationsData.on_player_conquered(old_owner)
+			player.add_fame(FAME_CONQUEST)
+			lines.append("Ganas %d de honor y %d de fama, y saqueas %d de oro." % [VICTORY_HONOR, FAME_CONQUEST, loot])
+			var grudge: String = RelationsData.on_player_conquered(old_owner)
 			if not grudge.is_empty():
 				lines.append(grudge)
 		elif player_defending:
@@ -255,9 +340,40 @@ func resolve_battle(army: Army, attacker_won: bool, attacker_survivors: int, def
 			_apply_player_defeat(lines)
 		elif player_defending and player != null:
 			player.honor = clamp(player.honor + VICTORY_HONOR, 0, 100)
-			lines.append("Defendiste tu castillo: ganas %d de honor." % VICTORY_HONOR)
+			player.add_fame(FAME_DEFENSE)
+			lines.append("Defendiste tu castillo: ganas %d de honor y %d de fama." % [VICTORY_HONOR, FAME_DEFENSE])
+			_grant_command_experience(lines)
 
 	return "\n".join(lines)
+
+# Ganar una batalla al mando enseña a liderar (como mucho una vez al mes).
+func _grant_command_experience(lines: Array[String]) -> void:
+	var player: Character = GameManager.player_character
+	if player == null or player.leadership >= MAX_STAT or player.last_command_month == GameManager.months_elapsed():
+		return
+	player.last_command_month = GameManager.months_elapsed()
+	player.leadership += COMMAND_LEADERSHIP_GAIN
+	lines.append("La victoria curte tu mando: Liderazgo %d." % player.leadership)
+
+# Un mes de asedio: el castillo pierde defensores (más si pasa hambre) y el jugador paga a sus sitiadores.
+func _siege_month(army: Army) -> void:
+	var castle: Castle = MapData.get_castle_by_id(army.current_castle_id)
+	if castle == null:
+		return
+	var rate := SIEGE_STARVED_ATTRITION if castle.food <= 0 else SIEGE_ATTRITION
+	var lost := maxi(1, int(castle.garrison_size * rate))
+	castle.garrison_size = maxi(1, castle.garrison_size - lost)
+	var text := "El asedio de %s se cobra %d defensores (quedan %d)." % [castle.castle_name, lost, castle.garrison_size]
+	var player: Character = GameManager.player_character
+	var upkeep: int = ceili(army.size / float(SIEGE_UPKEEP_PER_SOLDIERS))
+	if player != null and player.gold >= upkeep:
+		player.gold -= upkeep
+		text += " Pagas %d de oro a tus sitiadores." % upkeep
+	else:
+		var deserters := maxi(1, int(army.size * SIEGE_UNPAID_DESERTION))
+		army.size = maxi(1, army.size - deserters)
+		text += " Sin oro para la paga, desertan %d de tus soldados." % deserters
+	_add_event(text, castle.castle_id)
 
 func _retreat_army(army: Army, survivors: int, lines: Array[String]) -> void:
 	var origin: Castle = MapData.get_castle_by_id(army.origin_castle_id)
@@ -284,7 +400,8 @@ func _apply_player_defeat(lines: Array[String]) -> void:
 	if player == null:
 		return
 	player.honor = clamp(player.honor - DEFEAT_HONOR, 0, 100)
-	lines.append("Pierdes %d de honor." % DEFEAT_HONOR)
+	player.add_fame(FAME_DEFEAT)
+	lines.append("Pierdes %d de honor y algo de fama." % DEFEAT_HONOR)
 	if RoleProgression.check_dishonor_demotion(player):
 		var old_role: int = player.role
 		RoleProgression.apply_dishonor_demotion(player)

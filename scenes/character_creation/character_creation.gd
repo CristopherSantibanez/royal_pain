@@ -147,14 +147,26 @@ func _select_portrait(tex: Texture2D) -> void:
 
 # --- Personalidad / Alineación / Tipo de Luchador ---
 
+var personality_desc: Label
+
 func _populate_personality_options() -> void:
 	opt_personality.clear()
-	opt_personality.add_item("Ambicioso", Character.Personality.AMBICIOSO)
-	opt_personality.add_item("Leal", Character.Personality.LEAL)
-	opt_personality.add_item("Prudente", Character.Personality.PRUDENTE)
-	opt_personality.add_item("Arrogante", Character.Personality.ARROGANTE)
-	opt_personality.add_item("Piadoso", Character.Personality.PIADOSO)
-	opt_personality.add_item("Astuto", Character.Personality.ASTUTO)
+	for p in Character.Personality.values():
+		opt_personality.add_item(DialogueCatalog.personality_name(p), p)
+	# Descripción de la personalidad elegida, bajo el desplegable.
+	if personality_desc == null:
+		personality_desc = Label.new()
+		personality_desc.theme_type_variation = &"InkLabel"
+		personality_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		personality_desc.custom_minimum_size = Vector2(220, 0)
+		personality_desc.add_theme_font_size_override("font_size", 14)
+		opt_personality.get_parent().add_child(personality_desc)
+		opt_personality.item_selected.connect(func(_i): _refresh_personality_desc())
+	_refresh_personality_desc()
+
+func _refresh_personality_desc() -> void:
+	if personality_desc != null and opt_personality.selected >= 0:
+		personality_desc.text = DialogueCatalog.personality_description(opt_personality.get_selected_id())
 
 func _populate_alignment_options() -> void:
 	opt_alignment.clear()
@@ -238,18 +250,15 @@ func _build_traits_lists() -> void:
 	for child in disadvantages_list.get_children():
 		child.queue_free()
 
-	print("Advantages en GameData: ", GameData.advantages.size())
-	print("Disadvantages en GameData: ", GameData.disadvantages.size())
-
 	for t: CharacterTrait in GameData.advantages:
 		var cb := _make_trait_checkbox(t)
 		cb.toggled.connect(func(pressed: bool): _on_advantage_toggled(t, pressed))
-		advantages_list.add_child(cb)
+		_add_entry(advantages_list, cb, _trait_text(t))
 
 	for t: CharacterTrait in GameData.disadvantages:
 		var cb := _make_trait_checkbox(t)
 		cb.toggled.connect(func(pressed: bool): _on_disadvantage_toggled(t, pressed))
-		disadvantages_list.add_child(cb)
+		_add_entry(disadvantages_list, cb, _trait_text(t))
 
 	_refresh_traits_count()
 
@@ -259,6 +268,36 @@ func _make_trait_checkbox(t: CharacterTrait) -> CheckBox:
 	cb.tooltip_text = t.description
 	cb.add_theme_color_override("font_color", Color.BLACK)
 	return cb
+
+func _trait_text(t: CharacterTrait) -> String:
+	var mods := GameData.effect_summary(t.trait_name)
+	return t.description + (" (%s)" % mods if not mods.is_empty() else "")
+
+# Cada opción va con su efecto escrito debajo, a la vista (no solo en el tooltip).
+func _add_entry(container: Container, cb: CheckBox, description: String) -> void:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 0)
+	box.add_child(cb)
+	var desc := Label.new()
+	desc.theme_type_variation = &"InkLabel"
+	desc.text = description
+	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	desc.custom_minimum_size = Vector2(200, 0)
+	desc.add_theme_font_size_override("font_size", 13)
+	desc.add_theme_color_override("font_color", Color(0.24, 0.16, 0.1, 0.85))
+	desc.add_theme_constant_override("line_spacing", 0)
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 30)
+	margin.add_child(desc)
+	box.add_child(margin)
+	container.add_child(box)
+
+func _add_header(container: Container, text: String) -> void:
+	var header := Label.new()
+	header.theme_type_variation = &"InkHeaderLabel"
+	header.text = text
+	header.add_theme_font_size_override("font_size", 15)
+	container.add_child(header)
 
 func _on_advantage_toggled(t: CharacterTrait, pressed: bool) -> void:
 	if pressed:
@@ -308,7 +347,7 @@ func _populate_skill_checkboxes(container: VBoxContainer, catalog: Array[Skill],
 		cb.tooltip_text = s.description
 		cb.add_theme_color_override("font_color", Color.BLACK)
 		cb.toggled.connect(func(pressed: bool): _on_skill_toggled(s, selected, pressed))
-		container.add_child(cb)
+		_add_entry(container, cb, s.description)
 
 func _on_skill_toggled(s: Skill, selected: Array[Skill], pressed: bool) -> void:
 	if pressed:
@@ -326,14 +365,19 @@ func _build_equipment_list() -> void:
 		child.queue_free()
 	equipment_checkboxes.clear()
 
-	for e: Equipment in GameData.equipment_catalog:
-		var cb := CheckBox.new()
-		cb.text = _equipment_label(e)
-		cb.tooltip_text = e.description
-		cb.add_theme_color_override("font_color", Color.BLACK)
-		cb.toggled.connect(func(pressed: bool): _on_equipment_toggled(e, cb, pressed))
-		equipment_list.add_child(cb)
-		equipment_checkboxes[e] = cb
+	# Agrupado por ranura: una pieza por ranura.
+	for slot in GameData.ContentCatalog.SLOTS:
+		_add_header(equipment_list, slot)
+		for e: Equipment in GameData.equipment_catalog:
+			if e.slot != slot:
+				continue
+			var cb := CheckBox.new()
+			cb.text = _equipment_label(e)
+			cb.tooltip_text = e.description
+			cb.add_theme_color_override("font_color", Color.BLACK)
+			cb.toggled.connect(func(pressed: bool): _on_equipment_toggled(e, cb, pressed))
+			_add_entry(equipment_list, cb, "%s · %d de oro" % [e.description, e.price])
+			equipment_checkboxes[e] = cb
 
 	_refresh_equipment_count()
 
@@ -345,12 +389,18 @@ func _equipment_label(e: Equipment) -> String:
 	if e.charisma_mod != 0: bonuses.append("Carisma %+d" % e.charisma_mod)
 	if e.strategy_mod != 0: bonuses.append("Estrategia %+d" % e.strategy_mod)
 	var bonus_text := ", ".join(bonuses)
-	return "%s (%s)" % [e.equipment_name, bonus_text]
+	var stars := "★".repeat(e.tier)
+	return "%s %s (%s)" % [e.equipment_name, stars, bonus_text] if not bonus_text.is_empty() else "%s %s" % [e.equipment_name, stars]
 
 func _on_equipment_toggled(e: Equipment, cb: CheckBox, pressed: bool) -> void:
 	if pressed:
-		if character.equipment.size() >= 2:
-			# Ya hay 2 elegidos: revierte visualmente esta casilla sin agregarla.
+		# Otra pieza de la misma ranura se cambia por esta.
+		for other: Equipment in character.equipment.duplicate():
+			if other.slot == e.slot:
+				character.equipment.erase(other)
+				equipment_checkboxes[other].set_pressed_no_signal(false)
+		if character.equipment.size() >= Character.MAX_EQUIPMENT:
+			# Ya está el máximo: revierte visualmente esta casilla sin agregarla.
 			cb.set_pressed_no_signal(false)
 			return
 		character.equipment.append(e)
@@ -361,10 +411,10 @@ func _on_equipment_toggled(e: Equipment, cb: CheckBox, pressed: bool) -> void:
 	_update_equipment_lock_state()
 
 func _refresh_equipment_count() -> void:
-	lbl_equipment_count.text = "Equipados: %d / máximo 2" % character.equipment.size()
+	lbl_equipment_count.text = "Equipados: %d / máximo %d (una pieza por ranura)" % [character.equipment.size(), Character.MAX_EQUIPMENT]
 
 func _update_equipment_lock_state() -> void:
-	var maxed_out := character.equipment.size() >= 2
+	var maxed_out := character.equipment.size() >= Character.MAX_EQUIPMENT
 	for e: Equipment in equipment_checkboxes.keys():
 		var cb: CheckBox = equipment_checkboxes[e]
 		cb.add_theme_color_override("font_color", Color.BLACK)
@@ -426,7 +476,7 @@ func _randomize_all() -> void:
 	_randomize_checkboxes(general_skills_list, 1)
 	_randomize_checkboxes(combat_skills_list, 1)
 	_randomize_checkboxes(battle_skills_list, 1)
-	_randomize_checkboxes(equipment_list, randi_range(0, 2))
+	_randomize_checkboxes(equipment_list, randi_range(1, Character.MAX_EQUIPMENT))
 
 	edit_bio.text = RANDOM_BIOS.pick_random()
 	_on_bio_changed()
@@ -434,8 +484,8 @@ func _randomize_all() -> void:
 
 func _randomize_checkboxes(list: Container, count: int) -> void:
 	var boxes: Array = []
-	for child in list.get_children():
-		if child is CheckBox and not child.is_queued_for_deletion():
+	for child in list.find_children("*", "CheckBox", true, false):
+		if not child.is_queued_for_deletion():
 			boxes.append(child)
 	# Primero se desmarcan todas (los handlers quitan cada elemento del personaje)...
 	for cb: CheckBox in boxes:
@@ -445,3 +495,4 @@ func _randomize_checkboxes(list: Container, count: int) -> void:
 	boxes.shuffle()
 	for cb: CheckBox in boxes.slice(0, mini(count, boxes.size())):
 		cb.button_pressed = true
+	_refresh_personality_desc()

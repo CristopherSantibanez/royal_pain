@@ -24,6 +24,11 @@ GameManager="*uid://kihvwyjrsou5"
 MapData="*uid://bo7ni712xogui"
 ArmyData="*res://scripts/autoload/army_data.gd"
 RelationsData="*res://scripts/autoload/relations_data.gd"
+MissionData="*res://scripts/autoload/mission_data.gd"
+WorldEvents="*res://scripts/autoload/world_events.gd"
+Settings="*res://scripts/autoload/settings.gd"
+Sfx="*res://scripts/autoload/sfx.gd"
+Music="*res://scripts/autoload/music.gd"
 
 [display]
 
@@ -36,7 +41,7 @@ version_control/autoload_on_startup=true
 
 [gui]
 
-theme/custom_font="uid://8iybn7xfbeev"
+theme/custom="res://ui/theme/royal_theme.tres"
 
 [physics]
 

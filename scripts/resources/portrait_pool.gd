@@ -9,6 +9,10 @@ var _available := {
 }
 
 func _init(used_paths: Array = []) -> void:
+	# El retrato del jugador (propio o el genérico de su rol) nunca se reparte a un PNJ.
+	var player_path := CharacterLoader.player_portrait_path()
+	if player_path != "":
+		used_paths = used_paths + [player_path]
 	for gender in _available.keys():
 		var paths := PortraitGallery.get_portraits_for_gender(gender)
 		paths.shuffle()

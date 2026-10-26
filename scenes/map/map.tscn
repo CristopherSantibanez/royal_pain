@@ -2,32 +2,10 @@
 
 [ext_resource type="Script" uid="uid://b83lmkgpm21n7" path="res://scenes/map/map.gd" id="1_a2pkv"]
 [ext_resource type="Texture2D" uid="uid://bdaxqqpp14il" path="res://assets/Map.png" id="1_sxf4j"]
-[ext_resource type="Texture2D" uid="uid://b8i0hob6iwv4" path="res://assets/Main-Menu.png" id="2_ph54e"]
 [ext_resource type="Script" uid="uid://6i1fb2un4atk" path="res://scripts/map/map_camera.gd" id="2_tqkkf"]
 
 [node name="GeopoliticalMap" type="Node2D" unique_id=1188924373]
 script = ExtResource("1_a2pkv")
-
-[node name="TextureRect" type="TextureRect" parent="." unique_id=603286327]
-propagate_maximum_size = true
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-texture = ExtResource("2_ph54e")
-expand_mode = 5
-stretch_mode = 6
-
-[node name="MainMenu" type="TextureRect" parent="." unique_id=1377632464]
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-texture = ExtResource("2_ph54e")
-expand_mode = 5
-stretch_mode = 6
 
 [node name="MapBackground" type="Sprite2D" parent="." unique_id=1549325877]
 texture = ExtResource("1_sxf4j")
@@ -45,200 +23,283 @@ script = ExtResource("2_tqkkf")
 [node name="UILayer" type="CanvasLayer" parent="." unique_id=571969811]
 
 [node name="SelectedCastleLabel" type="Label" parent="UILayer" unique_id=1462569735]
+visible = false
 offset_right = 40.0
 offset_bottom = 20.0
 
-[node name="EventsPanel" type="PanelContainer" parent="UILayer"]
+[node name="TopBar" type="PanelContainer" parent="UILayer"]
+anchors_preset = 10
+anchor_right = 1.0
+grow_horizontal = 2
+theme_type_variation = &"BarPanel"
+
+[node name="TopHBox" type="HBoxContainer" parent="UILayer/TopBar"]
+layout_mode = 2
+theme_override_constants/separation = 18
+
+[node name="DateBox" type="VBoxContainer" parent="UILayer/TopBar/TopHBox"]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="DateLabel" type="Label" parent="UILayer/TopBar/TopHBox/DateBox"]
 unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"SubheaderLabel"
+theme_override_font_sizes/font_size = 18
+
+[node name="TurnActionsLabel" type="Label" parent="UILayer/TopBar/TopHBox/DateBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"MutedLabel"
+
+[node name="VSeparator" type="VSeparator" parent="UILayer/TopBar/TopHBox"]
+layout_mode = 2
+
+[node name="PlayerSummaryLabel" type="Label" parent="UILayer/TopBar/TopHBox"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 0
+size_flags_horizontal = 3
+size_flags_vertical = 4
+text_overrun_behavior = 3
+
+[node name="BtnRelations" type="Button" parent="UILayer/TopBar/TopHBox"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+text = "Relaciones"
+
+[node name="BtnMissions" type="Button" parent="UILayer/TopBar/TopHBox"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+tooltip_text = "Encargos de tu señor: plazos, progreso y recompensas."
+text = "Encargos"
+
+[node name="BtnMenu" type="MenuButton" parent="UILayer/TopBar/TopHBox"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+text = "Menú ▾"
+flat = false
+
+[node name="BtnSaveGame" type="Button" parent="UILayer/TopBar/TopHBox"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_vertical = 4
+tooltip_text = "Elige una ranura. La partida también se guarda sola (autoguardado) al comienzo de cada mes."
+text = "Guardar"
+
+[node name="BtnOptions" type="Button" parent="UILayer/TopBar/TopHBox"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_vertical = 4
+text = "Opciones"
+
+[node name="BtnMainMenu" type="Button" parent="UILayer/TopBar/TopHBox"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_vertical = 4
+theme_type_variation = &"FlatButton"
+text = "Menú"
+
+[node name="ObjectivePanel" type="PanelContainer" parent="UILayer"]
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 14.0
+offset_top = -124.0
+offset_right = 290.0
+offset_bottom = -14.0
+grow_vertical = 0
+theme_type_variation = &"CardPanel"
+
+[node name="ObjectiveVBox" type="VBoxContainer" parent="UILayer/ObjectivePanel"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="ObjectiveHeader" type="Label" parent="UILayer/ObjectivePanel/ObjectiveVBox"]
+layout_mode = 2
+theme_type_variation = &"SubheaderLabel"
+text = "Tu destino"
+
+[node name="ObjectiveLabel" type="Label" parent="UILayer/ObjectivePanel/ObjectiveVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_font_sizes/font_size = 15
+autowrap_mode = 3
+
+[node name="EventsPanel" type="PanelContainer" parent="UILayer"]
 anchors_preset = 12
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 276.0
-offset_top = -150.0
-offset_right = -316.0
-offset_bottom = -16.0
+offset_left = 304.0
+offset_top = -124.0
+offset_right = -262.0
+offset_bottom = -14.0
 grow_horizontal = 2
 grow_vertical = 0
+theme_type_variation = &"CardPanel"
 
-[node name="EventsMargin" type="MarginContainer" parent="UILayer/EventsPanel"]
+[node name="EventsVBox" type="VBoxContainer" parent="UILayer/EventsPanel"]
 layout_mode = 2
-theme_override_constants/margin_left = 10
-theme_override_constants/margin_top = 8
-theme_override_constants/margin_right = 10
-theme_override_constants/margin_bottom = 8
+theme_override_constants/separation = 2
 
-[node name="EventsLabel" type="Label" parent="UILayer/EventsPanel/EventsMargin"]
+[node name="EventsHeader" type="Label" parent="UILayer/EventsPanel/EventsVBox"]
+layout_mode = 2
+theme_type_variation = &"SubheaderLabel"
+text = "Crónica del reino"
+
+[node name="EventsLabel" type="Label" parent="UILayer/EventsPanel/EventsVBox"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
-theme_override_font_sizes/font_size = 13
+theme_override_font_sizes/font_size = 15
 autowrap_mode = 3
-clip_text = true
+text_overrun_behavior = 3
 
-[node name="TurnPanel" type="PanelContainer" parent="UILayer"]
-anchors_preset = 2
-anchor_top = 1.0
-anchor_bottom = 1.0
-offset_left = 16.0
-offset_top = -90.0
-offset_right = 260.0
-offset_bottom = -16.0
-grow_vertical = 0
-
-[node name="TurnMargin" type="MarginContainer" parent="UILayer/TurnPanel"]
-layout_mode = 2
-theme_override_constants/margin_left = 10
-theme_override_constants/margin_top = 10
-theme_override_constants/margin_right = 10
-theme_override_constants/margin_bottom = 10
-
-[node name="TurnVBox" type="VBoxContainer" parent="UILayer/TurnPanel/TurnMargin"]
-layout_mode = 2
-theme_override_constants/separation = 6
-
-[node name="DateLabel" type="Label" parent="UILayer/TurnPanel/TurnMargin/TurnVBox"]
+[node name="BtnAdvanceTurn" type="Button" parent="UILayer"]
 unique_name_in_owner = true
-layout_mode = 2
-
-[node name="TurnActionsLabel" type="Label" parent="UILayer/TurnPanel/TurnMargin/TurnVBox"]
-unique_name_in_owner = true
-layout_mode = 2
-
-[node name="ObjectiveLabel" type="Label" parent="UILayer/TurnPanel/TurnMargin/TurnVBox"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(224, 0)
-layout_mode = 2
-theme_override_colors/font_color = Color(0.831, 0.686, 0.216, 1)
-theme_override_font_sizes/font_size = 12
-autowrap_mode = 3
-
-[node name="BtnAdvanceTurn" type="Button" parent="UILayer/TurnPanel/TurnMargin/TurnVBox"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "Avanzar Turno"
-
-[node name="BtnRelations" type="Button" parent="UILayer/TurnPanel/TurnMargin/TurnVBox"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "Relaciones"
-
-[node name="BtnSaveGame" type="Button" parent="UILayer/TurnPanel/TurnMargin/TurnVBox"]
-unique_name_in_owner = true
-layout_mode = 2
-tooltip_text = "Elige una ranura. La partida también se guarda sola (autoguardado) al comienzo de cada mes."
-text = "Guardar Partida"
-
-[node name="BtnMainMenu" type="Button" parent="UILayer/TurnPanel/TurnMargin/TurnVBox"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "Menú Principal"
-
-[node name="CastleDetailsPanel" type="PanelContainer" parent="UILayer" unique_id=1339241652]
-unique_name_in_owner = true
-visible = false
-custom_minimum_size = Vector2(280, 220)
-offset_right = 40.0
-offset_bottom = 40.0
-
-[node name="DetailsMargin" type="MarginContainer" parent="UILayer/CastleDetailsPanel" unique_id=1337485223]
-layout_mode = 2
-theme_override_constants/margin_left = 12
-theme_override_constants/margin_top = 12
-theme_override_constants/margin_right = 12
-theme_override_constants/margin_bottom = 12
-
-[node name="DetailsVBox" type="VBoxContainer" parent="UILayer/CastleDetailsPanel/DetailsMargin" unique_id=222882302]
-layout_mode = 2
-theme_override_constants/separation = 25
-
-[node name="DetailsCastleName" type="Label" parent="UILayer/CastleDetailsPanel/DetailsMargin/DetailsVBox" unique_id=1192477852]
-unique_name_in_owner = true
-layout_mode = 2
-
-[node name="DetailsKingdom" type="Label" parent="UILayer/CastleDetailsPanel/DetailsMargin/DetailsVBox" unique_id=1727867123]
-unique_name_in_owner = true
-layout_mode = 2
-
-[node name="DetailsOwner" type="Label" parent="UILayer/CastleDetailsPanel/DetailsMargin/DetailsVBox" unique_id=1375954219]
-unique_name_in_owner = true
-layout_mode = 2
-
-[node name="DetailsGarrison" type="Label" parent="UILayer/CastleDetailsPanel/DetailsMargin/DetailsVBox" unique_id=605937905]
-unique_name_in_owner = true
-layout_mode = 2
-
-[node name="DetailsGold" type="Label" parent="UILayer/CastleDetailsPanel/DetailsMargin/DetailsVBox" unique_id=872579955]
-unique_name_in_owner = true
-layout_mode = 2
-
-[node name="DetailsFood" type="Label" parent="UILayer/CastleDetailsPanel/DetailsMargin/DetailsVBox" unique_id=1004688215]
-unique_name_in_owner = true
-layout_mode = 2
-
-[node name="BtnEnterCastle" type="Button" parent="UILayer/CastleDetailsPanel/DetailsMargin/DetailsVBox" unique_id=2131644555]
-unique_name_in_owner = true
-layout_mode = 2
-text = "Entrar"
-
-[node name="BtnClosePanel" type="Button" parent="UILayer/CastleDetailsPanel/DetailsMargin/DetailsVBox" unique_id=1932871503]
-unique_name_in_owner = true
-layout_mode = 2
-text = "Cerrar"
-
-[node name="ArmyPanel" type="PanelContainer" parent="UILayer"]
-unique_name_in_owner = true
-visible = false
 anchors_preset = 3
 anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -300.0
-offset_top = -220.0
-offset_right = -16.0
-offset_bottom = -16.0
+offset_left = -248.0
+offset_top = -76.0
+offset_right = -14.0
+offset_bottom = -14.0
 grow_horizontal = 0
 grow_vertical = 0
+theme_type_variation = &"PrimaryButton"
+theme_override_font_sizes/font_size = 19
+text = "Avanzar Turno ▸"
 
-[node name="ArmyMargin" type="MarginContainer" parent="UILayer/ArmyPanel"]
+[node name="CastleDetailsPanel" type="PanelContainer" parent="UILayer" unique_id=1339241652]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(290, 0)
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -304.0
+offset_top = 74.0
+offset_right = -14.0
+offset_bottom = 300.0
+grow_horizontal = 0
+
+[node name="DetailsVBox" type="VBoxContainer" parent="UILayer/CastleDetailsPanel" unique_id=222882302]
 layout_mode = 2
-theme_override_constants/margin_left = 12
-theme_override_constants/margin_top = 12
-theme_override_constants/margin_right = 12
-theme_override_constants/margin_bottom = 12
+theme_override_constants/separation = 4
 
-[node name="ArmyVBox" type="VBoxContainer" parent="UILayer/ArmyPanel/ArmyMargin"]
+[node name="DetailsCastleName" type="Label" parent="UILayer/CastleDetailsPanel/DetailsVBox" unique_id=1192477852]
+unique_name_in_owner = true
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_type_variation = &"HeaderLabel"
+theme_override_font_sizes/font_size = 20
+autowrap_mode = 3
 
-[node name="ArmyTitleLabel" type="Label" parent="UILayer/ArmyPanel/ArmyMargin/ArmyVBox"]
+[node name="DetailsBanner" type="ColorRect" parent="UILayer/CastleDetailsPanel/DetailsVBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 4)
+layout_mode = 2
+
+[node name="DetailsKingdom" type="Label" parent="UILayer/CastleDetailsPanel/DetailsVBox" unique_id=1727867123]
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="ArmyStatusLabel" type="Label" parent="UILayer/ArmyPanel/ArmyMargin/ArmyVBox"]
+[node name="DetailsOwner" type="Label" parent="UILayer/CastleDetailsPanel/DetailsVBox" unique_id=1375954219]
 unique_name_in_owner = true
 layout_mode = 2
 autowrap_mode = 3
 
-[node name="ArmyDestinationOption" type="OptionButton" parent="UILayer/ArmyPanel/ArmyMargin/ArmyVBox"]
+[node name="DetailsGarrison" type="Label" parent="UILayer/CastleDetailsPanel/DetailsVBox" unique_id=605937905]
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="BtnMarchArmy" type="Button" parent="UILayer/ArmyPanel/ArmyMargin/ArmyVBox"]
+[node name="DetailsGold" type="Label" parent="UILayer/CastleDetailsPanel/DetailsVBox" unique_id=872579955]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="DetailsFood" type="Label" parent="UILayer/CastleDetailsPanel/DetailsVBox" unique_id=1004688215]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="DetailsButtons" type="HBoxContainer" parent="UILayer/CastleDetailsPanel/DetailsVBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="BtnEnterCastle" type="Button" parent="UILayer/CastleDetailsPanel/DetailsVBox/DetailsButtons" unique_id=2131644555]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"PrimaryButton"
+text = "Entrar"
+
+[node name="BtnClosePanel" type="Button" parent="UILayer/CastleDetailsPanel/DetailsVBox/DetailsButtons" unique_id=1932871503]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"FlatButton"
+text = "Cerrar"
+
+[node name="ArmyPanel" type="PanelContainer" parent="UILayer"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(290, 0)
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -304.0
+offset_top = -330.0
+offset_right = -14.0
+offset_bottom = -90.0
+grow_horizontal = 0
+grow_vertical = 0
+
+[node name="ArmyVBox" type="VBoxContainer" parent="UILayer/ArmyPanel"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="ArmyTitleLabel" type="Label" parent="UILayer/ArmyPanel/ArmyVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"SubheaderLabel"
+autowrap_mode = 3
+
+[node name="ArmyStatusLabel" type="Label" parent="UILayer/ArmyPanel/ArmyVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+autowrap_mode = 3
+
+[node name="ArmyDestinationOption" type="OptionButton" parent="UILayer/ArmyPanel/ArmyVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+clip_text = true
+fit_to_longest_item = false
+
+[node name="BtnMarchArmy" type="Button" parent="UILayer/ArmyPanel/ArmyVBox"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Marchar"
 
-[node name="BtnStartBattle" type="Button" parent="UILayer/ArmyPanel/ArmyMargin/ArmyVBox"]
+[node name="BtnStartBattle" type="Button" parent="UILayer/ArmyPanel/ArmyVBox"]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
+theme_type_variation = &"PrimaryButton"
 text = "Iniciar Batalla"
 
-[node name="BtnCloseArmyPanel" type="Button" parent="UILayer/ArmyPanel/ArmyMargin/ArmyVBox"]
+[node name="BtnCloseArmyPanel" type="Button" parent="UILayer/ArmyPanel/ArmyVBox"]
 unique_name_in_owner = true
 layout_mode = 2
+theme_type_variation = &"FlatButton"
 text = "Cerrar"
 
 [node name="EventOverlay" type="ColorRect" parent="UILayer"]
@@ -249,7 +310,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0, 0, 0, 0.55)
+color = Color(0, 0, 0, 0.6)
 
 [node name="EventCenter" type="CenterContainer" parent="UILayer/EventOverlay"]
 layout_mode = 1
@@ -260,45 +321,78 @@ grow_horizontal = 2
 grow_vertical = 2
 
 [node name="EventPanel" type="PanelContainer" parent="UILayer/EventOverlay/EventCenter"]
-custom_minimum_size = Vector2(540, 0)
+unique_name_in_owner = true
+custom_minimum_size = Vector2(580, 0)
 layout_mode = 2
 
-[node name="EventMargin" type="MarginContainer" parent="UILayer/EventOverlay/EventCenter/EventPanel"]
-layout_mode = 2
-theme_override_constants/margin_left = 20
-theme_override_constants/margin_top = 18
-theme_override_constants/margin_right = 20
-theme_override_constants/margin_bottom = 18
-
-[node name="EventVBox" type="VBoxContainer" parent="UILayer/EventOverlay/EventCenter/EventPanel/EventMargin"]
+[node name="EventVBox" type="VBoxContainer" parent="UILayer/EventOverlay/EventCenter/EventPanel"]
 layout_mode = 2
 theme_override_constants/separation = 12
 
-[node name="EventTitle" type="Label" parent="UILayer/EventOverlay/EventCenter/EventPanel/EventMargin/EventVBox"]
+[node name="EventTitle" type="Label" parent="UILayer/EventOverlay/EventCenter/EventPanel/EventVBox"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(540, 0)
 layout_mode = 2
-theme_override_colors/font_color = Color(0.831, 0.686, 0.216, 1)
-theme_override_font_sizes/font_size = 22
+theme_type_variation = &"HeaderLabel"
 horizontal_alignment = 1
-
-[node name="EventText" type="Label" parent="UILayer/EventOverlay/EventCenter/EventPanel/EventMargin/EventVBox"]
-unique_name_in_owner = true
-layout_mode = 2
 autowrap_mode = 3
 
-[node name="EventOptions" type="VBoxContainer" parent="UILayer/EventOverlay/EventCenter/EventPanel/EventMargin/EventVBox"]
-unique_name_in_owner = true
+[node name="EventSeparator" type="HSeparator" parent="UILayer/EventOverlay/EventCenter/EventPanel/EventVBox"]
 layout_mode = 2
-theme_override_constants/separation = 6
 
-[node name="EventResult" type="Label" parent="UILayer/EventOverlay/EventCenter/EventPanel/EventMargin/EventVBox"]
+[node name="EventSpeaker" type="HBoxContainer" parent="UILayer/EventOverlay/EventCenter/EventPanel/EventVBox"]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="EventSpeakerPortrait" type="TextureRect" parent="UILayer/EventOverlay/EventCenter/EventPanel/EventVBox/EventSpeaker"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(84, 112)
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="EventSpeakerBox" type="VBoxContainer" parent="UILayer/EventOverlay/EventCenter/EventPanel/EventVBox/EventSpeaker"]
+layout_mode = 2
+size_flags_horizontal = 3
+alignment = 1
+
+[node name="EventSpeakerName" type="Label" parent="UILayer/EventOverlay/EventCenter/EventPanel/EventVBox/EventSpeaker/EventSpeakerBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"SubheaderLabel"
+
+[node name="EventSpeakerLine" type="Label" parent="UILayer/EventOverlay/EventCenter/EventPanel/EventVBox/EventSpeaker/EventSpeakerBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(420, 0)
+layout_mode = 2
+theme_type_variation = &"BodyBoldLabel"
 autowrap_mode = 3
 
-[node name="BtnEventClose" type="Button" parent="UILayer/EventOverlay/EventCenter/EventPanel/EventMargin/EventVBox"]
+[node name="EventText" type="Label" parent="UILayer/EventOverlay/EventCenter/EventPanel/EventVBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(540, 0)
+layout_mode = 2
+autowrap_mode = 3
+
+[node name="EventOptions" type="VBoxContainer" parent="UILayer/EventOverlay/EventCenter/EventPanel/EventVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="EventResult" type="Label" parent="UILayer/EventOverlay/EventCenter/EventPanel/EventVBox"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(540, 0)
+layout_mode = 2
+theme_type_variation = &"BodyBoldLabel"
+autowrap_mode = 3
+
+[node name="BtnEventClose" type="Button" parent="UILayer/EventOverlay/EventCenter/EventPanel/EventVBox"]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
+size_flags_horizontal = 4
+theme_type_variation = &"PrimaryButton"
 text = "Continuar"

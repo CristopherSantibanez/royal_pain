@@ -16,12 +16,12 @@ func setup_bounds(map_width: float, map_height: float) -> void:
 	limit_right = int(map_width)
 	limit_bottom = int(map_height)
 
-	# Zoom inicial: que quepa el mapa completo en la ventana actual
+	# Zoom inicial: el mapa cubre toda la ventana (sin franjas vacías a los lados); lo que no cabe se ve arrastrando.
 	var viewport_size := get_viewport_rect().size
-	var fit_zoom: float = min(viewport_size.x / map_width, viewport_size.y / map_height)
+	var fit_zoom: float = max(viewport_size.x / map_width, viewport_size.y / map_height)
 	fit_zoom = clamp(fit_zoom, min_zoom, max_zoom)
 	zoom = Vector2(fit_zoom, fit_zoom)
-	min_zoom = fit_zoom   # no dejar hacer zoom OUT más allá de ver el mapa completo
+	min_zoom = fit_zoom   # no dejar hacer zoom OUT más allá de cubrir la ventana
 
 	# Centrar la cámara en medio del mapa
 	position = Vector2(map_width / 2.0, map_height / 2.0)

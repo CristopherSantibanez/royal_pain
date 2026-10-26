@@ -4,6 +4,9 @@ extends RefCounted
 signal log_message(text: String)
 signal state_updated
 signal battle_ended(winner_side: int, report: Dictionary)
+# Eventos puntuales para animaciones y sonido (no cambian la simulación).
+signal unit_attacked(attacker: BattleUnit, target: BattleUnit, casualties: int, counter: int, ranged: bool)
+signal unit_routed(unit: BattleUnit, annihilated: bool)
 
 # --- Constantes de balance (ajustables sin tocar la lógica) ---
 const GRID_W := 12
@@ -22,6 +25,21 @@ const DIRS: Array[Vector2i] = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), 
 const SKILL_GRITO_GUERRA := "Grito de Guerra"
 const SKILL_TACTICA_DEFENSIVA := "Táctica Defensiva"
 const SKILL_CARGA_LETAL := "Carga Letal"
+const GRITO_GUERRA_MORALE := 5
+const CARGA_LETAL_FACTOR := 1.4
+const CARGA_MIN_DISTANCE := 2         # con Carga Letal, la caballería que carga 2+ casillas no recibe respuesta
+const TACTICA_DEFENSIVA_FACTOR := 1.3
+const TACTICA_DEFENSIVA_WALL_MORALE := 5
+const COMMANDER_DIVISOR := 200.0      # bonus del comandante: 1 + (Liderazgo + Estrategia) / este valor
+
+# --- Compañeros al mando de pelotones (séquito del jugador o cortesanos del señor enemigo) ---
+const COMPANION_DIVISOR := 100.0      # bonus del pelotón: (Combate + Liderazgo del compañero) / este valor
+const COMPANION_MORALE_DIVISOR := 2   # moral inicial extra: Liderazgo del compañero / este valor
+const FACTION_MORALE_PENALTY := 10    # los prestados por el señor no luchan con la misma entrega
+const FACTION_DESERT_MORALE := 45     # si el pelotón cae por debajo de esta moral, el de facción se retira
+const WOUND_CHANCE_ANNIHILATED := 0.6
+const WOUND_CHANCE_ROUTED := 0.25
+const COMPANION_WOUND_MONTHS := 2
 
 var terrain: Array = []              # terrain[x][y] -> BattleEnums.Terrain
 var units: Array[BattleUnit] = []
@@ -34,10 +52,12 @@ var turn: int = 1
 var is_over: bool = false
 
 var _initial_soldiers := {}
+var wounded_companions: Array[String] = []   # nombres de compañeros heridos en esta batalla
 
 # --- Inicio ---
 
-func start_battle(attacker_size: int, defender_size: int, walls: bool, a_cmd: Character, d_cmd: Character, place_name: String) -> void:
+func start_battle(attacker_size: int, defender_size: int, walls: bool, a_cmd: Character, d_cmd: Character, place_name: String,
+		player_companions: Array[Character] = [], enemy_companions: Array[Character] = []) -> void:
 	attacker_cmd = a_cmd
 	defender_cmd = d_cmd
 	has_walls = walls
@@ -49,6 +69,9 @@ func start_battle(attacker_size: int, defender_size: int, walls: bool, a_cmd: Ch
 	_generate_terrain()
 	_create_units(BattleEnums.Side.ATACANTE, attacker_size)
 	_create_units(BattleEnums.Side.DEFENSOR, defender_size)
+	wounded_companions.clear()
+	_assign_companions(player_side, player_companions)
+	_assign_companions(_other_side(player_side), enemy_companions)
 	_initial_soldiers = {
 		BattleEnums.Side.ATACANTE: total_soldiers(BattleEnums.Side.ATACANTE),
 		BattleEnums.Side.DEFENSOR: total_soldiers(BattleEnums.Side.DEFENSOR),
@@ -92,7 +115,11 @@ func _create_units(side: int, total: int) -> void:
 	var commander := _commander(side)
 	var start_morale: int = BASE_MORALE + (commander.leadership if commander != null else 5)
 	if _has_skill(commander, SKILL_GRITO_GUERRA):
-		start_morale += 15
+		start_morale += GRITO_GUERRA_MORALE
+	# Táctica Defensiva: tras la muralla, los defensores se sienten más seguros.
+	if side == BattleEnums.Side.DEFENSOR and has_walls and _has_skill(commander, SKILL_TACTICA_DEFENSIVA):
+		start_morale += TACTICA_DEFENSIVA_WALL_MORALE
+	start_morale += roundi(SkillEffects.fx(commander, "morale_start"))
 	start_morale = clampi(start_morale, 0, 100)
 
 	# Infantería y caballería en primera línea, arqueros detrás.
@@ -188,15 +215,20 @@ func move_cost(u: BattleUnit, cell: Vector2i) -> int:
 	return 1
 
 func effective_move_range(u: BattleUnit) -> int:
+	var r := u.move_range()
+	if u.type == BattleEnums.UnitType.CABALLERIA:
+		r += roundi(_unit_fx(u, "cav_move"))
 	# Las tropas muy fatigadas avanzan más lento.
 	if u.fatigue >= 70:
-		return maxi(1, u.move_range() - 1)
-	return u.move_range()
+		return maxi(1, r - 1)
+	return r
 
 func effective_attack_range(u: BattleUnit) -> int:
 	var r := u.attack_range()
-	if u.type == BattleEnums.UnitType.ARQUEROS and terrain_at(u.cell) in [BattleEnums.Terrain.COLINA, BattleEnums.Terrain.MURALLA]:
-		r += 1   # la altura da alcance extra a los arqueros
+	if u.type == BattleEnums.UnitType.ARQUEROS:
+		r += roundi(_unit_fx(u, "arch_range"))
+		if terrain_at(u.cell) in [BattleEnums.Terrain.COLINA, BattleEnums.Terrain.MURALLA]:
+			r += 1   # la altura da alcance extra a los arqueros
 	return r
 
 func reachable_cells(u: BattleUnit) -> Array[Vector2i]:
@@ -239,9 +271,10 @@ func targets_in_range(u: BattleUnit) -> Array[BattleUnit]:
 func move_unit(u: BattleUnit, cell: Vector2i) -> bool:
 	if not cell in reachable_cells(u):
 		return false
+	u.last_move_distance = distance(u.cell, cell)
 	u.cell = cell
 	u.has_moved = true
-	u.fatigue = mini(100, u.fatigue + (8 if u.type == BattleEnums.UnitType.CABALLERIA else 5))
+	u.fatigue = mini(100, u.fatigue + _fatigue_gain(u, 8 if u.type == BattleEnums.UnitType.CABALLERIA else 5))
 	state_updated.emit()
 	return true
 
@@ -256,16 +289,21 @@ func attack(attacker: BattleUnit, target: BattleUnit) -> bool:
 		BattleEnums.unit_type_name(attacker.type), _side_label(attacker.side),
 		BattleEnums.unit_type_name(target.type), _side_label(target.side), casualties]
 
-	# Respuesta cuerpo a cuerpo: el defensor devuelve parte del golpe si sigue en pie.
-	if dist == 1 and target.is_active() and target.type != BattleEnums.UnitType.ARQUEROS:
-		var counter := int(_compute_casualties(target, attacker, dist, true) * RETALIATION_FACTOR)
+	# Respuesta cuerpo a cuerpo: el defensor devuelve parte del golpe si sigue en pie
+	# (salvo ante una carga de caballería con Carga Letal).
+	var counter := 0
+	if _is_charge(attacker):
+		text += " ¡La carga los arrolla sin darles tiempo a responder!"
+	elif dist == 1 and target.is_active() and target.type != BattleEnums.UnitType.ARQUEROS:
+		counter = int(_compute_casualties(target, attacker, dist, true) * _retaliation(target))
 		if counter > 0:
 			_apply_casualties(attacker, counter)
 			text += " Responden causando %d bajas." % counter
+	unit_attacked.emit(attacker, target, casualties, counter, dist > 1)
 
 	attacker.has_acted = true
 	attacker.has_moved = true
-	attacker.fatigue = mini(100, attacker.fatigue + 10)
+	attacker.fatigue = mini(100, attacker.fatigue + _fatigue_gain(attacker, 10))
 	log_message.emit(text)
 
 	_check_rout(target)
@@ -273,6 +311,27 @@ func attack(attacker: BattleUnit, target: BattleUnit) -> bool:
 	_check_end()
 	state_updated.emit()
 	return true
+
+# Vista previa sin azar de un ataque: bajas esperadas para el objetivo y la respuesta que sufriría el atacante.
+func preview_attack(attacker: BattleUnit, target: BattleUnit) -> Dictionary:
+	var dist := distance(attacker.cell, target.cell)
+	var casualties := _compute_casualties(attacker, target, dist, false)
+	var counter := 0
+	if dist == 1 and casualties < target.soldiers and target.type != BattleEnums.UnitType.ARQUEROS and not _is_charge(attacker):
+		counter = int(_compute_casualties(target, attacker, dist, false) * _retaliation(target))
+	return {"casualties": casualties, "counter": counter}
+
+func _is_charge(attacker: BattleUnit) -> bool:
+	return attacker.type == BattleEnums.UnitType.CABALLERIA and attacker.last_move_distance >= CARGA_MIN_DISTANCE \
+		and _has_skill(_commander(attacker.side), SKILL_CARGA_LETAL)
+
+## Proporción de soldados perdidos por ambos bandos (0 al empezar), para la intensidad de la música.
+func casualty_fraction() -> float:
+	var initial: int = _initial_soldiers.get(BattleEnums.Side.ATACANTE, 0) + _initial_soldiers.get(BattleEnums.Side.DEFENSOR, 0)
+	if initial <= 0:
+		return 0.0
+	var now := total_soldiers(BattleEnums.Side.ATACANTE) + total_soldiers(BattleEnums.Side.DEFENSOR)
+	return 1.0 - float(now) / initial
 
 func end_player_turn() -> void:
 	if is_over:
@@ -305,17 +364,25 @@ func _compute_casualties(attacker: BattleUnit, target: BattleUnit, dist: int, wi
 	var strength: float = attacker.soldiers * _base_power(attacker.type)
 	strength *= _matchup(attacker.type, target.type, dist)
 	if attacker.type == BattleEnums.UnitType.CABALLERIA and _has_skill(_commander(attacker.side), SKILL_CARGA_LETAL):
-		strength *= 1.25
+		strength *= CARGA_LETAL_FACTOR
 	strength *= 0.5 + attacker.morale / 200.0          # 0.5 .. 1.0
 	strength *= 1.0 - attacker.fatigue / 250.0         # 1.0 .. 0.6
 	var cmd := _commander(attacker.side)
 	if cmd != null:
-		strength *= 1.0 + (cmd.leadership + cmd.strategy) / 100.0
+		strength *= 1.0 + (cmd.leadership + cmd.strategy) / COMMANDER_DIVISOR
+	# Habilidades, rasgos y equipo del comandante y del compañero al mando del pelotón.
+	strength *= maxf(0.3, 1.0 + _unit_fx(attacker, "unit_power") + _unit_fx(attacker, _type_power_key(attacker.type)))
+	if attacker.companion != null:
+		strength *= 1.0 + (attacker.companion.combat + attacker.companion.leadership) / COMPANION_DIVISOR
 
 	var t := terrain_at(target.cell)
 	var defense: float = _terrain_defense(t)
 	if t in [BattleEnums.Terrain.COLINA, BattleEnums.Terrain.MURALLA] and _has_skill(_commander(target.side), SKILL_TACTICA_DEFENSIVA):
-		defense *= 1.2
+		defense *= TACTICA_DEFENSIVA_FACTOR
+	if t != BattleEnums.Terrain.LLANO:
+		defense *= 1.0 + _unit_fx(target, "terrain_def")
+	if t == BattleEnums.Terrain.MURALLA:
+		strength *= 1.0 + _unit_fx(attacker, "wall_assault")
 
 	var value := strength / defense
 	if with_variance:
@@ -353,7 +420,12 @@ func _terrain_defense(t: int) -> float:
 func _apply_casualties(u: BattleUnit, amount: int) -> void:
 	u.soldiers = maxi(0, u.soldiers - amount)
 	var loss_ratio: float = amount / float(maxi(1, u.max_soldiers))
-	u.morale = maxi(0, u.morale - int(loss_ratio * 60.0) - 5)
+	var loss := (loss_ratio * 60.0 + 5) * clampf(1.0 + _unit_fx(u, "morale_loss"), 0.2, 2.0)
+	u.morale = maxi(0, u.morale - int(loss))
+	# Un compañero prestado por el señor no arriesga la vida por un pelotón que se hunde.
+	if u.companion != null and u.companion.has_meta("faction_companion") and u.morale < FACTION_DESERT_MORALE and u.soldiers > 0:
+		log_message.emit("%s abandona el mando de su pelotón." % u.companion.full_name())
+		u.companion = null
 
 func _check_rout(u: BattleUnit) -> void:
 	if u.routed:
@@ -361,9 +433,13 @@ func _check_rout(u: BattleUnit) -> void:
 	if u.soldiers <= 0:
 		u.routed = true
 		log_message.emit("¡%s (%s) ha sido aniquilado!" % [BattleEnums.unit_type_name(u.type), _side_label(u.side)])
+		unit_routed.emit(u, true)
+		_wound_companion(u, WOUND_CHANCE_ANNIHILATED)
 	elif u.morale < BattleUnit.ROUT_MORALE:
 		u.routed = true
 		log_message.emit("¡%s (%s) rompe filas y huye!" % [BattleEnums.unit_type_name(u.type), _side_label(u.side)])
+		unit_routed.emit(u, false)
+		_wound_companion(u, WOUND_CHANCE_ROUTED)
 	else:
 		return
 	# Ver huir a los compañeros desmoraliza al resto del bando.
@@ -374,7 +450,7 @@ func _rest_side(side: int) -> void:
 	for u: BattleUnit in active_units(side):
 		if not u.has_moved and not u.has_acted:
 			u.fatigue = maxi(0, u.fatigue - 15)
-			u.morale = mini(100, u.morale + 3)
+			u.morale = mini(100, u.morale + 3 + roundi(_unit_fx(u, "rally")))
 
 func _reset_side(side: int) -> void:
 	for u: BattleUnit in units:
@@ -384,7 +460,10 @@ func _reset_side(side: int) -> void:
 # --- IA (controla el bando que no es del jugador) ---
 
 func _run_ai(side: int) -> void:
-	for u: BattleUnit in active_units(side):
+	# Primero disparan los arqueros (ablandan), después carga la caballería y por último la infantería.
+	var order := active_units(side)
+	order.sort_custom(func(a: BattleUnit, b: BattleUnit): return AI_ORDER[a.type] < AI_ORDER[b.type])
+	for u: BattleUnit in order:
 		if is_over:
 			return
 		if not u.is_active():
@@ -429,15 +508,25 @@ func _ai_cell_score(u: BattleUnit, cell: Vector2i, target: BattleUnit) -> float:
 	var d := distance(cell, target.cell)
 	var r := u.attack_range()
 	var score: float = float(r - d) if d <= r else 100.0 + d
-	score -= (_terrain_defense(terrain_at(cell)) - 1.0) * 2.0
+	score -= (_terrain_defense(terrain_at(cell)) - 1.0) * AI_TERRAIN_WEIGHT
+	# Los arqueros no se dejan alcanzar por la infantería o la caballería enemigas.
+	if u.type == BattleEnums.UnitType.ARQUEROS:
+		for enemy: BattleUnit in active_units(_other_side(u.side)):
+			if enemy.type != BattleEnums.UnitType.ARQUEROS and distance(cell, enemy.cell) <= enemy.move_range():
+				score += AI_ARCHER_DANGER
 	return score
 
 func _ai_best_target(u: BattleUnit, targets: Array[BattleUnit]) -> BattleUnit:
 	var best: BattleUnit = targets[0]
 	var best_value := -1.0
 	for t: BattleUnit in targets:
-		# Prioriza el daño esperado y rematar pelotones con poca moral.
-		var value := float(_compute_casualties(u, t, distance(u.cell, t.cell), false)) + (100 - t.morale) * 0.1
+		# Prioriza el daño esperado, rematar pelotones debilitados (fuego concentrado) y evitar respuestas caras.
+		var preview := preview_attack(u, t)
+		var value := float(preview.casualties) + (100 - t.morale) * 0.15
+		value += (1.0 - float(t.soldiers) / maxi(1, t.max_soldiers)) * AI_FOCUS_WEIGHT
+		if preview.casualties >= t.soldiers:
+			value += AI_FINISH_BONUS
+		value -= preview.counter * 0.8
 		if value > best_value:
 			best_value = value
 			best = t
@@ -463,6 +552,7 @@ func _end_battle(winner_side: int, reason: String) -> void:
 		"defender_initial": _initial_soldiers.get(BattleEnums.Side.DEFENSOR, 0),
 		"attacker_survivors": total_soldiers(BattleEnums.Side.ATACANTE),
 		"defender_survivors": total_soldiers(BattleEnums.Side.DEFENSOR),
+		"wounded_companions": wounded_companions.duplicate(),
 	}
 	log_message.emit(reason)
 	state_updated.emit()
@@ -478,6 +568,76 @@ func _commander(side: int) -> Character:
 
 func _side_label(side: int) -> String:
 	return "tuyo" if side == player_side else "enemigo"
+
+# --- Efectos y compañeros ---
+
+const AI_ORDER := {BattleEnums.UnitType.ARQUEROS: 0, BattleEnums.UnitType.CABALLERIA: 1, BattleEnums.UnitType.INFANTERIA: 2}
+const AI_TERRAIN_WEIGHT := 3.0
+const AI_ARCHER_DANGER := 3.0
+const AI_FOCUS_WEIGHT := 6.0
+const AI_FINISH_BONUS := 8.0
+
+# Suma de un efecto del comandante del bando y del compañero al mando del pelotón.
+func _unit_fx(u: BattleUnit, key: String) -> float:
+	var value := SkillEffects.fx(_commander(u.side), key)
+	if u.companion != null:
+		value += SkillEffects.fx(u.companion, key)
+	return value
+
+func _type_power_key(t: int) -> String:
+	match t:
+		BattleEnums.UnitType.ARQUEROS: return "arch_power"
+		BattleEnums.UnitType.CABALLERIA: return "cav_power"
+	return "inf_power"
+
+func _retaliation(u: BattleUnit) -> float:
+	return RETALIATION_FACTOR * maxf(0.0, 1.0 + _unit_fx(u, "retaliation"))
+
+func _fatigue_gain(u: BattleUnit, base: int) -> int:
+	return maxi(1, roundi(base * clampf(1.0 + _unit_fx(u, "fatigue"), 0.2, 2.0)))
+
+# Cada compañero dirige el pelotón que mejor le va: caballería al más combativo,
+# arqueros al mejor estratega, infantería al resto. Sube la fuerza y la moral del pelotón.
+func _assign_companions(side: int, companions: Array[Character]) -> void:
+	var free: Array[BattleUnit] = []
+	for u: BattleUnit in units:
+		if u.side == side:
+			free.append(u)
+	var commander := _commander(side)
+	for c: Character in companions:
+		if c == null or free.is_empty() or c.is_wounded():
+			continue
+		var preferred := BattleEnums.UnitType.INFANTERIA
+		if c.combat >= c.strategy + 2:
+			preferred = BattleEnums.UnitType.CABALLERIA
+		elif c.strategy >= c.combat + 2:
+			preferred = BattleEnums.UnitType.ARQUEROS
+		var unit: BattleUnit = free[0]
+		for u: BattleUnit in free:
+			if u.type == preferred:
+				unit = u
+				break
+		free.erase(unit)
+		unit.companion = c
+		var morale_bonus := c.leadership / COMPANION_MORALE_DIVISOR + SkillEffects.companion_loyalty(commander)
+		if c.has_meta("faction_companion"):
+			morale_bonus -= FACTION_MORALE_PENALTY
+		unit.morale = clampi(unit.morale + morale_bonus, 0, 100)
+		log_message.emit("%s dirige un pelotón de %s (%s)." % [c.full_name(), BattleEnums.unit_type_name(unit.type).to_lower(), _side_label(side)])
+
+func companions_of(side: int) -> Array[Character]:
+	var result: Array[Character] = []
+	for u: BattleUnit in units:
+		if u.side == side and u.companion != null:
+			result.append(u.companion)
+	return result
+
+func _wound_companion(u: BattleUnit, chance: float) -> void:
+	if u.companion == null or randf() >= chance:
+		return
+	u.companion.wound_months = maxi(u.companion.wound_months, COMPANION_WOUND_MONTHS)
+	wounded_companions.append(u.companion.full_name())
+	log_message.emit("%s cae herido en la refriega." % u.companion.full_name())
 
 func _has_skill(cmd: Character, skill_name: String) -> bool:
 	if cmd == null:

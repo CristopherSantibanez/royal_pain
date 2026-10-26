@@ -4,6 +4,11 @@ extends Control
 @onready var castle_option: OptionButton = %CastleOption
 @onready var role_option: OptionButton = %RoleOption
 @onready var info_label: Label = %InfoLabel
+@onready var goal_title: Label = %GoalTitle
+@onready var character_info: Label = %CharacterInfo
+@onready var portrait: TextureRect = %Portrait
+@onready var castle_info: Label = %CastleInfo
+@onready var kingdom_banner: ColorRect = %KingdomBanner
 @onready var btn_volver_menu: Button = %BtnVolverMenu
 @onready var btn_crear_personaje: Button = %BtnCrearPersonaje
 @onready var btn_comenzar: Button = %BtnComenzar
@@ -19,6 +24,12 @@ var preview_characters: Array[Character] = []
 
 func _ready() -> void:
 	available_paths = CharacterLoader.get_saved_character_paths()
+	# Cada partida nueva se juega en un mundo nuevo (no se toca el de una partida en curso).
+	if not GameManager.is_game_active:
+		MapData.new_world()
+	%BtnOtroMundo.disabled = GameManager.is_game_active
+	%BtnOtroMundo.pressed.connect(_on_new_world_pressed)
+	_refresh_world_label()
 	_populate_characters()
 	_populate_castles()
 	_populate_roles()
@@ -30,6 +41,19 @@ func _ready() -> void:
 	btn_crear_personaje.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/character_creation/character_creation.tscn"))
 	btn_comenzar.pressed.connect(_on_comenzar_pressed)
 
+	_refresh_info()
+	UiAnim.stagger_in(%RootVBox, 0.06)
+
+func _refresh_world_label() -> void:
+	%WorldLabel.text = MapData.world_summary() if not GameManager.is_game_active else "Hay una partida en curso: al comenzar se generará un mundo nuevo."
+
+func _on_new_world_pressed() -> void:
+	var selected := castle_option.selected
+	MapData.new_world()
+	_refresh_world_label()
+	_populate_castles()
+	if selected >= 0 and selected < castle_option.item_count:
+		castle_option.select(selected)
 	_refresh_info()
 
 func _populate_characters() -> void:
@@ -81,31 +105,49 @@ func _selected_castle() -> Castle:
 	return MapData.get_castle_by_id(castle_option.get_item_metadata(castle_option.selected))
 
 func _refresh_info() -> void:
-	if available_paths.is_empty():
-		info_label.text = "No hay personajes guardados.\nCrea uno y guárdalo para poder comenzar una partida."
-		btn_comenzar.disabled = true
-		return
-
-	var lines: Array[String] = []
-	var c := _selected_preview()
-	if c != null:
-		lines.append("%s — comienza como %s" % [c.full_name(), Character.role_name_for(role_option.get_selected_id())])
-		lines.append("Liderazgo %d · Carisma %d · Estrategia %d · Combate %d · Defensa %d" % [
-			c.leadership, c.charisma, c.strategy, c.combat, c.defense])
-		lines.append("Honor %d · Oro %d" % [c.honor, c.gold])
-		var role := role_option.get_selected_id()
-		lines.append("Objetivo — %s: %s" % [VictoryRules.goal_title(role), VictoryRules.goal_description(role)])
-	else:
-		lines.append("No se pudo leer este personaje.")
-
 	var castle := _selected_castle()
 	if castle != null:
-		lines.append("")
-		lines.append("Inicias en: %s (%s)" % [castle.castle_name, KingdomEnums.kingdom_name(castle.kingdom)])
-		lines.append("Guarnición %d · Oro %d · Comida %d" % [castle.garrison_size, castle.gold, castle.food])
+		kingdom_banner.color = KingdomEnums.kingdom_color(castle.kingdom)
+		castle_info.text = "%s
+Señor: %s
 
-	info_label.text = "\n".join(lines)
-	btn_comenzar.disabled = c == null or castle == null
+Guarnición: %d soldados
+Oro del castillo: %d
+Comida: %d" % [
+			KingdomEnums.kingdom_name(castle.kingdom), castle.owner_name, castle.garrison_size, castle.gold, castle.food]
+
+	var role := role_option.get_selected_id()
+	goal_title.text = VictoryRules.goal_title(role)
+	info_label.text = "%s\nDuración orientativa: %s.\n\nDerrota: perder tu último castillo o quedarte sin honor." % [
+		VictoryRules.goal_description(role), VictoryRules.goal_estimate(role)]
+
+	if available_paths.is_empty():
+		portrait.texture = preload("res://assets/portraits/placeholder_default.png")
+		character_info.text = "No hay personajes guardados.
+
+Crea uno y guárdalo para poder comenzar una partida."
+		btn_comenzar.disabled = true
+		btn_crear_personaje.theme_type_variation = &"PrimaryButton"
+		return
+
+	var c := _selected_preview()
+	if c == null:
+		character_info.text = "No se pudo leer este personaje."
+		btn_comenzar.disabled = true
+		return
+	portrait.texture = c.get_portrait()
+	character_info.text = "%s
+Comienza como %s
+
+Liderazgo %d
+Carisma %d
+Estrategia %d
+Combate %d
+Defensa %d
+
+Honor %d · Oro %d" % [
+		c.full_name(), Character.role_name_for(role), c.leadership, c.charisma, c.strategy, c.combat, c.defense, c.honor, c.gold]
+	btn_comenzar.disabled = castle == null
 
 func _on_comenzar_pressed() -> void:
 	var idx := character_option.selected

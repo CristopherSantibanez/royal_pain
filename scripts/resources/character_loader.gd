@@ -31,6 +31,18 @@ const LAST_NAMES := ["de Valcerro", "Piedrahíta", "del Roble", "Mantonegro", "d
 	"Vadoscuro", "de Montealto", "Escudoviejo", "de Peñaluna", "Robledal", "de Fuentefría", "Aceroduro", "de Torrealba",
 	"Valdecuervo", "de la Ribera", "Lobonegro", "de Castroverde"]
 const RIVAL_STAT_SPREAD := 2
+const ContentCatalog = preload("res://scripts/resources/content_catalog.gd")
+const CHARACTERS_DIR := "user://characters"
+
+# Calidad de los PNJ según su rango: puntos libres de estadística y número de habilidades por categoría.
+const NPC_FREE_POINTS := {
+	Character.Role.CAMPESINO: 4, Character.Role.SOLDADO: 8, Character.Role.CABALLERO: 10,
+	Character.Role.NOBLEZA_BAJA: 12, Character.Role.NOBLEZA_ALTA: 14, Character.Role.REGENTE: 15,
+}
+const NPC_SKILLS := {   # [generales, combate, batalla]
+	Character.Role.CAMPESINO: [1, 0, 0], Character.Role.SOLDADO: [0, 1, 1], Character.Role.CABALLERO: [1, 1, 1],
+	Character.Role.NOBLEZA_BAJA: [1, 1, 2], Character.Role.NOBLEZA_ALTA: [2, 2, 2], Character.Role.REGENTE: [2, 2, 3],
+}
 
 # Oro inicial aproximado según el rango (solo ambientación de los PNJ).
 const GOLD_BY_ROLE := {
@@ -44,9 +56,10 @@ static func random_first_name(gender: int) -> String:
 static func random_last_name() -> String:
 	return LAST_NAMES.pick_random()
 
-# Personaje completo con todos sus parámetros al azar, siguiendo las mismas reglas que la creación:
-# stats base por personalidad/alineación/tipo + 10 puntos libres, 3 ventajas, 2 desventajas,
-# una habilidad por categoría y hasta 2 piezas de equipo.
+# Personaje completo con todos sus parámetros al azar, siguiendo las mismas reglas que la creación
+# (stats base por personalidad/alineación/tipo, 3 ventajas, 2 desventajas), pero con calidad según
+# su rango: más puntos libres, más habilidades y mejor equipo cuanto más alto está.
+# Nunca recibe el retrato del jugador: si no se le pasa uno, se elige otro de la galería.
 static func make_random_character(role: int, gender: int, portrait_path: String = "",
 		first_name: String = "", last_name: String = "") -> Character:
 	var c := Character.new()
@@ -60,7 +73,7 @@ static func make_random_character(role: int, gender: int, portrait_path: String 
 
 	var stats := GameData.get_base_stats(c.personality, c.alignment, c.fighter_type)
 	var keys := stats.keys()
-	var points := GameData.FREE_POINTS
+	var points: int = NPC_FREE_POINTS.get(role, GameData.FREE_POINTS)
 	while points > 0:
 		var k = keys.pick_random()
 		if stats[k] < PointAllocator.STAT_MAX:
@@ -74,17 +87,75 @@ static func make_random_character(role: int, gender: int, portrait_path: String 
 
 	c.advantages.assign(_pick(GameData.advantages, 3))
 	c.disadvantages.assign(_pick(GameData.disadvantages, 2))
-	c.general_skills.assign(_pick(GameData.general_skills, 1))
-	c.combat_skills.assign(_pick(GameData.combat_skills, 1))
-	c.battle_skills.assign(_pick(GameData.battle_skills, 1))
-	c.equipment.assign(_pick(GameData.equipment_catalog, randi_range(0, 2)))
+	var skill_counts: Array = NPC_SKILLS.get(role, [1, 1, 1])
+	c.general_skills.assign(_pick(GameData.general_skills, skill_counts[0]))
+	c.combat_skills.assign(_pick(GameData.combat_skills, skill_counts[1]))
+	c.battle_skills.assign(_pick(GameData.battle_skills, skill_counts[2]))
+	c.equipment.assign(_pick_equipment(role))
 	c.apply_trait_and_equipment_modifiers()
 
 	c.honor = randi_range(40, 70)
 	c.gold = GOLD_BY_ROLE.get(role, 100)
+	if portrait_path == "":
+		portrait_path = _free_portrait(gender)
 	if portrait_path != "":
 		c.portrait = load(portrait_path)
 	return c
+
+# Equipo del PNJ: una pieza por ranura, del nivel que corresponde a su rango.
+static func _pick_equipment(role: int) -> Array:
+	var rules: Dictionary = ContentCatalog.NPC_EQUIPMENT_BY_ROLE.get(role, {"tiers": [1], "pieces": [0, 1]})
+	var pieces := randi_range(rules.pieces[0], rules.pieces[1])
+	var pool: Array = GameData.equipment_catalog.filter(func(e: Equipment): return e.tier in rules.tiers)
+	pool.shuffle()
+	var chosen: Array = []
+	var used_slots := {}
+	for e: Equipment in pool:
+		if chosen.size() >= mini(pieces, Character.MAX_EQUIPMENT):
+			break
+		if not used_slots.has(e.slot):
+			used_slots[e.slot] = true
+			chosen.append(e)
+	return chosen
+
+# Ruta del retrato que ve el jugador (propio o el genérico de su rol/sexo), para no repetirlo en un PNJ.
+static func player_portrait_path() -> String:
+	var tree := Engine.get_main_loop() as SceneTree
+	var gm := tree.root.get_node_or_null("GameManager") if tree != null else null
+	var player: Character = gm.player_character if gm != null else null
+	if player == null:
+		return ""
+	var tex := player.get_portrait()
+	return tex.resource_path if tex != null else ""
+
+# Un retrato de la galería que no sea el del jugador (los PNJ pueden repetirse entre sí si se agotan).
+static func _free_portrait(gender: int) -> String:
+	var forbidden := player_portrait_path()
+	var options := PortraitGallery.get_portraits_for_gender(gender).filter(func(path: String): return path != forbidden)
+	return options.pick_random() if not options.is_empty() else ""
+
+## Guarda una copia de un PNJ entre los personajes del editor (aparece en Nueva Partida,
+## Duelo de práctica y el editor). Devuelve la ruta, o "" si falló.
+static func save_npc(character: Character) -> String:
+	if character == null:
+		return ""
+	DirAccess.make_dir_recursive_absolute(CHARACTERS_DIR)
+	var copy := character.duplicate(true) as Character
+	copy.current_health = copy.max_health
+	copy.current_stamina = copy.max_stamina
+	copy.current_morale = copy.max_morale
+	copy.wound_months = 0
+	for meta in copy.get_meta_list():
+		copy.remove_meta(meta)
+	var base_name := character.full_name().strip_edges().to_lower().replace(" ", "_")
+	if base_name.is_empty():
+		base_name = "personaje_sin_nombre"
+	var path := "%s/%s.tres" % [CHARACTERS_DIR, base_name]
+	var n := 2
+	while FileAccess.file_exists(path):
+		path = "%s/%s_%d.tres" % [CHARACTERS_DIR, base_name, n]
+		n += 1
+	return path if ResourceSaver.save(copy, path) == OK else ""
 
 static func _pick(source: Array, count: int) -> Array:
 	var copy := source.duplicate()

@@ -9,8 +9,15 @@ class_name EventCatalog
 #   o con azar: {label, chance, chance_stat?, success: {effects, result}, failure: {effects, result}}
 # Efectos posibles: gold, honor, combat, leadership, charisma, strategy, defense,
 #   castle_gold, castle_food, garrison, health (puede causar una herida grave)
+# Eventos con protagonista (ver RelationsData.roll_social_event): además
+#   affinity, grudge, affection, clear_suitor, que se aplican a la relación con ese personaje.
+# fame: fama del jugador. Las pérdidas (números negativos) se multiplican por PENALTY_SCALE.
+# Requisitos: gold, castle_gold, healthy (poder batirse en duelo).
 
-const MONTHLY_EVENT_CHANCE := 0.6
+const MONTHLY_EVENT_CHANCE := 0.5
+const FAME_EVENT_BONUS := 0.003       # +0,3% de probabilidad de evento por punto de fama (la fama atrae sucesos)
+const MAX_EVENT_CHANCE := 0.85
+const PENALTY_SCALE := 1.25           # dificultad: las pérdidas de los eventos pesan un 25% más que las ganancias
 const CHANCE_PER_STAT_POINT := 0.03   # cada punto de la stat por encima/debajo de 10 ajusta la probabilidad
 
 const R := Character.Role
@@ -190,7 +197,7 @@ const ANNUAL_EVENTS := [
 # --- Eventos mensuales ---
 
 static func roll_monthly(character: Character) -> Dictionary:
-	if character == null or randf() >= MONTHLY_EVENT_CHANCE:
+	if character == null or randf() >= event_chance(character):
 		return {}
 	var pool: Array = []
 	var weights: Array[float] = []
@@ -212,11 +219,18 @@ static func roll_monthly(character: Character) -> Dictionary:
 			return pool[i].duplicate(true)
 	return pool[pool.size() - 1].duplicate(true)
 
+## Probabilidad de evento mensual: crece con la fama.
+static func event_chance(character: Character) -> float:
+	var fame: int = character.fame if character != null else 0
+	return minf(MONTHLY_EVENT_CHANCE + fame * FAME_EVENT_BONUS, MAX_EVENT_CHANCE)
+
 static func can_choose(option: Dictionary, character: Character, castle: Castle) -> bool:
 	var req: Dictionary = option.get("requires", {})
 	if req.has("gold") and character.gold < req.gold:
 		return false
 	if req.has("castle_gold") and (castle == null or castle.gold < req.castle_gold):
+		return false
+	if req.get("healthy", false) and (not character.can_fight_duels() or character.is_wounded()):
 		return false
 	return true
 
@@ -225,6 +239,7 @@ static func requirement_text(option: Dictionary) -> String:
 	var parts: Array[String] = []
 	if req.has("gold"): parts.append("%d de oro propio" % req.gold)
 	if req.has("castle_gold"): parts.append("%d de oro del castillo" % req.castle_gold)
+	if req.get("healthy", false): parts.append("poder batirte en duelo (sin heridas graves)")
 	return "Requiere " + " y ".join(parts) if not parts.is_empty() else ""
 
 static func success_chance(option: Dictionary, character: Character) -> float:
@@ -232,10 +247,11 @@ static func success_chance(option: Dictionary, character: Character) -> float:
 	var stat: String = option.get("chance_stat", "")
 	if stat != "":
 		chance += (int(character.get(stat)) - 10) * CHANCE_PER_STAT_POINT
+	chance += SkillEffects.event_luck(character)   # rasgos y habilidades de buena (o mala) estrella
 	return clampf(chance, 0.05, 0.95)
 
 # Aplica la opción elegida y devuelve el texto del resultado.
-static func apply_option(event: Dictionary, index: int, character: Character, castle: Castle) -> String:
+static func apply_option(event: Dictionary, index: int, character: Character, castle: Castle, relation: Relationship = null) -> String:
 	var options: Array = event.get("options", [])
 	if index < 0 or index >= options.size():
 		return ""
@@ -245,7 +261,7 @@ static func apply_option(event: Dictionary, index: int, character: Character, ca
 		outcome = option.success if randf() < success_chance(option, character) else option.failure
 
 	var text: String = outcome.get("result", "")
-	var summary := _apply_effects(outcome.get("effects", {}), character, castle)
+	var summary := _apply_effects(outcome.get("effects", {}), character, castle, relation)
 	if summary != "":
 		text += "\n(" + summary + ")"
 	if RoleProgression.check_dishonor_demotion(character):
@@ -254,11 +270,16 @@ static func apply_option(event: Dictionary, index: int, character: Character, ca
 		text += "\nCaes en deshonra: de %s a %s." % [Character.role_name_for(old_role), character.role_name()]
 	return text
 
-static func _apply_effects(effects: Dictionary, character: Character, castle: Castle) -> String:
+static func _apply_effects(effects: Dictionary, character: Character, castle: Castle, relation: Relationship = null) -> String:
 	var parts: Array[String] = []
 	for key: String in effects.keys():
 		var amount: int = effects[key]
+		if amount < 0 and key in SCALED_PENALTIES:
+			amount = roundi(amount * PENALTY_SCALE)
 		match key:
+			"fame":
+				character.add_fame(amount)
+				parts.append("Fama %+d" % amount)
 			"gold":
 				character.gold = maxi(0, character.gold + amount)
 				parts.append("Oro %+d" % amount)
@@ -286,7 +307,24 @@ static func _apply_effects(effects: Dictionary, character: Character, castle: Ca
 				if castle != null:
 					castle.garrison_size = maxi(0, castle.garrison_size + amount)
 					parts.append("Guarnición %+d" % amount)
+			"affinity":
+				if relation != null:
+					relation.adjust(amount)
+					parts.append("Afinidad con %s %+d" % [relation.person_name, amount])
+			"grudge":
+				if relation != null:
+					relation.adjust_grudge(amount)
+					parts.append(("Rencor de %s %+d" if amount > 0 else "Rencor de %s %d") % [relation.person_name, amount])
+			"affection":
+				if relation != null:
+					relation.adjust_affection(amount)
+					parts.append("Afecto de %s %+d" % [relation.person_name, amount])
+			"clear_suitor":
+				if relation != null:
+					relation.rival_suitor = ""
 	return ", ".join(parts)
+
+const SCALED_PENALTIES := ["gold", "honor", "health", "garrison", "castle_gold", "castle_food", "fame"]
 
 static func _stat_label(key: String) -> String:
 	match key:

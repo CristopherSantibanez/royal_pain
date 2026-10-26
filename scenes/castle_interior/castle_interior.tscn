@@ -1,6 +1,7 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://scenes/castle_interior/castle_interior.gd" id="castle_interior_script"]
+[ext_resource type="Texture2D" path="res://assets/Council-Castle.png" id="2_hall"]
 
 [node name="CastleInterior" type="Control"]
 layout_mode = 3
@@ -11,6 +12,27 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("castle_interior_script")
 
+[node name="Background" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("2_hall")
+expand_mode = 3
+stretch_mode = 6
+
+[node name="Dim" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.03, 0.02, 0.015, 0.55)
+
 [node name="ScreenMargin" type="MarginContainer" parent="."]
 layout_mode = 1
 anchors_preset = 15
@@ -18,90 +40,191 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/margin_left = 50
-theme_override_constants/margin_top = 50
-theme_override_constants/margin_right = 50
-theme_override_constants/margin_bottom = 50
+theme_override_constants/margin_left = 28
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_right = 28
+theme_override_constants/margin_bottom = 18
 
 [node name="RootVBox" type="VBoxContainer" parent="ScreenMargin"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Header" type="HBoxContainer" parent="ScreenMargin/RootVBox"]
 layout_mode = 2
 theme_override_constants/separation = 16
 
-[node name="TitleLabel" type="Label" parent="ScreenMargin/RootVBox"]
+[node name="TitleBox" type="VBoxContainer" parent="ScreenMargin/RootVBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 0
+
+[node name="TitleLabel" type="Label" parent="ScreenMargin/RootVBox/Header/TitleBox"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 28
+theme_type_variation = &"TitleLabel"
+theme_override_font_sizes/font_size = 30
 text = "Interior del Castillo"
 
-[node name="RoleLabel" type="Label" parent="ScreenMargin/RootVBox"]
+[node name="CastleInfoLabel" type="Label" parent="ScreenMargin/RootVBox/Header/TitleBox"]
 unique_name_in_owner = true
 layout_mode = 2
-
-[node name="CastleInfoLabel" type="Label" parent="ScreenMargin/RootVBox"]
-unique_name_in_owner = true
-layout_mode = 2
+theme_type_variation = &"MutedLabel"
 autowrap_mode = 3
 
-[node name="ActionsLabel" type="Label" parent="ScreenMargin/RootVBox"]
+[node name="ActionsLabel" type="Label" parent="ScreenMargin/RootVBox/Header"]
 unique_name_in_owner = true
 layout_mode = 2
+size_flags_vertical = 4
+theme_type_variation = &"StatLabel"
 
-[node name="StatsBox" type="VBoxContainer" parent="ScreenMargin/RootVBox"]
-layout_mode = 2
-theme_override_constants/separation = 4
-
-[node name="HonorLabel" type="Label" parent="ScreenMargin/RootVBox/StatsBox"]
+[node name="BtnGente" type="Button" parent="ScreenMargin/RootVBox/Header"]
 unique_name_in_owner = true
 layout_mode = 2
+size_flags_vertical = 4
+tooltip_text = "Campesinos, soldados y cortesanos de este lugar: habla con ellos, rétalos o súmalos a tu séquito."
+text = "Gente del lugar"
 
-[node name="GoldLabel" type="Label" parent="ScreenMargin/RootVBox/StatsBox"]
+[node name="BtnEncargos" type="Button" parent="ScreenMargin/RootVBox/Header"]
 unique_name_in_owner = true
 layout_mode = 2
+size_flags_vertical = 4
+text = "Encargos"
 
-[node name="DuelsLabel" type="Label" parent="ScreenMargin/RootVBox/StatsBox"]
+[node name="BtnVolverMapa" type="Button" parent="ScreenMargin/RootVBox/Header"]
 unique_name_in_owner = true
 layout_mode = 2
+size_flags_vertical = 4
+text = "Volver al Mapa"
 
-[node name="RoleActionsSection" type="VBoxContainer" parent="ScreenMargin/RootVBox"]
+[node name="Body" type="HBoxContainer" parent="ScreenMargin/RootVBox"]
 layout_mode = 2
-theme_override_constants/separation = 8
+size_flags_vertical = 3
+theme_override_constants/separation = 16
 
-[node name="RoleActionsTitle" type="Label" parent="ScreenMargin/RootVBox/RoleActionsSection"]
+[node name="CharacterCard" type="PanelContainer" parent="ScreenMargin/RootVBox/Body"]
+custom_minimum_size = Vector2(300, 0)
 layout_mode = 2
-theme_override_font_sizes/font_size = 18
-text = "Acciones de tu Rol"
 
-[node name="RoleActionsList" type="VBoxContainer" parent="ScreenMargin/RootVBox/RoleActionsSection"]
-unique_name_in_owner = true
+[node name="CharacterVBox" type="VBoxContainer" parent="ScreenMargin/RootVBox/Body/CharacterCard"]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="ActionFeedbackLabel" type="Label" parent="ScreenMargin/RootVBox/RoleActionsSection"]
+[node name="Portrait" type="TextureRect" parent="ScreenMargin/RootVBox/Body/CharacterCard/CharacterVBox"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 150)
+layout_mode = 2
+size_flags_vertical = 3
+expand_mode = 1
+stretch_mode = 5
+
+[node name="RoleLabel" type="Label" parent="ScreenMargin/RootVBox/Body/CharacterCard/CharacterVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"SubheaderLabel"
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="HonorRow" type="HBoxContainer" parent="ScreenMargin/RootVBox/Body/CharacterCard/CharacterVBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="HonorLabel" type="Label" parent="ScreenMargin/RootVBox/Body/CharacterCard/CharacterVBox/HonorRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+
+[node name="HonorBar" type="ProgressBar" parent="ScreenMargin/RootVBox/Body/CharacterCard/CharacterVBox/HonorRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 14)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+show_percentage = false
+
+[node name="GoldLabel" type="Label" parent="ScreenMargin/RootVBox/Body/CharacterCard/CharacterVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="DuelsLabel" type="Label" parent="ScreenMargin/RootVBox/Body/CharacterCard/CharacterVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="CastleSeparator" type="HSeparator" parent="ScreenMargin/RootVBox/Body/CharacterCard/CharacterVBox"]
+layout_mode = 2
+
+[node name="CastleBanner" type="ColorRect" parent="ScreenMargin/RootVBox/Body/CharacterCard/CharacterVBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 4)
+layout_mode = 2
+
+[node name="CastleStatsLabel" type="Label" parent="ScreenMargin/RootVBox/Body/CharacterCard/CharacterVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+autowrap_mode = 3
+
+[node name="RightVBox" type="VBoxContainer" parent="ScreenMargin/RootVBox/Body"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 12
+
+[node name="RoleActionsSection" type="PanelContainer" parent="ScreenMargin/RootVBox/Body/RightVBox"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="RoleActionsVBox" type="VBoxContainer" parent="ScreenMargin/RootVBox/Body/RightVBox/RoleActionsSection"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="RoleActionsTitle" type="Label" parent="ScreenMargin/RootVBox/Body/RightVBox/RoleActionsSection/RoleActionsVBox"]
+layout_mode = 2
+theme_type_variation = &"HeaderLabel"
+theme_override_font_sizes/font_size = 20
+text = "Acciones de tu rol"
+
+[node name="ActionsScroll" type="ScrollContainer" parent="ScreenMargin/RootVBox/Body/RightVBox/RoleActionsSection/RoleActionsVBox"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="RoleActionsList" type="VBoxContainer" parent="ScreenMargin/RootVBox/Body/RightVBox/RoleActionsSection/RoleActionsVBox/ActionsScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="FeedbackPanel" type="PanelContainer" parent="ScreenMargin/RootVBox/Body/RightVBox"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_type_variation = &"HighlightPanel"
+
+[node name="ActionFeedbackLabel" type="Label" parent="ScreenMargin/RootVBox/Body/RightVBox/FeedbackPanel"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(400, 0)
 layout_mode = 2
 autowrap_mode = 3
-custom_minimum_size = Vector2(500, 0)
 
-[node name="ProgressionBox" type="VBoxContainer" parent="ScreenMargin/RootVBox"]
+[node name="ProgressionBox" type="PanelContainer" parent="ScreenMargin/RootVBox/Body/RightVBox"]
 layout_mode = 2
-theme_override_constants/separation = 10
+theme_type_variation = &"CardPanel"
 
-[node name="ProgressionLabel" type="Label" parent="ScreenMargin/RootVBox/ProgressionBox"]
+[node name="ProgressionHBox" type="HBoxContainer" parent="ScreenMargin/RootVBox/Body/RightVBox/ProgressionBox"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="ProgressionLabel" type="Label" parent="ScreenMargin/RootVBox/Body/RightVBox/ProgressionBox/ProgressionHBox"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(300, 0)
 layout_mode = 2
+size_flags_horizontal = 3
 autowrap_mode = 3
-custom_minimum_size = Vector2(500, 0)
 
-[node name="BtnAscend" type="Button" parent="ScreenMargin/RootVBox/ProgressionBox"]
+[node name="BtnAscend" type="Button" parent="ScreenMargin/RootVBox/Body/RightVBox/ProgressionBox/ProgressionHBox"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(150, 0)
 layout_mode = 2
-size_flags_horizontal = 0
+size_flags_vertical = 4
+theme_type_variation = &"PrimaryButton"
 text = "Ascender"
-
-[node name="BottomBar" type="HBoxContainer" parent="ScreenMargin/RootVBox"]
-layout_mode = 2
-
-[node name="BtnVolverMapa" type="Button" parent="ScreenMargin/RootVBox/BottomBar"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "Volver al Mapa"

@@ -6,6 +6,9 @@ signal game_started(character: Character)
 signal state_changed(new_state: int)
 signal actions_changed(remaining: int, total: int)
 signal event_resolved(result_text: String)
+## Se elige una opción de un evento (antes de aplicar sus efectos). Lo escuchan los sistemas que
+## reaccionan a opciones especiales (aceptar un encargo, una boda política...): ver MissionData.
+signal event_option_chosen(event: Dictionary, option: Dictionary)
 
 const MONTHS_PER_YEAR := 12
 
@@ -43,9 +46,12 @@ var actions_remaining: int = 0
 var actions_per_turn: int = 0
 
 func start_new_game(character: Character, start_castle_id: String) -> void:
-	# Reinicia el mundo para que una partida nueva no herede el estado de la anterior.
+	# Cada partida nueva se juega en un mundo nuevo. Si la pantalla de Nueva Partida ya generó uno
+	# (y el jugador eligió castillo en él), se usa ese; si no, se genera otro.
 	# (ArmyData se reinicia solo al escuchar game_started; referenciarlo aquí crearía un ciclo de dependencias.)
-	MapData.reset()
+	if MapData.world_used:
+		MapData.new_world()
+	MapData.world_used = true
 
 	player_character = character
 	home_castle_id = start_castle_id
@@ -118,7 +124,8 @@ func check_defeat() -> bool:
 func has_pending_event() -> bool:
 	return not pending_event.is_empty()
 
-func resolve_pending_event(option_index: int) -> String:
+# relation: la relación con el protagonista del evento (rivales, amores, cónyuge), si lo hay.
+func resolve_pending_event(option_index: int, relation: Relationship = null) -> String:
 	if pending_event.is_empty() or player_character == null:
 		return ""
 	var castle := MapData.get_castle_by_id(home_castle_id)
@@ -126,8 +133,14 @@ func resolve_pending_event(option_index: int) -> String:
 	if not EventCatalog.can_choose(option, player_character, castle):
 		return ""
 	var old_role := player_character.role
-	var text := EventCatalog.apply_option(pending_event, option_index, player_character, castle)
-	pending_event = {}
+	var event := pending_event
+	event_option_chosen.emit(event, option)
+	var text := EventCatalog.apply_option(event, option_index, player_character, castle, relation)
+	if pending_event == event:
+		pending_event = {}
+	var extra: String = event.get("_extra_result", "")
+	if not extra.is_empty():
+		text += "\n" + extra
 	if player_character.role != old_role:
 		refresh_actions_for_role_change()
 	event_resolved.emit(text)

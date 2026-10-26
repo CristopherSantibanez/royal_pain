@@ -3,6 +3,7 @@ extends Resource
 # Foto completa de una partida en curso. Castillos, ejércitos y personaje se guardan
 # como sub-recursos dentro del mismo archivo .tres.
 
+@export var version: int = 1              # versión del formato (ver SaveSystem.SAVE_VERSION y _migrate)
 @export var summary: String = ""          # texto corto para mostrar en el menú
 @export var saved_at: String = ""
 
@@ -35,3 +36,8 @@ extends Resource
 @export var liege_name: String = ""
 @export var spouse_name: String = ""
 @export var spouse_family: String = ""
+
+@export_group("Módulos")
+## Estado de los sistemas que se guardan solos (misiones, eventos del mundo, séquito...):
+## nombre del autoload -> Dictionary con datos planos (sin objetos). Ver SaveSystem.MODULES.
+@export var modules: Dictionary = {}

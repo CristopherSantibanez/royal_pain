@@ -1,6 +1,10 @@
 class_name RoleProgression
 
 # --- Umbrales de ascenso (ajustables sin tocar el resto del sistema) ---
+# Campesino -> Soldado ("alistarse"): pagar las armas, o demostrar que ya sabes pelear.
+const ALISTARSE_GOLD := 60
+const ALISTARSE_MIN_COMBAT := 9
+
 const SOLDADO_MIN_DUELS_WON := 3
 const SOLDADO_MIN_HONOR := 60
 
@@ -36,6 +40,10 @@ static func check_ascension(character: Character, succession: Dictionary = {}) -
 
 	match character.role:
 		Character.Role.CAMPESINO:
+			if character.gold < ALISTARSE_GOLD and character.combat < ALISTARSE_MIN_COMBAT:
+				return {"can_ascend": false, "next_role": target, "reason":
+					"Para alistarte necesitas %d de oro para armas (tienes %d) o Combate %d+ (tienes %d)." % [
+						ALISTARSE_GOLD, character.gold, ALISTARSE_MIN_COMBAT, character.combat]}
 			return {"can_ascend": true, "next_role": target, "reason": ""}
 
 		Character.Role.SOLDADO:
@@ -79,6 +87,9 @@ static func ascend(character: Character, succession: Dictionary = {}) -> bool:
 	var result := check_ascension(character, succession)
 	if not result.can_ascend:
 		return false
+	# Quien se alista sin saber pelear paga sus propias armas.
+	if character.role == Character.Role.CAMPESINO and character.combat < ALISTARSE_MIN_COMBAT:
+		character.gold -= ALISTARSE_GOLD
 	character.role = result.next_role
 	return true
 

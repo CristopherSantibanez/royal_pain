@@ -1,4 +1,11 @@
 class_name SaveSystem
+
+# Versión del formato de guardado. Súbela al cambiar qué se guarda y añade la migración en load_game.
+#   1: formato original · 2: módulos con estado propio (SaveGame.modules)
+const SAVE_VERSION := 2
+# Autoloads que guardan su propio estado con save_state() -> Dictionary y load_state(d).
+# Deben devolver datos planos (números, textos, arrays, diccionarios), nunca objetos.
+const MODULES := ["RelationsData", "MissionData", "WorldEvents"]
 # Guardado y carga de la partida completa en ranuras: un autoguardado (cada mes) y varias
 # ranuras manuales. Cada ranura es un archivo .tres en user://saves.
 
@@ -88,6 +95,11 @@ static func save_game(slot: String = AUTO_SLOT) -> Error:
 	s.liege_name = RelationsData.liege_name
 	s.spouse_name = RelationsData.spouse_name
 	s.spouse_family = RelationsData.spouse_family
+	s.version = SAVE_VERSION
+	for module_name in MODULES:
+		var node := _module(module_name)
+		if node != null and node.has_method("save_state"):
+			s.modules[module_name] = node.save_state()
 	s.saved_at = Time.get_datetime_string_from_system(false, true)
 	s.summary = "%s (%s) — %s" % [player.full_name(), player.role_name(), GameManager.get_date_string()]
 	return ResourceSaver.save(s, slot_path(slot))
@@ -124,9 +136,18 @@ static func load_game(slot: String = AUTO_SLOT) -> bool:
 	GameManager.last_tournament_year = s.last_tournament_year
 	if RelationsData.relations.is_empty():
 		RelationsData.reset()   # partidas guardadas antes de existir las relaciones
+	# Cada módulo restaura su estado; con partidas antiguas recibe {} y usa sus valores iniciales.
+	for module_name in MODULES:
+		var node := _module(module_name)
+		if node != null and node.has_method("load_state"):
+			node.load_state(s.modules.get(module_name, {}) if s.version >= 2 else {})
 	ArmyData.armies_changed.emit()
 	ArmyData.events_changed.emit()
 	return true
+
+static func _module(module_name: String) -> Node:
+	var tree := Engine.get_main_loop() as SceneTree
+	return tree.root.get_node_or_null(module_name) if tree != null else null
 
 static func _read(slot: String) -> SaveGame:
 	if not has_save(slot):

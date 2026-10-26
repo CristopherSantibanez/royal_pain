@@ -11,14 +11,20 @@ enum Role {
 	REGENTE
 }
 
-## PERSONALIDADES
+## PERSONALIDADES (las nuevas se añaden SIEMPRE al final: las partidas guardan el número)
 enum Personality {
 	AMBICIOSO,
 	LEAL,
 	PRUDENTE,
 	ARROGANTE,
 	PIADOSO,
-	ASTUTO
+	ASTUTO,
+	VALIENTE,
+	CRUEL,
+	GENEROSO,
+	COBARDE,
+	ROMANTICO,
+	HONORABLE,
 }
 
 @export_group("Identidad")
@@ -47,12 +53,16 @@ enum Personality {
 @export var max_morale: int = 100
 @export var current_morale: int = 100
 @export var honor: int = 50
+@export_range(0, 100) var fame: int = 0   # reconocimiento: duelos, torneos y hazañas; atrae eventos y seguidores
 @export var wound_months: int = 0   # meses que faltan para curar una herida grave (no puede batirse)
 
 @export_group("Progresión Social")
 @export var gold: int = 100
 @export var duels_won: int = 0
 @export var duels_lost: int = 0
+@export var rent: int = 0                    # oro que le rinden cada mes las tierras mejoradas
+@export var last_training_month: int = -1    # mes (GameManager.months_elapsed) del último entrenamiento
+@export var last_command_month: int = -1     # último mes en que una batalla ganada le dio Liderazgo
 
 @export_group("Habilidades")
 @export var general_skills: Array[Skill] = []
@@ -153,11 +163,14 @@ func apply_trait_and_equipment_modifiers() -> void:
 		cb += e.combat_mod
 		d += e.defense_mod
 
-	leadership = max(1, leadership + l)
-	charisma = max(1, charisma + c)
-	strategy = max(1, strategy + s)
-	combat = max(1, combat + cb)
-	defense = max(1, defense + d)
+	leadership = clampi(leadership + l, 1, 20)
+	charisma = clampi(charisma + c, 1, 20)
+	strategy = clampi(strategy + s, 1, 20)
+	combat = clampi(combat + cb, 1, 20)
+	defense = clampi(defense + d, 1, 20)
+	# Ventajas como Robusto o desventajas como Viejas Heridas cambian la vida máxima.
+	max_health = maxi(40, 100 + roundi(SkillEffects.fx(self, "max_health")))
+	current_health = max_health
 
 # --- Validación de reglas de creación ---
 
@@ -170,10 +183,18 @@ func is_creation_valid() -> Dictionary:
 		errors.append("Debes elegir al menos 3 ventajas (tienes %d)." % advantages.size())
 	if disadvantages.size() < 2:
 		errors.append("Debes elegir al menos 2 desventajas (tienes %d)." % disadvantages.size())
-	if equipment.size() > 2:
-		errors.append("No puedes llevar más de 2 piezas de equipamiento (tienes %d)." % equipment.size())
+	if equipment.size() > MAX_EQUIPMENT:
+		errors.append("No puedes llevar más de %d piezas de equipamiento (tienes %d)." % [MAX_EQUIPMENT, equipment.size()])
+	var slots := {}
+	for e: Equipment in equipment:
+		if e != null and slots.has(e.slot):
+			errors.append("Solo puedes llevar una pieza de tipo %s." % e.slot)
+		elif e != null:
+			slots[e.slot] = true
 
 	return {"valid": errors.is_empty(), "errors": errors}
+
+const MAX_EQUIPMENT := 3   # una pieza por ranura (arma, armadura, escudo, montura, accesorio)
 
 # --- Utilidades ya existentes ---
 
@@ -207,6 +228,8 @@ func after_fight_recovery() -> String:
 		months = FALLEN_WOUND_MONTHS
 	elif current_health < max_health * SEVERE_WOUND_RATIO:
 		months = SEVERE_WOUND_MONTHS
+	if months > 0:
+		months = maxi(1, months - SkillEffects.wound_reduction(self))
 	if months > wound_months:
 		wound_months = months
 	if months > 0:
@@ -215,7 +238,7 @@ func after_fight_recovery() -> String:
 
 # Una vez por mes: se recupera vida y avanza la curación de las heridas graves.
 func monthly_recovery() -> void:
-	current_health = mini(max_health, current_health + MONTHLY_HEAL)
+	current_health = mini(max_health, current_health + maxi(5, MONTHLY_HEAL + SkillEffects.heal_bonus(self)))
 	current_stamina = max_stamina
 	current_morale = max_morale
 	if wound_months > 0:
@@ -229,9 +252,21 @@ func health_text() -> String:
 
 # --- Progresión social ---
 
-func register_duel_win() -> void:
+## Suma (o resta) fama: duelos, torneos, batallas y encargos cumplidos. 0..100.
+func add_fame(amount: int) -> void:
+	if amount > 0:
+		amount = roundi(amount * SkillEffects.fame_gain_multiplier(self))
+	fame = clampi(fame + amount, 0, 100)
+
+## Suma honor aplicando los efectos de honor ganado (Devoto, Codicioso...). Las pérdidas no se modifican.
+func gain_honor(amount: int) -> void:
+	if amount > 0:
+		amount = roundi(amount * SkillEffects.honor_gain_multiplier(self))
+	honor = clampi(honor + amount, 0, 100)
+
+func register_duel_win(honor_gain: int = 10) -> void:
 	duels_won += 1
-	honor = clamp(honor + 10, 0, 100)
+	gain_honor(honor_gain)
 	gold += 50
 
 func register_duel_loss() -> void:

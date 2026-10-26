@@ -1,0 +1,120 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scenes/glossary/glossary.gd" id="1_gloss"]
+[ext_resource type="Texture2D" path="res://assets/Council-Castle.png" id="2_bg"]
+
+[node name="Glossary" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_gloss")
+
+[node name="Background" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("2_bg")
+expand_mode = 3
+stretch_mode = 6
+
+[node name="Dim" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.03, 0.02, 0.015, 0.7)
+
+[node name="ScreenMargin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 28
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 28
+theme_override_constants/margin_bottom = 16
+
+[node name="RootVBox" type="VBoxContainer" parent="ScreenMargin"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Header" type="HBoxContainer" parent="ScreenMargin/RootVBox"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="TitleLabel" type="Label" parent="ScreenMargin/RootVBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"TitleLabel"
+theme_override_font_sizes/font_size = 30
+text = "Glosario"
+
+[node name="SearchEdit" type="LineEdit" parent="ScreenMargin/RootVBox/Header"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(280, 0)
+layout_mode = 2
+size_flags_vertical = 4
+placeholder_text = "Buscar en el glosario…"
+clear_button_enabled = true
+
+[node name="BtnBack" type="Button" parent="ScreenMargin/RootVBox/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+text = "Volver"
+
+[node name="Body" type="HBoxContainer" parent="ScreenMargin/RootVBox"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 14
+
+[node name="CategoriesPanel" type="PanelContainer" parent="ScreenMargin/RootVBox/Body"]
+custom_minimum_size = Vector2(250, 0)
+layout_mode = 2
+
+[node name="CategoriesScroll" type="ScrollContainer" parent="ScreenMargin/RootVBox/Body/CategoriesPanel"]
+layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="CategoriesBox" type="VBoxContainer" parent="ScreenMargin/RootVBox/Body/CategoriesPanel/CategoriesScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 2
+
+[node name="EntriesPanel" type="PanelContainer" parent="ScreenMargin/RootVBox/Body"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="EntriesVBox" type="VBoxContainer" parent="ScreenMargin/RootVBox/Body/EntriesPanel"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="CategoryTitle" type="Label" parent="ScreenMargin/RootVBox/Body/EntriesPanel/EntriesVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"HeaderLabel"
+
+[node name="EntriesScroll" type="ScrollContainer" parent="ScreenMargin/RootVBox/Body/EntriesPanel/EntriesVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="EntriesBox" type="VBoxContainer" parent="ScreenMargin/RootVBox/Body/EntriesPanel/EntriesVBox/EntriesScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8

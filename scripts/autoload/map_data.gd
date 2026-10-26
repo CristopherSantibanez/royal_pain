@@ -4,13 +4,90 @@ extends Node
 const MAP_WIDTH: float = 1536.0
 const MAP_HEIGHT: float = 1024.0
 
+# --- Mundo aleatorio: cada partida nueva tiene otros señores, otras fuerzas y otra diplomacia ---
+const GARRISON_VARIATION := 0.25        # ±25% sobre la guarnición base de cada castillo
+const RESOURCE_VARIATION := 0.3         # ±30% sobre oro y comida
+
+# Casas nobles posibles por reino (el apellido del señor). Se elige una al azar en cada partida.
+const HOUSES := {
+	KingdomEnums.Kingdom.HIELO: ["Escarcha", "Nevada", "Glaciar", "Invernal", "Albanieve"],
+	KingdomEnums.Kingdom.BOSQUE: ["Silvano", "Robledal", "Fronda", "Hojarasca", "Musgoverde"],
+	KingdomEnums.Kingdom.DORADO: ["Dorado", "Aureo", "Solmayor", "Trigal", "Oroviejo"],
+	KingdomEnums.Kingdom.CUMBRES: ["Roca Alta", "Peñascal", "Cumbrenegra", "Risco", "Altocerro"],
+	KingdomEnums.Kingdom.AZUL: ["Marea", "Oleaje", "Azulmar", "Bruma", "Salobre"],
+	KingdomEnums.Kingdom.CARMESI: ["Carmesí", "Sangreal", "Granate", "Rubiel", "Escarlata"],
+	KingdomEnums.Kingdom.ESMERALDA: ["Verdemar", "Esmeril", "Jade", "Prado Hondo", "Valleverde"],
+	KingdomEnums.Kingdom.DESIERTO: ["Duna", "Arenal", "Espejismo", "Solano", "Oasis"],
+	KingdomEnums.Kingdom.AMBAR: ["Ámbar", "Resina", "Otoñal", "Cobrizo", "Melado"],
+	KingdomEnums.Kingdom.GRIS: ["Piedra Gris", "Ceniza", "Pizarra", "Grisvalle", "Sombra"],
+	KingdomEnums.Kingdom.OLIVA: ["Olivar", "Almazara", "Verdín", "Acebuche", "Lagar"],
+}
+
 var castles: Array[Castle] = []
+var world_seed: int = 0
+var world_used := false     # el mundo actual ya se jugó: una partida nueva debe generar otro
 
 func _ready() -> void:
-	_load_castles()
+	new_world()
 
 func reset() -> void:
+	new_world()
+
+## Genera un mundo nuevo (señores, recursos). seed < 0 = al azar.
+func new_world(seed: int = -1) -> void:
+	world_seed = seed if seed >= 0 else randi() % 1000000
+	world_used = false
 	_load_castles()
+	_randomize_world()
+
+# Señores con nombre, sexo y casa al azar; recursos con variación. El más fuerte lleva la corona.
+func _randomize_world() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = world_seed
+	var strongest: Castle = null
+	for c: Castle in castles:
+		c.garrison_size = maxi(10, roundi(c.garrison_size * rng.randf_range(1.0 - GARRISON_VARIATION, 1.0 + GARRISON_VARIATION)))
+		c.gold = maxi(0, roundi(c.gold * rng.randf_range(1.0 - RESOURCE_VARIATION, 1.0 + RESOURCE_VARIATION)))
+		c.food = maxi(0, roundi(c.food * rng.randf_range(1.0 - RESOURCE_VARIATION, 1.0 + RESOURCE_VARIATION)))
+		if c.kingdom == KingdomEnums.Kingdom.NEUTRAL:
+			continue
+		if strongest == null or c.garrison_size > strongest.garrison_size:
+			strongest = c
+	for c: Castle in castles:
+		if c.kingdom == KingdomEnums.Kingdom.NEUTRAL:
+			continue
+		var female := rng.randf() < 0.5
+		var crowned := c == strongest
+		var title := ("Reina" if female else "Rey") if crowned else ("Lady" if female else "Lord")
+		var houses: Array = HOUSES.get(c.kingdom, ["Sinnombre"])
+		var house: String = houses[rng.randi() % houses.size()]
+		var gender := CharacterEnums.Gender.FEMENINO if female else CharacterEnums.Gender.MASCULINO
+		var first := _random_first_name(rng, gender)
+		c.owner_name = "%s %s %s" % [title, first, house]
+		c.original_owner = c.owner_name
+
+func _random_first_name(rng: RandomNumberGenerator, gender: int) -> String:
+	var names: Array = CharacterLoader.FEMALE_NAMES if gender == CharacterEnums.Gender.FEMENINO else CharacterLoader.MALE_NAMES
+	return names[rng.randi() % names.size()]
+
+## Título del monarca del mundo actual (o "" si no hay).
+func crown_holder() -> String:
+	for c: Castle in castles:
+		if c.owner_name.begins_with("Rey ") or c.owner_name.begins_with("Reina "):
+			return c.owner_name
+	return ""
+
+## Resumen corto del mundo generado (para la pantalla de Nueva Partida).
+func world_summary() -> String:
+	var crown := crown_holder()
+	var crown_castle: Castle = null
+	for c: Castle in castles:
+		if c.owner_name == crown:
+			crown_castle = c
+	var text := "Mundo n.º %d" % world_seed
+	if crown_castle != null:
+		text += " · Corona: %s (%s, %d soldados)" % [crown, KingdomEnums.kingdom_name(crown_castle.kingdom), crown_castle.garrison_size]
+	return text
 
 func get_castle_by_id(id: String) -> Castle:
 	for c in castles:

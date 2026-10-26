@@ -1,11 +1,14 @@
 extends Control
 
-@onready var btn_nueva_partida: Button = $ScreenMargin/CenterBox/MenuVBox/BtnNuevaPartida
-@onready var btn_cargar_partida: Button = $ScreenMargin/CenterBox/MenuVBox/BtnCargarPartida
-@onready var btn_combate: Button = $ScreenMargin/CenterBox/MenuVBox/BtnCombatePrueba
-@onready var btn_crear_personaje: Button = $ScreenMargin/CenterBox/MenuVBox/BtnCrearPersonaje
-@onready var btn_mapa: Button = $ScreenMargin/CenterBox/MenuVBox/BtnMapa
-@onready var btn_salir: Button = $ScreenMargin/CenterBox/MenuVBox/BtnSalir
+@onready var menu_vbox: VBoxContainer = %MenuVBox
+@onready var btn_nueva_partida: Button = %BtnNuevaPartida
+@onready var btn_cargar_partida: Button = %BtnCargarPartida
+@onready var btn_combate: Button = %BtnCombatePrueba
+@onready var btn_crear_personaje: Button = %BtnCrearPersonaje
+@onready var btn_mapa: Button = %BtnMapa
+@onready var btn_opciones: Button = %BtnOpciones
+@onready var btn_salir: Button = %BtnSalir
+@onready var save_info_label: Label = %SaveInfoLabel
 
 func _ready() -> void:
 	btn_nueva_partida.pressed.connect(_on_nueva_partida_pressed)
@@ -17,16 +20,25 @@ func _ready() -> void:
 	btn_combate.pressed.connect(_on_combate_pressed)
 	btn_crear_personaje.pressed.connect(_on_crear_personaje_pressed)
 	btn_mapa.pressed.connect(_on_mapa_pressed)
+	btn_opciones.pressed.connect(func(): OptionsPanel.open(self))
+	%BtnTutorial.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/tutorial/tutorial.tscn"))
+	%BtnGlosario.pressed.connect(func():
+		load("res://scripts/resources/glossary_data.gd").open(get_tree(), "res://scenes/main_menu/main_menu.tscn"))
 	btn_salir.pressed.connect(_on_salir_pressed)
 	# El botón del mapa retoma la partida en curso; si no hay, carga el guardado más reciente;
-	# y si tampoco hay guardados, es solo una vista previa del mapa.
+	# y si tampoco hay guardados, es solo una vista previa del mapa (y Nueva Partida pasa a ser la acción principal).
 	if GameManager.is_game_active:
 		btn_mapa.text = "Continuar Partida"
 	elif latest != "":
 		btn_mapa.text = "Continuar"
-		btn_mapa.tooltip_text = "%s: %s" % [SaveSystem.slot_title(latest), SaveSystem.read_summary(latest)]
+		save_info_label.text = "%s — %s" % [SaveSystem.slot_title(latest), SaveSystem.read_summary(latest)]
 	else:
 		btn_mapa.text = "Ver Mapa"
+		btn_mapa.theme_type_variation = &"MenuButtonLarge"
+		btn_nueva_partida.theme_type_variation = &"PrimaryButton"
+		menu_vbox.move_child(btn_mapa, btn_combate.get_index())
+	UiAnim.stagger_in(menu_vbox)
+	(btn_mapa if btn_mapa.theme_type_variation == &"PrimaryButton" else btn_nueva_partida).grab_focus()
 
 func _on_nueva_partida_pressed() -> void:
 	get_tree().change_scene_to_file("res://scenes/new_game/new_game.tscn")

@@ -29,6 +29,7 @@ WorldEvents="*res://scripts/autoload/world_events.gd"
 Settings="*res://scripts/autoload/settings.gd"
 Sfx="*res://scripts/autoload/sfx.gd"
 Music="*res://scripts/autoload/music.gd"
+SceneFade="*res://scripts/autoload/scene_fade.gd"
 
 [display]
 

@@ -145,6 +145,11 @@ func _row(m: Dictionary) -> Control:
 	return card
 
 func _on_act(uid: String, type: String) -> void:
+	if type == "fight":
+		var fight_scene := MissionData.start_fight(uid)
+		if not fight_scene.is_empty():
+			get_tree().change_scene_to_file(fight_scene)
+		return
 	if type == "exhibition":
 		var rival := MissionData.start_exhibition(uid)
 		if rival != null:

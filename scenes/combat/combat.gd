@@ -604,7 +604,12 @@ func _on_duel_ended(winner: Character, reason: String) -> void:
 
 	if is_campaign:
 		# La rivalidad se registra antes del resumen: vencer a un rival conocido suma honor.
-		var rivalry := RelationsData.register_duel(enemy_character, winner == player_character, winner == null)
+		# Los combates de evento contra bandidos y similares no crean rivalidades.
+		var event_foe: bool = CombatSetup.pending_outcome.get("no_rival", false)
+		var rivalry := "" if event_foe else RelationsData.register_duel(enemy_character, winner == player_character, winner == null)
+		var outcome := CombatSetup.apply_outcome(winner == player_character)
+		if not outcome.is_empty():
+			rivalry = (rivalry + " " + outcome).strip_edges()
 		rivalry += _champion_outcome(winner)
 		if MissionData.has_method("on_duel_finished"):
 			MissionData.on_duel_finished(enemy_character, winner == player_character)

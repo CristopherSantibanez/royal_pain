@@ -31,10 +31,13 @@ var selected: BattleUnit
 var log_lines: Array[String] = []
 var player_defending := false   # true si el jugador defiende su castillo de un ejército de la IA
 
+var skirmish: Dictionary = {}   # escaramuza de un evento (sin ejército ni castillo de por medio)
+
 func _ready() -> void:
+	skirmish = CombatSetup.skirmish
 	army = ArmyData.active_battle_army
 	castle = MapData.get_castle_by_id(army.current_castle_id) if army != null else null
-	if army == null or not army.pending_battle or castle == null:
+	if skirmish.is_empty() and (army == null or not army.pending_battle or castle == null):
 		# Nadie llegó aquí desde una batalla pendiente del mapa; evita un crash.
 		var fallback := "res://scenes/map/map.tscn" if GameManager.is_game_active else "res://scenes/main_menu/main_menu.tscn"
 		get_tree().change_scene_to_file(fallback)
@@ -45,8 +48,12 @@ func _ready() -> void:
 	btn_retreat.pressed.connect(_on_retreat_pressed)
 	btn_back_to_map.pressed.connect(_on_back_to_map_pressed)
 
-	player_defending = not ArmyData.is_player_army(army)
-	if player_defending:
+	player_defending = skirmish.is_empty() and not ArmyData.is_player_army(army)
+	if not skirmish.is_empty():
+		title_label.text = "%s\n%s contra %s" % [skirmish.title, GameManager.player_character.full_name(), skirmish.enemy_name]
+		btn_retreat.text = "Retirarse"
+		btn_retreat.tooltip_text = "Abandonas el combate: el evento se da por perdido."
+	elif player_defending:
 		title_label.text = "Defensa de %s\n%s asedia tu castillo" % [castle.castle_name, army.owner_name]
 		btn_retreat.text = "Abandonar Castillo"
 		btn_retreat.tooltip_text = "Entregas el castillo al atacante sin seguir luchando."
@@ -67,6 +74,15 @@ func _ready() -> void:
 	board.cell_hovered.connect(_on_cell_hovered)
 
 	var player: Character = GameManager.player_character
+	if not skirmish.is_empty():
+		# Escaramuza en campo abierto: tu gente (y tu séquito) contra los atacantes del evento.
+		battle.player_side = BattleEnums.Side.ATACANTE
+		var companions := _player_companions()
+		battle.start_battle(skirmish.player_soldiers, skirmish.enemy_soldiers, false, player, skirmish.foe, "el campo abierto", companions, [])
+		_show_companions(companions, [])
+		Sfx.play("horn", 0.0, 0.0)
+		_refresh()
+		return
 	# Los señores de la IA comandan con su propia ficha (liderazgo, estrategia y habilidades de batalla).
 	var attacker_cmd: Character = RelationsData.character_of(army.owner_name) if player_defending else player
 	var defender_cmd: Character = player if player_defending else RelationsData.character_of(castle.owner_name)
@@ -262,6 +278,9 @@ func _on_log_message(text: String) -> void:
 	log_label.text = "\n".join(log_lines)
 
 func _on_battle_ended(winner_side: int, report: Dictionary) -> void:
+	if not skirmish.is_empty():
+		_end_skirmish(winner_side == battle.player_side, report)
+		return
 	var attacker_won: bool = winner_side == BattleEnums.Side.ATACANTE
 	var player_won: bool = winner_side == battle.player_side
 	# El resultado se aplica al mundo de inmediato, para que la batalla nunca quede a medias.
@@ -281,6 +300,30 @@ func _on_battle_ended(winner_side: int, report: Dictionary) -> void:
 	selected = null
 	_refresh()
 	# El resultado ya está aplicado; el cartel espera a que terminen de verse los últimos golpes.
+	await get_tree().create_timer(board.fx_remaining() + 0.3).timeout
+	Music.stop(0.8)
+	Sfx.play("victory" if player_won else "defeat", 0.0, 0.0)
+	result_overlay.visible = true
+	btn_back_to_map.grab_focus.call_deferred()
+	UiAnim.fade_in(result_panel, 0.3)
+
+# Fin de una escaramuza: las bajas salen de tu guarnición y se aplica el desenlace del evento.
+func _end_skirmish(player_won: bool, report: Dictionary) -> void:
+	var losses: int = report.attacker_initial - report.attacker_survivors
+	var home: Castle = MapData.get_castle_by_id(GameManager.home_castle_id)
+	if home != null:
+		home.garrison_size = maxi(0, home.garrison_size - losses)
+	var outcome := CombatSetup.apply_outcome(player_won)
+	CombatSetup.skirmish = {}
+	result_title.text = "¡Victoria!" if player_won else "Derrota"
+	result_title.add_theme_color_override("font_color", Color("f0d48a") if player_won else Color("c9584c"))
+	result_label.text = "%s\n\nTus hombres: %d → %d (bajas en tu guarnición: %d)\nEnemigos: %d → %d\nTurnos: %d\n\n%s" % [
+		report.reason, report.attacker_initial, report.attacker_survivors, losses,
+		report.defender_initial, report.defender_survivors, report.turns, outcome]
+	if not report.get("wounded_companions", []).is_empty():
+		result_label.text += "\n\nHeridos: %s." % ", ".join(report.wounded_companions)
+	selected = null
+	_refresh()
 	await get_tree().create_timer(board.fx_remaining() + 0.3).timeout
 	Music.stop(0.8)
 	Sfx.play("victory" if player_won else "defeat", 0.0, 0.0)

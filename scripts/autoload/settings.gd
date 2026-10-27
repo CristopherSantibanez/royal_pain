@@ -15,7 +15,7 @@ const KEY_ACTIONS := {
 	"cam_left": [KEY_A], "cam_right": [KEY_D], "cam_up": [KEY_W], "cam_down": [KEY_S],
 	"cam_zoom_in": [KEY_EQUAL, KEY_KP_ADD, KEY_PLUS], "cam_zoom_out": [KEY_MINUS, KEY_KP_SUBTRACT],
 	"end_turn": [KEY_T], "map_relations": [KEY_R], "map_missions": [KEY_E], "map_chronicle": [KEY_C],
-	"map_next_castle": [KEY_TAB], "map_menu": [KEY_M],
+	"map_next_castle": [KEY_TAB], "map_menu": [KEY_M], "map_toggle_panels": [KEY_H],
 }
 const JOY_BUTTON_ACTIONS := {
 	"cam_zoom_in": JOY_BUTTON_RIGHT_SHOULDER, "cam_zoom_out": JOY_BUTTON_LEFT_SHOULDER,
@@ -32,6 +32,7 @@ var fullscreen := false
 
 func _ready() -> void:
 	_register_input_actions()
+	RenderingServer.set_default_clear_color(Color("0d0906"))   # fuera del mapa, oscuro en vez de gris
 	var cfg := ConfigFile.new()
 	if cfg.load(settings_path) == OK:
 		for bus in BUSES:

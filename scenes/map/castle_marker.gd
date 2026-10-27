@@ -1,6 +1,7 @@
 extends Area2D
 
 signal castle_clicked(castle: Castle)
+signal castle_hovered(castle: Castle, hovering: bool)
 
 @onready var name_label: Label = $NameLabel
 @onready var icon: Sprite2D = $Icon
@@ -63,9 +64,11 @@ func _on_input_event(_viewport: Node, event: InputEvent, _shape_idx: int) -> voi
 
 func _on_mouse_entered() -> void:
 	scale = Vector2(1.15, 1.15)
+	castle_hovered.emit(castle_data, true)
 
 func _on_mouse_exited() -> void:
 	scale = Vector2(1.0, 1.0)
+	castle_hovered.emit(castle_data, false)
 	
 var is_visible_to_player: bool = true
 

@@ -145,6 +145,7 @@ const ENTRIES := {
 		["Duelos de exhibición", "Como Caballero pueden asignarte duelos de exhibición contra caballeros de otros reinos."],
 	],
 	"Eventos y noticias": [
+		["Eventos con combate", "Algunas decisiones se resuelven peleando de verdad: un duelo contra un rival (un cabecilla, un caballero errante, un provocador, el campeón de un juicio) o una escaramuza en campo abierto con parte de tu guarnición y tu séquito. Las bajas salen de tu guarnición y el desenlace depende de si ganas o pierdes. Algunos encargos (como cazar bandidos) también se cumplen combatiendo."],
 		["Crónica completa", "Menú ▸ Crónica (tecla C) guarda todas las noticias y tus decisiones desde el comienzo de la partida, mes a mes. Solo aparece lo que ocurre en castillos que puedes ver."],
 		["Frecuencia", "Alrededor de la mitad de los meses traen una decisión: el suceso del mes, una iniciativa de un rival o un amor, un encargo o un suceso global."],
 		["Eventos del mes", "Casi cada mes ocurre algo que requiere una decisión. Algunas opciones dependen del azar y de tus atributos (se muestra el % de éxito)."],
@@ -164,7 +165,7 @@ const ENTRIES := {
 	],
 	"Interfaz y atajos": [
 		["Duelo", "Teclas 1–8: acciones. Q, W, E, R, T: posturas. Pasa el ratón sobre una orden para ver su efecto y sus probabilidades. Con mando: cruceta y A."],
-		["Mapa", "Rueda del ratón, +/− o L1/R1: zoom. Botón derecho, WASD o stick izquierdo: mover la cámara. Tab o clic del stick derecho: recorrer castillos. T o Y: avanzar turno. R o X: relaciones. E: encargos. C: crónica. Esc, M o Start: menú."],
+		["Mapa", "Rueda del ratón (hacia el cursor), +/− o L1/R1: zoom; alejándote ves el mapa entero. Botón derecho, WASD o stick izquierdo: mover la cámara, hasta los bordes del mapa. H: ocultar o mostrar los paneles inferiores. Pasa el ratón por un castillo para ver su reino, señor y guarnición. Si te quedan acciones, «Avanzar Turno» pide confirmación. Tab o clic del stick derecho: recorrer castillos. T o Y: avanzar turno. R o X: relaciones. E: encargos. C: crónica. Esc, M o Start: menú."],
 		["Batalla", "Con el tablero enfocado, flechas o cruceta mueven un cursor (con la previsión de bajas) e Intro o A actúa en la casilla. T o Y: terminar turno."],
 		["Teclado y mando", "Todas las pantallas abren con un botón enfocado: flechas o cruceta para moverse, Intro o A para aceptar, Esc o B para volver."],
 		["Caras y retratos", "En listas, mapa y batallas se ve la cara de cada personaje; al pulsarla aparece su retrato completo (o su ficha, en Relaciones)."],

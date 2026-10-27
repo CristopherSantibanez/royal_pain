@@ -12,8 +12,8 @@ export_presets.cfg
 Thumbs.db
 
 # Builds/exportaciones (si exportas el juego, no subas los ejecutables pesados)
-export/
-builds/
+/export/
+/builds/
 
 # Logs
 *.log

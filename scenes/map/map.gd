@@ -65,11 +65,17 @@ var selected_army: Army
 var visible_castle_ids: Array[String] = []
 var _advance_pulse: Tween
 var _pending_duel_rival: Character   # rival de un reto aceptado en un evento
+var _pending_fight: Dictionary = {}  # combate de una opción de evento ("fight"): duelo o escaramuza
+var _pending_fight_title := ""
 var _showing_notification := false   # el panel de eventos muestra ahora una noticia importante
 
 func _ready() -> void:
 	_add_player_face()
 	camera.setup_bounds(MapData.MAP_WIDTH, MapData.MAP_HEIGHT)
+	# Empieza mirando tu castillo, no el centro del mapa.
+	var home := MapData.get_castle_by_id(GameManager.home_castle_id)
+	if home != null:
+		camera.focus_on(home.position_on_map, true)
 	_style_selected_label()
 
 	visible_castle_ids = _compute_visible_castle_ids()
@@ -155,11 +161,24 @@ func _unhandled_input(event: InputEvent) -> void:
 		btn_missions.pressed.emit()
 	elif event.is_action_pressed("map_chronicle"):
 		ChroniclePanel.open($UILayer, visible_castle_ids)
+	elif event.is_action_pressed("map_toggle_panels"):
+		_toggle_bottom_panels()
 	elif event.is_action_pressed("map_next_castle"):
 		_select_next_castle(-1 if Input.is_key_pressed(KEY_SHIFT) else 1)
 	else:
 		return
 	get_viewport().set_input_as_handled()
+
+# H: oculta o muestra los paneles inferiores para ver mejor el sur del mapa.
+const HUD_TOP := 72.0
+const HUD_BOTTOM := 140.0
+const HUD_BOTTOM_HIDDEN := 84.0   # con los paneles ocultos solo queda el botón de turno
+
+func _toggle_bottom_panels() -> void:
+	var show_panels: bool = not %ObjectivePanel.visible
+	%ObjectivePanel.visible = show_panels
+	%EventsPanel.visible = show_panels
+	camera.set_hud_margins(HUD_TOP, HUD_BOTTOM if show_panels else HUD_BOTTOM_HIDDEN)
 
 # Recorre los castillos que ves (Tab / clic del stick derecho): centra la cámara y abre su ficha.
 func _select_next_castle(step: int) -> void:
@@ -171,13 +190,13 @@ func _select_next_castle(step: int) -> void:
 	var next_castle := MapData.get_castle_by_id(ids[(current + step + ids.size()) % ids.size()])
 	if next_castle == null:
 		return
-	camera.position = next_castle.position_on_map
+	camera.focus_on(next_castle.position_on_map)
 	_on_castle_clicked(next_castle)
 
 func _setup_menu() -> void:
 	var popup := btn_menu.get_popup()
 	popup.add_item("Crónica completa  [C]", MenuItem.CRONICA)
-	popup.add_item("Relaciones  [R] · Encargos [E] · Avanzar turno [T] · Castillos [Tab]", -1)
+	popup.add_item("Relaciones  [R] · Encargos [E] · Avanzar turno [T] · Castillos [Tab] · Paneles [H]", -1)
 	popup.set_item_disabled(popup.item_count - 1, true)
 	popup.add_item("Guardar partida", MenuItem.GUARDAR)
 	popup.add_item("Opciones", MenuItem.OPCIONES)
@@ -252,6 +271,7 @@ func _spawn_castles() -> void:
 		castles_container.add_child(marker)
 		marker.setup(data)
 		marker.castle_clicked.connect(_on_castle_clicked)
+		marker.castle_hovered.connect(_on_castle_hovered)
 		castle_markers[data.castle_id] = marker
 
 func _apply_vision() -> void:
@@ -282,6 +302,28 @@ func _make_pair_key(a: String, b: String) -> String:
 	var ids := [a, b]
 	ids.sort()
 	return "%s|%s" % [ids[0], ids[1]]
+
+# Ficha breve al pasar el ratón por un castillo, sin necesidad de pulsarlo.
+var _hover_tip: PanelContainer
+
+func _on_castle_hovered(castle: Castle, hovering: bool) -> void:
+	if _hover_tip != null:
+		_hover_tip.queue_free()
+		_hover_tip = null
+	if not hovering:
+		return
+	_hover_tip = PanelContainer.new()
+	_hover_tip.theme_type_variation = &"CardPanel"
+	_hover_tip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var label := Label.new()
+	label.add_theme_font_size_override("font_size", 15)
+	if castle.castle_id in visible_castle_ids:
+		label.text = "%s\n%s · %s\nGuarnición: %d" % [castle.castle_name, KingdomEnums.kingdom_name(castle.kingdom), castle.owner_name, castle.garrison_size]
+	else:
+		label.text = "%s\n(fuera de tu vista)" % castle.castle_name
+	_hover_tip.add_child(label)
+	$UILayer.add_child(_hover_tip)
+	_hover_tip.position = get_viewport().get_mouse_position() + Vector2(18, 18)
 
 func _on_castle_clicked(castle: Castle) -> void:
 	selected_castle = castle
@@ -333,7 +375,23 @@ func _style_selected_label() -> void:
 
 # --- Turno mensual ---
 
+# Si aún quedan acciones, el primer clic avisa y el segundo (en unos segundos) confirma.
+const CONFIRM_WINDOW := 4.0
+var _confirm_until := 0.0
+
 func _on_advance_turn_pressed() -> void:
+	var now := Time.get_ticks_msec() / 1000.0
+	if GameManager.actions_remaining > 0 and now > _confirm_until:
+		_confirm_until = now + CONFIRM_WINDOW
+		var label := btn_advance_turn.text
+		btn_advance_turn.text = "¿Seguro? Te quedan %d" % GameManager.actions_remaining
+		btn_advance_turn.tooltip_text = "Pulsa de nuevo para avanzar sin gastar tus acciones."
+		await get_tree().create_timer(CONFIRM_WINDOW).timeout
+		if is_inside_tree() and btn_advance_turn.text.begins_with("¿Seguro?"):
+			btn_advance_turn.text = label
+		return
+	_confirm_until = 0.0
+	btn_advance_turn.text = "Avanzar Turno ▸"
 	GameManager.advance_turn()
 	# Autoguardado mensual (si la partida terminó, se conserva el último guardado previo).
 	if GameManager.is_game_active:
@@ -618,6 +676,8 @@ func _on_event_option_pressed(index: int) -> void:
 	var target: Relationship = RelationsData.get_relation(e.get("target", e.get("speaker", "")))
 	var duel_rival: Relationship = RelationsData.get_relation(e.get("duel_with", e.get("speaker", "")))
 	var starts_duel: bool = e.options[index].get("start_duel", false)
+	_pending_fight = e.options[index].get("fight", {})
+	_pending_fight_title = e.get("title", "Combate")
 	var chosen_label: String = e.options[index].get("label", "")
 	var result := GameManager.resolve_pending_event(index, target)
 	# Tus decisiones también quedan en la crónica.
@@ -633,6 +693,8 @@ func _on_event_option_pressed(index: int) -> void:
 	_pending_duel_rival = duel_rival.character if starts_duel and duel_rival != null else null
 	if _pending_duel_rival != null:
 		btn_event_close.text = "¡Al duelo!"
+	elif not _pending_fight.is_empty():
+		btn_event_close.text = "¡Al combate!" if _pending_fight.get("type", "duel") == "battle" else "¡Al duelo!"
 
 func _on_event_close_pressed() -> void:
 	event_overlay.visible = false
@@ -640,6 +702,11 @@ func _on_event_close_pressed() -> void:
 	if _showing_notification:
 		_showing_notification = false
 		_show_next_notification()
+		return
+	if not _pending_fight.is_empty():
+		var scene := CombatSetup.begin_event_fight(_pending_fight, _pending_fight_title)
+		_pending_fight = {}
+		get_tree().change_scene_to_file(scene)
 		return
 	if _pending_duel_rival != null:
 		var rival := _pending_duel_rival

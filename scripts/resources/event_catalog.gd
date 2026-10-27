@@ -7,6 +7,9 @@ class_name EventCatalog
 # Formato de una opción:
 #   {label, requires?: {gold, castle_gold}, effects: {...}, result: "texto"}
 #   o con azar: {label, chance, chance_stat?, success: {effects, result}, failure: {effects, result}}
+#   o con combate: {label, requires?, effects, result, fight: {type: "duel"|"battle", foe: {name, role, power,
+#     personality}, enemy_name?, enemy_ratio?, garrison_share?, no_rival?, win: {effects, result}, lose: {...}}}
+#     El combate se juega de verdad (duelo o escaramuza) y su desenlace se aplica al terminar.
 # Efectos posibles: gold, honor, combat, leadership, charisma, strategy, defense,
 #   castle_gold, castle_food, garrison, health (puede causar una herida grave)
 # Eventos con protagonista (ver RelationsData.roll_social_event): además
@@ -25,6 +28,62 @@ const P := Character.Personality
 
 const EVENTS := [
 	{
+		"id": "caballero_errante", "title": "Un caballero errante",
+		"text": "Un caballero sin señor planta su tienda junto al camino y reta a quien se atreva a cruzar lanzas con él. Dicen que nadie lo ha vencido en todo el invierno.",
+		"roles": [R.SOLDADO, R.CABALLERO, R.NOBLEZA_BAJA], "bias": {P.ARROGANTE: 1.5, P.VALIENTE: 1.8, P.COBARDE: 0.4},
+		"options": [
+			{"label": "Aceptar el desafío", "requires": {"healthy": true}, "effects": {},
+				"result": "Saludas con la espada. El caballero errante sonríe bajo el yelmo.",
+				"fight": {"type": "duel", "foe": {"name": "El Caballero Errante", "role": R.CABALLERO, "power": 1, "personality": "HONORABLE"},
+					"win": {"effects": {"fame": 8, "honor": 5, "gold": 60}, "result": "Vences al invicto: su bolsa y su fama son ahora tuyas."},
+					"lose": {"effects": {"honor": -2}, "result": "Caes con honra. El caballero te tiende la mano para levantarte."}}},
+			{"label": "Seguir tu camino", "effects": {"honor": -1}, "result": "El caballero ni se inmuta."},
+		],
+	},
+	{
+		"id": "emboscada", "title": "Emboscada en el camino",
+		"text": "De vuelta al castillo, una lluvia de flechas sale de la arboleda: os han tendido una emboscada.",
+		"roles": [R.CABALLERO, R.NOBLEZA_BAJA, R.NOBLEZA_ALTA], "bias": {P.PRUDENTE: 0.6},
+		"options": [
+			{"label": "Formar y plantar cara (escaramuza)", "requires": {"garrison": 20}, "effects": {},
+				"result": "Ordenas cerrar filas y cargar contra la arboleda.",
+				"fight": {"type": "battle", "no_rival": true, "enemy_name": "Los emboscados", "enemy_ratio": 1.1, "garrison_share": 0.2,
+					"foe": {"name": "Capitán de los emboscados", "role": R.SOLDADO, "power": 1},
+					"win": {"effects": {"honor": 6, "fame": 5, "gold": 30}, "result": "Los emboscados huyen dejando armas y botín."},
+					"lose": {"effects": {"honor": -3, "gold": -30}, "result": "Os batís en retirada y perdéis parte del equipaje."}}},
+			{"label": "Huir al galope", "effects": {"honor": -4, "gold": -30}, "result": "Salvas la vida, pero no el equipaje ni la reputación."},
+		],
+	},
+	{
+		"id": "juicio_combate", "title": "Juicio por combate",
+		"text": "Un vecino te acusa de robarle tierras y, como manda la costumbre, exige que Dios lo decida en un juicio por combate.",
+		"roles": [R.SOLDADO, R.CABALLERO, R.NOBLEZA_BAJA], "bias": {P.PIADOSO: 1.4},
+		"options": [
+			{"label": "Aceptar el juicio", "requires": {"healthy": true}, "effects": {},
+				"result": "El tribunal fija el día. Que gane quien tenga la razón… o la mejor espada.",
+				"fight": {"type": "duel", "foe": {"name": "Campeón del acusador", "power": 0},
+					"win": {"effects": {"honor": 8, "fame": 3}, "result": "Dios ha hablado: la acusación queda en nada."},
+					"lose": {"effects": {"honor": -6, "gold": -40}, "result": "Pierdes el juicio y debes pagar una compensación."}}},
+			{"label": "Pagar un acuerdo (50)", "requires": {"gold": 50}, "effects": {"gold": -50, "honor": -2},
+				"result": "Pagas para evitar el combate. Algunos lo entienden como una confesión."},
+		],
+	},
+	{
+		"id": "saqueadores", "title": "Saqueadores en tus aldeas",
+		"text": "Una banda de saqueadores quema granjas en tus tierras. Los campesinos piden protección.",
+		"roles": [R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.REGENTE], "bias": {P.GENEROSO: 1.4, P.CRUEL: 0.7},
+		"options": [
+			{"label": "Salir a su encuentro (escaramuza)", "requires": {"garrison": 30}, "effects": {},
+				"result": "Tus jinetes salen del castillo al amanecer.",
+				"fight": {"type": "battle", "no_rival": true, "enemy_name": "Los saqueadores", "enemy_ratio": 0.8,
+					"foe": {"name": "Jefe de los saqueadores", "role": R.SOLDADO},
+					"win": {"effects": {"honor": 6, "fame": 4, "castle_food": 30}, "result": "Recuperas el grano robado y los campesinos te aclaman."},
+					"lose": {"effects": {"honor": -4, "castle_food": -40}, "result": "Los saqueadores se llevan el grano y tus tierras arden."}}},
+			{"label": "Cerrar las puertas y esperar", "effects": {"castle_food": -50, "honor": -3},
+				"result": "Los saqueadores se marchan cargados. El pueblo no lo olvidará."},
+		],
+	},
+	{
 		"id": "recaudador", "title": "El recaudador abusivo",
 		"text": "Un recaudador del señor exige un tributo extra, alegando deudas que nunca contrajiste.",
 		"roles": [R.CAMPESINO, R.SOLDADO], "bias": {},
@@ -41,9 +100,17 @@ const EVENTS := [
 		"text": "Una partida de bandidos asalta a unos viajeros cerca de las murallas.",
 		"roles": [R.SOLDADO, R.CABALLERO, R.NOBLEZA_BAJA, R.NOBLEZA_ALTA], "bias": {P.ARROGANTE: 1.5},
 		"options": [
-			{"label": "Enfrentarlos", "chance": 0.55, "chance_stat": "combat",
-				"success": {"effects": {"gold": 40, "honor": 6}, "result": "Los pones en fuga y recuperas parte del botín."},
-				"failure": {"effects": {"honor": -4, "health": -40}, "result": "Te superan en número y debes retirarte malherido."}},
+			{"label": "Retar al cabecilla (duelo)", "requires": {"healthy": true}, "effects": {},
+				"result": "Te abres paso hasta el cabecilla y le exiges que pelee.",
+				"fight": {"type": "duel", "no_rival": true, "foe": {"name": "Cabecilla de los bandidos", "role": R.SOLDADO, "power": -1, "personality": "CRUEL"},
+					"win": {"effects": {"gold": 40, "honor": 6, "fame": 4}, "result": "El cabecilla cae y su banda huye. Recuperas parte del botín."},
+					"lose": {"effects": {"honor": -4}, "result": "Los bandidos escapan con el botín y se ríen de ti."}}},
+			{"label": "Cargar con tus hombres (escaramuza)", "requires": {"garrison": 30}, "effects": {},
+				"result": "Reúnes a parte de la guarnición y salís tras ellos.",
+				"fight": {"type": "battle", "no_rival": true, "enemy_name": "Los bandidos", "enemy_ratio": 0.9,
+					"foe": {"name": "Cabecilla de los bandidos", "role": R.SOLDADO},
+					"win": {"effects": {"gold": 60, "honor": 5, "fame": 5}, "result": "Ni uno de los bandidos vuelve a amenazar el camino."},
+					"lose": {"effects": {"honor": -3}, "result": "Tus hombres se dispersan y los bandidos se salen con la suya."}}},
 			{"label": "Avisar a la guardia y no intervenir", "effects": {"honor": -2},
 				"result": "La guardia llega tarde. Algunos murmuran que no hiciste nada."},
 		],
@@ -89,6 +156,11 @@ const EVENTS := [
 			{"label": "Responder con firmeza", "chance": 0.6, "chance_stat": "charisma",
 				"success": {"effects": {"honor": 5}, "result": "Tus palabras dejan en ridículo al provocador."},
 				"failure": {"effects": {"honor": -3}, "result": "La taberna entera se ríe... de ti."}},
+			{"label": "Retarle a duelo", "requires": {"healthy": true}, "effects": {},
+				"result": "Arrojas tu guante a sus pies. La taberna enmudece.",
+				"fight": {"type": "duel", "foe": {"name": "El provocador", "power": 0, "personality": "ARROGANTE"},
+					"win": {"effects": {"honor": 7, "fame": 3}, "result": "El provocador pide disculpas desde el suelo."},
+					"lose": {"effects": {"honor": -5}, "result": "La humillación es doble: de palabra y de espada."}}},
 			{"label": "Ignorarlo y marcharte", "effects": {"honor": -2},
 				"result": "Evitas la pelea, pero el rumor de tu cobardía corre."},
 		],
@@ -232,6 +304,8 @@ static func can_choose(option: Dictionary, character: Character, castle: Castle)
 		return false
 	if req.get("healthy", false) and (not character.can_fight_duels() or character.is_wounded()):
 		return false
+	if req.has("garrison") and (castle == null or castle.garrison_size < int(req.garrison)):
+		return false
 	return true
 
 static func requirement_text(option: Dictionary) -> String:
@@ -240,6 +314,7 @@ static func requirement_text(option: Dictionary) -> String:
 	if req.has("gold"): parts.append("%d de oro propio" % req.gold)
 	if req.has("castle_gold"): parts.append("%d de oro del castillo" % req.castle_gold)
 	if req.get("healthy", false): parts.append("poder batirte en duelo (sin heridas graves)")
+	if req.has("garrison"): parts.append("al menos %d soldados en tu castillo" % int(req.garrison))
 	return "Requiere " + " y ".join(parts) if not parts.is_empty() else ""
 
 static func success_chance(option: Dictionary, character: Character) -> float:

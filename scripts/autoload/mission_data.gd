@@ -233,6 +233,7 @@ func action_label(m: Dictionary) -> String:
 		"actions": return "Dedicar una acción (%d/%d)" % [m.progress, m.amount]
 		"risk": return "Intentarlo (%d%%, 1 acción)" % roundi(risk_chance(m) * 100)
 		"exhibition": return "Batirse ahora (1 acción)"
+		"fight": return "Combatir (1 acción)"
 	return ""
 
 ## Motivo por el que no se puede actuar ahora ("" si se puede).
@@ -250,6 +251,14 @@ func action_blocker(m: Dictionary) -> String:
 				return "No estás en condiciones de batirte."
 			if RelationsData.character_of(m.get("target", "")) == null:
 				return "Tu rival ya no está disponible."
+		"fight":
+			if not GameManager.has_actions_remaining():
+				return "No te quedan acciones este turno."
+			if m.fight.get("type", "duel") == "duel" and (not player.can_fight_duels() or player.is_wounded()):
+				return "No estás en condiciones de batirte."
+			var castle: Castle = MapData.get_castle_by_id(GameManager.home_castle_id)
+			if m.fight.get("type", "duel") == "battle" and (castle == null or castle.garrison_size < int(m.fight.get("min_garrison", 15))):
+				return "Necesitas al menos %d soldados en tu castillo." % int(m.fight.get("min_garrison", 15))
 	return ""
 
 func risk_chance(m: Dictionary) -> float:
@@ -289,6 +298,28 @@ func act(uid: String) -> String:
 			_fail(m, "El intento sale mal.")
 			return "El intento sale mal. %s" % hurt
 	return ""
+
+## Encargo de combate: gasta la acción y prepara el duelo o la escaramuza. Devuelve la escena ("" si no puede).
+## Al terminar, CombatSetup.apply_outcome llama a resolve_fight con el resultado.
+func start_fight(uid: String) -> String:
+	var m := find(uid)
+	if m.is_empty() or m.type != "fight" or not action_blocker(m).is_empty():
+		return ""
+	GameManager.consume_action()
+	var scene := CombatSetup.begin_event_fight(m.fight, m.title)
+	CombatSetup.pending_outcome["mission_uid"] = uid
+	return scene
+
+func resolve_fight(uid: String, won: bool) -> String:
+	var m := find(uid)
+	if m.is_empty():
+		return ""
+	if won:
+		_complete(m)
+		return "Encargo «%s» cumplido." % m.title
+	_apply(m.get("fail_effects", {}), m)
+	_fail(m, "Pierdes el combate.")
+	return "Encargo «%s» fallido." % m.title
 
 ## Prepara el duelo de exhibición: gasta la acción y devuelve el rival (o null).
 func start_exhibition(uid: String) -> Character:

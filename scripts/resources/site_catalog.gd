@@ -55,15 +55,15 @@ const SITES := {
 			{"label": "Enviar a unos soldados a trabajarla", "requires": {"garrison": 30}, "effects": {"castle_gold": 80, "garrison": -3},
 				"result": "Tus hombres sacan plata para el castillo, aunque no todos vuelven."},
 		]},
-	"torre_negra": {"name": "Torre del Caballero Negro", "color": "3a3540", "months": [2, 3],
-		"text": "En una torre en ruinas aguarda un caballero de armadura negra. No da su nombre ni acepta rescate: solo se bate a muerte. Junto a él, los escudos de los que cayeron.",
+	"torre_negra": {"name": "Torre del Desafío", "color": "3a3540", "months": [2, 3],
+		"text": "En una torre en ruinas aguarda un guerrero sin nombre. No acepta rescate: solo se bate a muerte. A sus pies, los escudos de los que cayeron.",
 		"options": [
 			{"label": "Aceptar el duelo a muerte", "requires": {"healthy": true}, "effects": {},
-				"result": "Desenvainas. El Caballero Negro inclina el yelmo: esto solo termina con uno de los dos en el suelo para siempre.",
+				"result": "Desenvainas. El guardián inclina la cabeza: esto solo termina con uno de los dos en el suelo para siempre.",
 				"fight": {"type": "duel", "no_rival": true, "to_death": true,
-					"foe": {"name": "El Caballero Negro", "role": R.CABALLERO, "power": 2, "personality": "HONORABLE"},
-					"win": {"effects": {"fame": 15, "honor": 8, "gold": 100, "unique": 100, "xp": 40}, "result": "El Caballero Negro cae. Bajo el yelmo no hay nombre que recordar, pero su reliquia legendaria y su fama son ahora tuyas."},
-					"lose": {"effects": {}, "result": "El Caballero Negro limpia su espada y vuelve a esperar."}}},
+					"foe": {"name": "El Guardián de la Torre", "role": R.CABALLERO, "power": 2, "personality": "HONORABLE"},
+					"win": {"effects": {"fame": 15, "honor": 8, "gold": 100, "unique": 100, "xp": 40}, "result": "El guardián cae. Nadie recordará su nombre, pero su reliquia legendaria y su fama son ahora tuyas."},
+					"lose": {"effects": {}, "result": "El guardián limpia su espada y vuelve a esperar."}}},
 		]},
 }
 

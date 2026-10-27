@@ -1,6 +1,6 @@
 extends RefCounted
 # Piezas únicas (ContentCatalog, nivel 4): raras, pero puede haber varias en el mundo.
-# Se ganan explorando (y en la Torre del Caballero Negro), como premio de campeón de torneo,
+# Se ganan explorando (y en la Torre del Desafío), como premio de campeón de torneo,
 # forjándolas en una herrería de nivel 3 o como trofeo al vencer en duelo a quien lleva una.
 #   const UniqueItems = preload("res://scripts/resources/unique_items.gd")
 

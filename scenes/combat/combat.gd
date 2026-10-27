@@ -358,9 +358,13 @@ func _build_card(card: PanelContainer) -> Dictionary:
 		val.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		val.add_theme_font_size_override("font_size", 15)
 		refs.bars[stat[0]] = [bar, val]
-	refs.status = _label(box, "")
-	refs.status.add_theme_font_size_override("font_size", 16)
-	refs.posture = _label(box, "MutedLabel")
+	# Una sola línea de estado, de altura fija: así nunca encoge el retrato. El detalle va en el tooltip.
+	refs.status = _label(box, "MutedLabel")
+	refs.status.add_theme_font_size_override("font_size", 15)
+	refs.status.autowrap_mode = TextServer.AUTOWRAP_OFF
+	refs.status.clip_text = true
+	refs.status.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	refs.status.mouse_filter = Control.MOUSE_FILTER_PASS
 	return refs
 
 func _label(parent: Node, variation: String) -> Label:
@@ -618,18 +622,26 @@ func _refresh_ui() -> void:
 		_set_bar(refs.bars.health, c.current_health, c.max_health)
 		_set_bar(refs.bars.stamina, c.current_stamina, c.max_stamina)
 		_set_bar(refs.bars.morale, c.current_morale, c.max_morale)
-		refs.status.text = _status_text(duel.statuses.get(c, []))
+		# Línea corta con iconos (postura · guardia · ventaja · desequilibrio · estados); detalle en el tooltip.
+		var short: Array[String] = [CombatEnums.posture_name(duel.posture.get(c, CombatEnums.Posture.DEFENSIVA))]
+		var detail: Array[String] = ["Postura: " + short[0]]
 		var guard := duel.guard_text(c)
 		if not guard.is_empty():
-			refs.status.text += "\n⚑ " + guard
+			short.append("⚑")
+			detail.append("⚑ " + guard)
 		var adv := duel.advantage_text(c)
 		if not adv.is_empty():
-			refs.status.text += "\n★ Ventaja: " + adv
+			short.append("★")
+			detail.append("★ Ventaja: " + adv)
 		if duel.unbalanced.get(c, false):
-			refs.status.text += "\n↯ Desequilibrado: su próximo golpe hace −20%"
-		refs.posture.text = "Postura: " + CombatEnums.posture_name(duel.posture.get(c, CombatEnums.Posture.DEFENSIVA))
-		if c == enemy_character and not _enemy_intent.is_empty() and player_turn:
-			refs.status.text += "\n%s%s" % [READ_ICON, DuelManager.intent_text(_enemy_intent)]
+			short.append("↯")
+			detail.append("↯ Desequilibrado: su próximo golpe hace −20%")
+		var statuses: Array = duel.statuses.get(c, [])
+		if not statuses.is_empty():
+			short.append(_status_text(statuses))
+			detail.append(_status_text(statuses))
+		refs.status.text = " · ".join(short)
+		refs.status.tooltip_text = "\n".join(detail)
 	var current: int = duel.posture.get(player_character, CombatEnums.Posture.DEFENSIVA)
 	if _posture_buttons.has(current):
 		_posture_buttons[current].set_pressed_no_signal(true)

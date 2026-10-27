@@ -116,7 +116,7 @@ Desesperada: gran daño, defensa por los suelos; solo Atacar y Empujar."],
 	],
 	"Equipamiento": [
 		["Piezas únicas", "Piezas legendarias (★★★★) con una habilidad propia: Durandal, la Misericordia de Toledo, la Loriga de Covadonga, el Escudo de Teodorico, el Yelmo de Sutton Hoo, la Oriflama, el Olifante, Babieca, el Anillo de Teodolinda, la Capa del Peregrino, el Relicario de Aquisgrán y el Sello del Emperador. Son raras, pero puede haber varias en el mundo."],
-		["Cómo conseguirlas", "Explorando (la Torre del Caballero Negro siempre da una), a veces como premio de campeón de torneo, forjándola en una herrería de nivel 3 (a precio de rey) o como trofeo al vencer en duelo a quien la lleva: reclamarla cuesta 5 de honor y el vencido no lo olvidará."],
+		["Cómo conseguirlas", "Explorando (la Torre del Desafío siempre da una), a veces como premio de campeón de torneo, forjándola en una herrería de nivel 3 (a precio de rey) o como trofeo al vencer en duelo a quien la lleva: reclamarla cuesta 5 de honor y el vencido no lo olvidará."],
 		["Equipo", "Cada personaje lleva hasta 2 piezas de equipo que modifican sus atributos."],
 	],
 	"Economía y castillo": [
@@ -219,7 +219,7 @@ Desesperada: gran daño, defensa por los suelos; solo Atacar y Empujar."],
 		["Edificios", "Herrería (mejor equipo y más barato), Establos (caballería más fuerte), Murallas (defensa en asedios), Mercado (más oro al mes), Capilla (curación y honor) y Cuartel (más reclutas y reclutar más barato). Cada uno tiene 3 niveles."],
 		["Edificios de tu señor", "Los caballeros y soldados no construyen, pero disfrutan de los edificios del castillo donde sirven."],
 		["Lugares para explorar", "Cada pocos meses aparece un lugar junto a un castillo (ruinas, cuevas, campamentos, minas…). Dura unos meses y luego desaparece. Explorarlo gasta una acción y da experiencia."],
-		["Torre del Caballero Negro", "Un caballero que solo se bate a muerte. Si lo vences, ganas gran fama y su armadura. Si pierdes, tu personaje muere."],
+		["Torre del Desafío", "Un guerrero sin nombre que solo se bate a muerte. Si lo vences, ganas gran fama y su armadura. Si pierdes, tu personaje muere."],
 	],
 	"Viaje": [
 		["Culturas y nombres", "Cada reino tiene una cultura (franca, anglonormanda, castellanoleonesa, aragonesa y catalana, imperial, romana, prusiana, italiana o borgoñona) y su gente se llama según ella: casas nobles, apellidos de oficio, patronímicos («Díaz», «Fitzgerald») y sobrenombres («el Bravo»). Los reinos también reciben nombre propio en cada mundo."],

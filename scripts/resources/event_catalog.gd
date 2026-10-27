@@ -359,7 +359,7 @@ static func apply_option(event: Dictionary, index: int, character: Character, ca
 		text += "\nCaes en deshonra: de %s a %s." % [Character.role_name_for(old_role), character.role_name()]
 	return text
 
-static func _apply_effects(effects: Dictionary, character: Character, castle: Castle, relation: Relationship = null) -> String:
+static func _apply_effects(effects: Dictionary, character: Character, castle: Castle, relation: Relationship = null, as_list: bool = false) -> String:
 	var parts: Array[String] = []
 	for key: String in effects.keys():
 		# Historias encadenadas (StoryData): {set, next, end} — no es un número.
@@ -430,6 +430,9 @@ static func _apply_effects(effects: Dictionary, character: Character, castle: Ca
 					var found: String = load("res://scripts/resources/unique_items.gd").grant(character)
 					if not found.is_empty():
 						parts.append(found)
+	# as_list: una recompensa por línea (pantallas de resultado), en vez de todo seguido.
+	if as_list:
+		return "\n".join(parts.map(func(x: String) -> String: return "• " + x))
 	return ", ".join(parts)
 
 ## Entrega una pieza al azar de la calidad dada (1..3). Si ya no cabe o ya la tiene, se vende al momento.

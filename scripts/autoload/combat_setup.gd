@@ -199,10 +199,10 @@ func apply_outcome(won: bool) -> String:
 	var player: Character = GameManager.player_character
 	var castle: Castle = MapData.get_castle_by_id(GameManager.home_castle_id)
 	var text: String = o.get("result", "")
-	var summary := EventCatalog._apply_effects(o.get("effects", {}), player, castle)
-	if not summary.is_empty():
-		text += " (%s)" % summary
+	var summary := EventCatalog._apply_effects(o.get("effects", {}), player, castle, null, true)
 	WorldEvents.record("%s: %s" % [title, text], "", true)
+	if not summary.is_empty():
+		text += "\n\n" + summary   # recompensas en lista, una por línea
 	return text
 
 func clear() -> void:

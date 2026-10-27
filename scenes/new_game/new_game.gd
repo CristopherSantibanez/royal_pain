@@ -1,5 +1,7 @@
 extends Control
 
+const AchievementCatalog = preload("res://scripts/resources/achievement_catalog.gd")
+
 @onready var character_option: OptionButton = %CharacterOption
 @onready var castle_option: OptionButton = %CastleOption
 @onready var role_option: OptionButton = %RoleOption
@@ -17,10 +19,12 @@ extends Control
 const STARTING_ROLES: Array[int] = [
 	Character.Role.CAMPESINO, Character.Role.SOLDADO, Character.Role.CABALLERO,
 	Character.Role.NOBLEZA_BAJA, Character.Role.NOBLEZA_ALTA,
+	Character.Role.MERCENARIO, Character.Role.CAPITAN, Character.Role.CONDOTIERO,
 ]
 
 var available_paths: Array[String] = []
 var preview_characters: Array[Character] = []
+var aging_check: CheckButton
 
 func _ready() -> void:
 	available_paths = CharacterLoader.get_saved_character_paths()
@@ -29,6 +33,12 @@ func _ready() -> void:
 		MapData.new_world()
 	%BtnOtroMundo.disabled = GameManager.is_game_active
 	%BtnOtroMundo.pressed.connect(_on_new_world_pressed)
+	aging_check = CheckButton.new()
+	aging_check.text = "Los personajes envejecen"
+	aging_check.tooltip_text = "Activado: cada enero todos cumplen un año y desde los 55 se puede morir de viejo.\nDesactivado: los adultos no envejecen; los hijos sí crecen."
+	aging_check.button_pressed = true
+	%BtnOtroMundo.get_parent().add_child(aging_check)
+	%BtnOtroMundo.get_parent().move_child(aging_check, %BtnOtroMundo.get_index())
 	_refresh_world_label()
 	_populate_characters()
 	_populate_castles()
@@ -76,6 +86,8 @@ func _populate_characters() -> void:
 func _populate_roles() -> void:
 	role_option.clear()
 	for r in STARTING_ROLES:
+		if r == Character.Role.MERCENARIO:
+			role_option.add_separator("Camino mercenario")
 		role_option.add_item(Character.role_name_for(r), r)
 	_on_character_selected()
 
@@ -118,9 +130,14 @@ Comida: %d" % [
 			KingdomEnums.kingdom_name(castle.kingdom), castle.owner_name, castle.garrison_size, castle.gold, castle.food]
 
 	var role := role_option.get_selected_id()
-	goal_title.text = VictoryRules.goal_title(role)
-	info_label.text = "%s\nDuración orientativa: %s.\n\nDerrota: perder tu último castillo o quedarte sin honor." % [
-		VictoryRules.goal_description(role), VictoryRules.goal_estimate(role)]
+	goal_title.text = "Hazañas destacadas · %s" % VictoryRules.goal_title(role)
+	# Solo lo esencial: el resto (cómo terminan las partidas, el camino mercenario…) está en el glosario.
+	var featured: Array[String] = []
+	for a: Dictionary in AchievementCatalog.featured_for(role):
+		featured.append("• %s: %s" % [a.title, AchievementCatalog.description_of(a)])
+	info_label.text = "\n".join(featured)
+	info_label.tooltip_text = "«%s»: %s. Las hazañas dan recompensas; la partida solo termina si dominas el mundo, unes los dos últimos reinos por matrimonio o tu linaje se extingue." % [
+		VictoryRules.goal_title(role), VictoryRules.goal_estimate(role)]
 
 	if available_paths.is_empty():
 		portrait.texture = preload("res://assets/portraits/placeholder_default.png")
@@ -138,7 +155,7 @@ Crea uno y guárdalo para poder comenzar una partida."
 		return
 	portrait.texture = c.get_portrait()
 	character_info.text = "%s
-Comienza como %s
+Comienza como %s, con %d años
 
 Liderazgo %d
 Carisma %d
@@ -147,7 +164,7 @@ Combate %d
 Defensa %d
 
 Honor %d · Oro %d" % [
-		c.full_name(), Character.role_name_for(role), c.leadership, c.charisma, c.strategy, c.combat, c.defense, c.honor, c.gold]
+		c.full_name(), Character.role_name_for(role), DynastyData.START_AGE_BY_ROLE.get(role, 20), c.leadership, c.charisma, c.strategy, c.combat, c.defense, c.honor, c.gold]
 	btn_comenzar.disabled = castle == null
 
 func _on_comenzar_pressed() -> void:
@@ -166,6 +183,7 @@ func _on_comenzar_pressed() -> void:
 	character.current_stamina = character.max_stamina
 	character.current_morale = character.max_morale
 
+	DynastyData.aging_enabled = aging_check.button_pressed
 	GameManager.start_new_game(character, castle.castle_id)
 	GameManager.change_state(GameStateEnums.State.MAP)
 	get_tree().change_scene_to_file("res://scenes/map/map.tscn")

@@ -9,7 +9,13 @@ const CHARISMA_DISCOUNT := 0.02          # 2% de rebaja (o recargo) por punto de
 const MAX_TIER_BY_ROLE := {
 	Character.Role.CAMPESINO: 1, Character.Role.SOLDADO: 1, Character.Role.CABALLERO: 2,
 	Character.Role.NOBLEZA_BAJA: 3, Character.Role.NOBLEZA_ALTA: 3, Character.Role.REGENTE: 3,
+	Character.Role.DUQUE: 3, Character.Role.MERCENARIO: 1, Character.Role.CAPITAN: 2, Character.Role.CONDOTIERO: 3,
 }
+
+# Forja: una herrería de nivel 3 puede forjar cada mes una pieza única, a precio de rey.
+const FORGE_MIN_LEVEL := 3
+const FORGE_PRICE_FACTOR := 1.5
+const UNIQUE_COLOR := Color("f0c060")
 
 signal purchased
 
@@ -24,9 +30,16 @@ static func open(host: Node) -> Control:
 	host.add_child(panel)
 	return panel
 
-## Precio de compra para el jugador (con su Carisma).
+## Castillo cuya armería se visita: el actual, o el de origen del jugador.
+static func shop_castle() -> Castle:
+	return GameManager.current_castle if GameManager.current_castle != null else MapData.get_castle_by_id(GameManager.home_castle_id)
+
+## Precio de compra para el jugador (con su Carisma y la Herrería del castillo).
 static func buy_price(item: Equipment, buyer: Character) -> int:
 	var factor := clampf(1.0 - (buyer.charisma - 10) * CHARISMA_DISCOUNT, 0.8, 1.2)
+	var castle := shop_castle()
+	if castle != null:
+		factor *= 1.0 - castle.building_value("herreria", "shop_discount")
 	return maxi(1, roundi(item.price * factor))
 
 static func sell_price(item: Equipment) -> int:
@@ -37,6 +50,9 @@ static func monthly_stock(player: Character, castle_id: String) -> Array[Equipme
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash("%s:%d" % [castle_id, GameManager.months_elapsed()])
 	var max_tier: int = MAX_TIER_BY_ROLE.get(player.role, 1)
+	var castle := MapData.get_castle_by_id(castle_id)
+	if castle != null:   # la Herrería trae piezas de más calidad de la que tu rango encontraría
+		max_tier = mini(3, max_tier + int(castle.building_value("herreria", "shop_tier")))
 	var pool: Array[Equipment] = []
 	for item: Equipment in GameData.equipment_catalog:
 		if item.tier <= max_tier and item.price > 0:
@@ -46,6 +62,21 @@ static func monthly_stock(player: Character, castle_id: String) -> Array[Equipme
 		stock.append(pool.pop_at(rng.randi_range(0, pool.size() - 1)))
 	stock.sort_custom(func(a: Equipment, b: Equipment) -> bool: return a.slot < b.slot or a.slot == b.slot and a.price < b.price)
 	return stock
+
+## Pieza única que la herrería de nivel 3 del castillo ofrece forjar este mes (null si no hay forja).
+static func monthly_forge(castle_id: String) -> Equipment:
+	var castle := MapData.get_castle_by_id(castle_id)
+	if castle == null or castle.building_level("herreria") < FORGE_MIN_LEVEL:
+		return null
+	var uniques: Array = GameData.equipment_catalog.filter(func(e: Equipment) -> bool: return SkillEffects.is_unique_item(e))
+	if uniques.is_empty():
+		return null
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash("forja:%s:%d" % [castle_id, GameManager.months_elapsed()])
+	return uniques[rng.randi() % uniques.size()]
+
+static func forge_price(item: Equipment, buyer: Character) -> int:
+	return roundi(buy_price(item, buyer) * FORGE_PRICE_FACTOR)
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -133,6 +164,15 @@ func _rebuild() -> void:
 		for child in list.get_children():
 			child.queue_free()
 	var castle_id: String = GameManager.current_castle.castle_id if GameManager.current_castle != null else GameManager.home_castle_id
+	var forged := monthly_forge(castle_id)
+	if forged != null:
+		var price := forge_price(forged, player)
+		var owned := player.equipment.any(func(e: Equipment) -> bool: return e.equipment_name == forged.equipment_name)
+		var reason := "Ya la tienes." if owned else ("No te llega el oro." if player.gold < price else "")
+		if reason.is_empty() and not _slot_taken(player, forged.slot) and player.equipment.size() >= GameData.MAX_EQUIPMENT:
+			reason = "Llevas el máximo de %d piezas: vende una antes." % GameData.MAX_EQUIPMENT
+		var forge_btn := _row(_stock_list, forged, "Forjar (%d)" % price, reason, "Forja de la herrería: ")
+		forge_btn.pressed.connect(_buy.bind(forged, price))
 	for item: Equipment in monthly_stock(player, castle_id):
 		var owned := player.equipment.any(func(e: Equipment) -> bool: return e.equipment_name == item.equipment_name)
 		var price := buy_price(item, player)
@@ -159,9 +199,10 @@ func _rebuild() -> void:
 func _slot_taken(player: Character, slot: String) -> bool:
 	return player.equipment.any(func(e: Equipment) -> bool: return e.slot == slot)
 
-func _row(list: VBoxContainer, item: Equipment, action: String, disabled_reason: String) -> Button:
+func _row(list: VBoxContainer, item: Equipment, action: String, disabled_reason: String, prefix: String = "") -> Button:
 	var card := PanelContainer.new()
-	card.theme_type_variation = &"CardPanel"
+	var unique := SkillEffects.is_unique_item(item)
+	card.theme_type_variation = &"HighlightPanel" if unique else &"CardPanel"
 	list.add_child(card)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
@@ -171,7 +212,9 @@ func _row(list: VBoxContainer, item: Equipment, action: String, disabled_reason:
 	row.add_child(text)
 	var name_label := Label.new()
 	name_label.theme_type_variation = &"BodyBoldLabel"
-	name_label.text = "%s  %s" % [item.equipment_name, "★".repeat(item.tier)]
+	name_label.text = "%s%s  %s" % [prefix, item.equipment_name, item_stars(item)]
+	if unique:
+		name_label.add_theme_color_override("font_color", UNIQUE_COLOR)
 	text.add_child(name_label)
 	var detail := Label.new()
 	detail.theme_type_variation = &"MutedLabel"
@@ -179,6 +222,8 @@ func _row(list: VBoxContainer, item: Equipment, action: String, disabled_reason:
 	detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	var effects: String = GameData.effect_summary(item.equipment_name)
 	detail.text = effects if not effects.is_empty() else "%s · %s" % [item.slot, item.description]
+	if unique:
+		detail.text = "%s · %s%s" % [item.slot, item.description, (" (%s)" % effects) if not effects.is_empty() else ""]
 	text.add_child(detail)
 	var btn := Button.new()
 	btn.text = action
@@ -189,9 +234,13 @@ func _row(list: VBoxContainer, item: Equipment, action: String, disabled_reason:
 	row.add_child(btn)
 	return btn
 
-func _buy(item: Equipment) -> void:
+## Estrellas de calidad; las piezas únicas lo dicen además con palabras.
+static func item_stars(item: Equipment) -> String:
+	return "★".repeat(item.tier) + (" Única" if SkillEffects.is_unique_item(item) else "")
+
+func _buy(item: Equipment, fixed_price: int = -1) -> void:
 	var player: Character = GameManager.player_character
-	var price := buy_price(item, player)
+	var price := buy_price(item, player) if fixed_price < 0 else fixed_price
 	if player.gold < price:
 		return
 	player.gold -= price

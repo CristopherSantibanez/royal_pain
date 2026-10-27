@@ -32,7 +32,16 @@ static func kingdom_color(k: int) -> Color:
 		Kingdom.OLIVA: return Color("8a8f3c")
 	return Color.GRAY
 
+# Nombres del mundo actual (los pone MapData a partir de sus castillos). Vacío = nombres fijos de serie,
+# los de las partidas guardadas antes de que los reinos tuvieran nombre propio.
+static var custom_names := {}
+
 static func kingdom_name(k: int) -> String:
+	if custom_names.has(k):
+		return custom_names[k]
+	return default_kingdom_name(k)
+
+static func default_kingdom_name(k: int) -> String:
 	match k:
 		Kingdom.HIELO: return "Reino de Hielo"
 		Kingdom.BOSQUE: return "Reino del Bosque"

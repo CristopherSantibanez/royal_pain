@@ -17,7 +17,7 @@ class_name EventCatalog
 # fame: fama del jugador. Las pérdidas (números negativos) se multiplican por PENALTY_SCALE.
 # Requisitos: gold, castle_gold, healthy (poder batirse en duelo).
 
-const MONTHLY_EVENT_CHANCE := 0.3
+const MONTHLY_EVENT_CHANCE := 0.2   # bajó de 0.3: historias, complots y capturas ya aportan decisiones
 const FAME_EVENT_BONUS := 0.003       # +0,3% de probabilidad de evento por punto de fama (la fama atrae sucesos)
 const MAX_EVENT_CHANCE := 0.85
 const PENALTY_SCALE := 1.25           # dificultad: las pérdidas de los eventos pesan un 25% más que las ganancias
@@ -25,6 +25,7 @@ const CHANCE_PER_STAT_POINT := 0.03   # cada punto de la stat por encima/debajo 
 
 const R := Character.Role
 const P := Character.Personality
+const XpRules = preload("res://scripts/resources/xp_rules.gd")
 
 const EVENTS := [
 	{
@@ -35,7 +36,7 @@ const EVENTS := [
 			{"label": "Aceptar el desafío", "requires": {"healthy": true}, "effects": {},
 				"result": "Saludas con la espada. El caballero errante sonríe bajo el yelmo.",
 				"fight": {"type": "duel", "foe": {"name": "El Caballero Errante", "role": R.CABALLERO, "power": 1, "personality": "HONORABLE"},
-					"win": {"effects": {"fame": 8, "honor": 5, "gold": 60}, "result": "Vences al invicto: su bolsa y su fama son ahora tuyas."},
+					"win": {"effects": {"fame": 8, "honor": 5, "gold": 60, "unique": 10}, "result": "Vences al invicto: su bolsa y su fama son ahora tuyas."},
 					"lose": {"effects": {"honor": -2}, "result": "Caes con honra. El caballero te tiende la mano para levantarte."}}},
 			{"label": "Seguir tu camino", "effects": {"honor": -1}, "result": "El caballero ni se inmuta."},
 		],
@@ -71,7 +72,7 @@ const EVENTS := [
 	{
 		"id": "saqueadores", "title": "Saqueadores en tus aldeas",
 		"text": "Una banda de saqueadores quema granjas en tus tierras. Los campesinos piden protección.",
-		"roles": [R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.REGENTE], "bias": {P.GENEROSO: 1.4, P.CRUEL: 0.7},
+		"roles": [R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.DUQUE, R.REGENTE], "bias": {P.GENEROSO: 1.4, P.CRUEL: 0.7},
 		"options": [
 			{"label": "Salir a su encuentro (escaramuza)", "requires": {"garrison": 30}, "effects": {},
 				"result": "Tus jinetes salen del castillo al amanecer.",
@@ -168,7 +169,7 @@ const EVENTS := [
 	{
 		"id": "disputa", "title": "Disputa de tierras",
 		"text": "Dos familias se disputan un campo. Una de ellas es rica y te ofrece un regalo si fallas a su favor.",
-		"roles": [R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.REGENTE], "bias": {P.LEAL: 1.3, P.ASTUTO: 1.3},
+		"roles": [R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.DUQUE, R.REGENTE], "bias": {P.LEAL: 1.3, P.ASTUTO: 1.3},
 		"options": [
 			{"label": "Juzgar con justicia", "effects": {"honor": 6},
 				"result": "Tu fallo es justo y el pueblo lo celebra."},
@@ -179,7 +180,7 @@ const EVENTS := [
 	{
 		"id": "incendio", "title": "Incendio en el granero",
 		"text": "Un incendio arrasa parte de los graneros del castillo.",
-		"roles": [R.CABALLERO, R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.REGENTE], "bias": {},
+		"roles": [R.CABALLERO, R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.DUQUE, R.REGENTE], "bias": {},
 		"options": [
 			{"label": "Pagar la reconstrucción (60 de oro del castillo)", "requires": {"castle_gold": 60},
 				"effects": {"castle_gold": -60, "honor": 2}, "result": "Los graneros se reconstruyen antes del invierno."},
@@ -214,7 +215,7 @@ const EVENTS := [
 	{
 		"id": "voluntarios", "title": "Jóvenes voluntarios",
 		"text": "Un grupo de jóvenes de las aldeas se ofrece para servir en la guarnición.",
-		"roles": [R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.REGENTE], "bias": {},
+		"roles": [R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.DUQUE, R.REGENTE], "bias": {},
 		"options": [
 			{"label": "Equiparlos (30 de oro del castillo)", "requires": {"castle_gold": 30},
 				"effects": {"castle_gold": -30, "garrison": 15}, "result": "La guarnición crece con quince nuevos soldados."},
@@ -225,7 +226,7 @@ const EVENTS := [
 	{
 		"id": "libro_estrategia", "title": "Un tratado de guerra",
 		"text": "Llega a tus manos una copia de un antiguo tratado sobre el arte de la guerra.",
-		"roles": [R.SOLDADO, R.CABALLERO, R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.REGENTE], "bias": {P.PRUDENTE: 1.5},
+		"roles": [R.SOLDADO, R.CABALLERO, R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.DUQUE, R.REGENTE], "bias": {P.PRUDENTE: 1.5},
 		"options": [
 			{"label": "Estudiarlo a fondo", "effects": {"strategy": 1},
 				"result": "Sus lecciones afinan tu mente táctica."},
@@ -247,7 +248,7 @@ const EVENTS := [
 	{
 		"id": "conspiracion", "title": "Rumores de conspiración",
 		"text": "Se susurra que algunos nobles traman contra ti en secreto.",
-		"roles": [R.NOBLEZA_ALTA, R.REGENTE], "bias": {P.PRUDENTE: 1.5, P.ASTUTO: 1.5},
+		"roles": [R.NOBLEZA_ALTA, R.DUQUE, R.REGENTE], "bias": {P.PRUDENTE: 1.5, P.ASTUTO: 1.5},
 		"options": [
 			{"label": "Pagar espías para investigar (50 de oro)", "requires": {"gold": 50}, "chance": 0.6, "chance_stat": "strategy",
 				"success": {"effects": {"gold": -50, "leadership": 1, "honor": 4}, "result": "Desenmascaras a los conspiradores y tu autoridad se fortalece."},
@@ -276,7 +277,7 @@ static func roll_monthly(character: Character) -> Dictionary:
 	var total := 0.0
 	for e: Dictionary in EVENTS:
 		var roles: Array = e.roles
-		if not roles.is_empty() and not character.role in roles:
+		if not roles.is_empty() and not character.role in roles and not character.ladder_role() in roles:
 			continue
 		var w: float = e.bias.get(character.personality, 1.0)
 		pool.append(e)
@@ -302,9 +303,15 @@ static func can_choose(option: Dictionary, character: Character, castle: Castle)
 		return false
 	if req.has("castle_gold") and (castle == null or castle.gold < req.castle_gold):
 		return false
+	# Oro propio más el del tesoro de tu castillo (rescates).
+	if req.has("total_gold") and character.gold + (castle.gold if castle != null else 0) < int(req.total_gold):
+		return false
 	if req.get("healthy", false) and (not character.can_fight_duels() or character.is_wounded()):
 		return false
 	if req.has("garrison") and (castle == null or castle.garrison_size < int(req.garrison)):
+		return false
+	# Un campesino no va a la batalla por su cuenta (solo si lo llaman a filas: combates "invited").
+	if option.get("fight", {}).get("type", "") == "battle" and not CombatSetup.battle_blocker(character).is_empty():
 		return false
 	return true
 
@@ -313,8 +320,12 @@ static func requirement_text(option: Dictionary) -> String:
 	var parts: Array[String] = []
 	if req.has("gold"): parts.append("%d de oro propio" % req.gold)
 	if req.has("castle_gold"): parts.append("%d de oro del castillo" % req.castle_gold)
+	if req.has("total_gold"): parts.append("%d de oro (tuyo y del castillo)" % int(req.total_gold))
 	if req.get("healthy", false): parts.append("poder batirte en duelo (sin heridas graves)")
 	if req.has("garrison"): parts.append("al menos %d soldados en tu castillo" % int(req.garrison))
+	var player: Character = GameManager.player_character if GameManager.is_game_active else null
+	if option.get("fight", {}).get("type", "") == "battle" and player != null and not CombatSetup.battle_blocker(player).is_empty():
+		return CombatSetup.battle_blocker(player)
 	return "Requiere " + " y ".join(parts) if not parts.is_empty() else ""
 
 static func success_chance(option: Dictionary, character: Character) -> float:
@@ -336,6 +347,9 @@ static func apply_option(event: Dictionary, index: int, character: Character, ca
 		outcome = option.success if randf() < success_chance(option, character) else option.failure
 
 	var text: String = outcome.get("result", "")
+	# Declinar una llamada a filas: el asedio se libra sin ti ahora mismo (ver ArmyData.decline_invitation).
+	if option.has("invite_decline"):
+		ArmyData.decline_invitation(str(option.invite_decline))
 	var summary := _apply_effects(outcome.get("effects", {}), character, castle, relation)
 	if summary != "":
 		text += "\n(" + summary + ")"
@@ -348,6 +362,14 @@ static func apply_option(event: Dictionary, index: int, character: Character, ca
 static func _apply_effects(effects: Dictionary, character: Character, castle: Castle, relation: Relationship = null) -> String:
 	var parts: Array[String] = []
 	for key: String in effects.keys():
+		# Historias encadenadas (StoryData): {set, next, end} — no es un número.
+		if key == "story":
+			var story := (Engine.get_main_loop() as SceneTree).root.get_node_or_null("StoryData")
+			if story != null:
+				var told: String = story.apply_story(effects[key], character)
+				if not told.is_empty():
+					parts.append(told)
+			continue
 		var amount: int = effects[key]
 		if amount < 0 and key in SCALED_PENALTIES:
 			amount = roundi(amount * PENALTY_SCALE)
@@ -397,7 +419,41 @@ static func _apply_effects(effects: Dictionary, character: Character, castle: Ca
 			"clear_suitor":
 				if relation != null:
 					relation.rival_suitor = ""
+			"xp":
+				if amount > 0:
+					var levels := character.gain_xp(amount, XpRules.SOURCE_EVENT)
+					parts.append("+%d exp." % character.last_xp_gained + (" ¡Subes al nivel %d!" % character.level if levels > 0 else ""))
+			"item":
+				parts.append(_grant_item(character, amount))
+			"unique":   # probabilidad (en %) de encontrar una pieza única
+				if randf() * 100.0 < amount:
+					var found: String = load("res://scripts/resources/unique_items.gd").grant(character)
+					if not found.is_empty():
+						parts.append(found)
 	return ", ".join(parts)
+
+## Entrega una pieza al azar de la calidad dada (1..3). Si ya no cabe o ya la tiene, se vende al momento.
+static func _grant_item(character: Character, tier: int) -> String:
+	var pool: Array[Equipment] = []
+	for item: Equipment in GameData.equipment_catalog:
+		if item.tier == clampi(tier, 1, 3) and item.price > 0:
+			pool.append(item)
+	if pool.is_empty():
+		return ""
+	var found: Equipment = pool.pick_random()
+	var owned := character.equipment.any(func(e: Equipment) -> bool: return e.equipment_name == found.equipment_name)
+	var slot_taken := character.equipment.any(func(e: Equipment) -> bool: return e.slot == found.slot)
+	var worse := character.equipment.any(func(e: Equipment) -> bool: return e.slot == found.slot and e.price >= found.price)
+	if owned or worse or (not slot_taken and character.equipment.size() >= GameData.MAX_EQUIPMENT):
+		var value := maxi(1, roundi(found.price * 0.4))
+		character.gold += value
+		return "Encuentras %s y la vendes por %d de oro" % [found.equipment_name, value]
+	var replaced := character.equip(found.duplicate() as Equipment)
+	if replaced != null:
+		var value := maxi(1, roundi(replaced.price * 0.4))
+		character.gold += value
+		return "Encuentras %s (vendes %s por %d de oro)" % [found.equipment_name, replaced.equipment_name, value]
+	return "Encuentras %s" % found.equipment_name
 
 const SCALED_PENALTIES := ["gold", "honor", "health", "garrison", "castle_gold", "castle_food", "fame"]
 

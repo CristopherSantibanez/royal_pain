@@ -370,7 +370,7 @@ func _build_equipment_list() -> void:
 	for slot in GameData.ContentCatalog.SLOTS:
 		_add_header(equipment_list, slot)
 		for e: Equipment in GameData.equipment_catalog:
-			if e.slot != slot:
+			if e.slot != slot or SkillEffects.is_unique_item(e):   # las piezas únicas se ganan jugando
 				continue
 			var cb := CheckBox.new()
 			cb.text = _equipment_label(e)

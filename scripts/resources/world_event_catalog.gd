@@ -38,7 +38,7 @@ const PLAYER_EVENTS := [
 	{
 		"id": "g_cruzada", "global": true, "title": "Llamada a la cruzada",
 		"text": "Los heraldos recorren los reinos: la Corona convoca a la nobleza a una guerra santa en tierras lejanas.",
-		"roles": [R.CABALLERO, R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.REGENTE],
+		"roles": [R.CABALLERO, R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.DUQUE, R.REGENTE],
 		"options": [
 			{"label": "Enviar oro para la causa (80)", "requires": {"gold": 80}, "effects": {"gold": -80, "honor": 6, "fame": 4},
 				"result": "Tu donativo se pregona en todas las iglesias."},
@@ -98,7 +98,7 @@ const PLAYER_EVENTS := [
 	{
 		"id": "g_mercenarios", "global": true, "title": "Lanzas en venta",
 		"text": "Una compañía de mercenarios licenciada tras una guerra ofrece sus servicios.",
-		"roles": [R.CABALLERO, R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.REGENTE],
+		"roles": [R.CABALLERO, R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.DUQUE, R.REGENTE],
 		"options": [
 			{"label": "Contratarlos (100 de oro)", "requires": {"gold": 100}, "effects": {"gold": -100, "garrison": 25},
 				"result": "Veinticinco veteranos refuerzan tu guarnición."},
@@ -127,7 +127,7 @@ const PLAYER_EVENTS := [
 	{
 		"id": "g_embajada", "global": true, "title": "Una embajada de tierras lejanas",
 		"text": "Llega una embajada de un reino de ultramar con regalos exóticos y mucha curiosidad.",
-		"roles": [R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.REGENTE],
+		"roles": [R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.DUQUE, R.REGENTE],
 		"options": [
 			{"label": "Agasajarla con un banquete (60)", "requires": {"gold": 60}, "effects": {"gold": -60, "fame": 6, "honor": 2},
 				"result": "Los embajadores hablarán de tu hospitalidad en su tierra."},
@@ -168,7 +168,7 @@ static func pick_world_event(month: int) -> Dictionary:
 static func pick_player_event(role: int, exclude_id: String = "") -> Dictionary:
 	var pool: Array = PLAYER_EVENTS.filter(func(e):
 		var roles: Array = e.roles
-		return (roles.is_empty() or role in roles) and e.id != exclude_id)
+		return (roles.is_empty() or role in roles or Character.ladder_role_of(role) in roles) and e.id != exclude_id)
 	return pool.pick_random().duplicate(true) if not pool.is_empty() else {}
 
 ## Aplica un suceso del mundo a los castillos. Devuelve el texto de la noticia.

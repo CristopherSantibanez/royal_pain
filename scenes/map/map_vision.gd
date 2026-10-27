@@ -3,7 +3,8 @@ class_name MapVision
 # La visión crece con el rango (nunca se pierde al ascender) y siempre incluye los castillos propios.
 const ROLE_HOPS := {
 	Character.Role.CAMPESINO: 0, Character.Role.SOLDADO: 1, Character.Role.CABALLERO: 2,
-	Character.Role.NOBLEZA_BAJA: 2, Character.Role.NOBLEZA_ALTA: 3,
+	Character.Role.NOBLEZA_BAJA: 2, Character.Role.NOBLEZA_ALTA: 3, Character.Role.DUQUE: 3,
+	Character.Role.MERCENARIO: 2, Character.Role.CAPITAN: 2, Character.Role.CONDOTIERO: 3,
 }
 
 ## bonus: saltos de visión extra (rasgos y habilidades, ver SkillEffects.vision_bonus).
@@ -28,11 +29,16 @@ static func _role_visible_castle_ids(role: int, home_castle_id: String) -> Array
 			ids = _bfs_within_hops(home_castle_id, 2)
 		Character.Role.NOBLEZA_BAJA:
 			ids = _union(_castles_in_kingdom(home.kingdom), _bfs_within_hops(home_castle_id, 2))
-		Character.Role.NOBLEZA_ALTA:
+		Character.Role.NOBLEZA_ALTA, Character.Role.DUQUE:
 			ids = _union(_kingdom_and_neighbors(home.kingdom), _bfs_within_hops(home_castle_id, 3))
 			ids = _union(ids, _castles_of_kingdoms(RelationsData.allied_kingdoms()))
 		Character.Role.REGENTE:
 			return _all_castle_ids()
+		# Los mercenarios recorren los caminos: ven lejos, pero no tienen reino propio.
+		Character.Role.MERCENARIO, Character.Role.CAPITAN:
+			ids = _bfs_within_hops(home_castle_id, 2)
+		Character.Role.CONDOTIERO:
+			ids = _bfs_within_hops(home_castle_id, 3)
 		_:
 			ids = [home_castle_id]
 	return _union(ids, _player_owned_castles())

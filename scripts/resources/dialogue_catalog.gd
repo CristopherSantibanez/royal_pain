@@ -239,6 +239,70 @@ const LINES := {
 		P.ROMANTICO: ["¡Mi luz! Cada día sin ti es un invierno."],
 		P.HONORABLE: ["Te he jurado amor como se jura lealtad: hasta el final."],
 	},
+	# --- Siervos (presos esclavizados), según cuánto te han llegado a apreciar ---
+	"serf_greet_hostile": {
+		ANY: ["¿Qué quieres ahora, {a:amo|ama}?", "Trabajo, como ordenaste. No esperes más."],
+		P.ARROGANTE: ["Algún día serás tú quien me sirva."],
+		P.CRUEL: ["Duermo con un ojo abierto. Tú también deberías."],
+		P.HONORABLE: ["Me quitaste la libertad, no la dignidad."],
+		P.COBARDE: ["S-sí, {a:amo|ama}. Lo que mandes."],
+		P.ASTUTO: ["Sonrío, trabajo… y espero."],
+		P.PIADOSO: ["Rezo por tu alma, que buena falta le hace."],
+	},
+	"serf_greet_resigned": {
+		ANY: ["Al menos aquí no paso hambre.", "Hago mi parte. Tú haz la tuya."],
+		P.LEAL: ["Sirvo bien a quien me trata bien."],
+		P.AMBICIOSO: ["Si me dieras una oportunidad, te sería más útil libre."],
+		P.ROMANTICO: ["Hay cadenas peores que las tuyas, {player}."],
+		P.GENEROSO: ["Los demás siervos te respetan. Algo harás bien."],
+	},
+	"serf_greet_loyal": {
+		ANY: ["Si me liberaras, seguiría a tu lado.", "Ya no te veo como {a:mi amo|mi ama}, {player}."],
+		P.LEAL: ["Te serviré aunque no me lo pidas."],
+		P.HONORABLE: ["Me ganaste con justicia. Te debo lealtad."],
+		P.CRUEL: ["Que nadie te toque mientras yo viva."],
+	},
+	"serf_freed": {
+		ANY: ["¿Libre? No lo olvidaré, {player}.", "Gracias. De verdad."],
+		P.LEAL: ["Libre… y aun así me quedaría a tu servicio."],
+		P.ARROGANTE: ["Era lo justo. Pero gracias."],
+		P.ROMANTICO: ["¡Libre! Cantaré tu nombre por los caminos."],
+	},
+	# --- Presos en tus manos ---
+	"prisoner_join": {
+		ANY: ["Mejor servirte que pudrirme aquí.", "Trato hecho. Te serviré."],
+		P.AMBICIOSO: ["Contigo hay más futuro que con mi antiguo señor."],
+		P.COBARDE: ["¡Sí, sí! Lo que sea antes que la horca."],
+		P.ASTUTO: ["Un cambio de bando a tiempo es una victoria."],
+	},
+	"prisoner_refuse": {
+		ANY: ["No traicionaré a los míos.", "Antes la mazmorra."],
+		P.LEAL: ["Mi señor vendrá a por mí. No le fallaré."],
+		P.HONORABLE: ["Tengo un juramento. Haz conmigo lo que quieras."],
+		P.ARROGANTE: ["¿Servirte yo? Ni encadenado."],
+		P.CRUEL: ["Suéltame y te demostraré cómo sirvo."],
+	},
+	# --- Tu captor ---
+	"captor_execute": {
+		ANY: ["Al alba. Que Dios se apiade de ti, porque yo no.", "Has llegado al final del camino."],
+		P.CRUEL: ["Disfrutaré viéndolo."],
+		P.HONORABLE: ["Es la ley de la guerra. No lo hago por placer."],
+	},
+	"captor_ransom": {
+		ANY: ["Tu libertad tiene un precio. Paga y vete.", "El oro abre todas las puertas. Hasta esta."],
+		P.AMBICIOSO: ["Vales más vivo que muerto. Demuéstralo."],
+		P.ASTUTO: ["Hagamos negocio, {a:amigo|amiga}."],
+	},
+	"captor_prison": {
+		ANY: ["Una temporada a la sombra te enseñará modales.", "Aquí te quedas hasta que me plazca."],
+		P.CRUEL: ["Las ratas te harán compañía."],
+		P.PRUDENTE: ["Aún no sé qué hacer contigo. Mientras tanto, aquí."],
+	},
+	"captor_release": {
+		ANY: ["Vete en paz. Pero no vuelvas a alzar la espada contra mí."],
+		P.HONORABLE: ["Luchaste bien. Te dejo ir bajo palabra."],
+		P.GENEROSO: ["Vete a casa. Hoy no ha de morir nadie más."],
+	},
 	"friendly_ok": {
 		P.AMBICIOSO: ["Hablar contigo siempre me trae ideas."],
 		P.LEAL: ["Es bueno hablar con alguien que cumple su palabra."],
@@ -518,6 +582,102 @@ const LINES := {
 		P.HONORABLE: ["{rank}. Os saludo con respeto."],
 	},
 
+
+	# --- Conversaciones por actitud (talk_<actitud>_good / _bad) ---
+	"talk_amable_good": {
+		P.AMBICIOSO: ["Una charla agradable. Y útil, quién sabe."],
+		P.LEAL: ["Da gusto hablar con alguien de fiar, {player}."],
+		P.PRUDENTE: ["Una conversación tranquila. Se agradece en esta corte."],
+		P.ARROGANTE: ["Sabes comportarte. Eso ya es algo."],
+		P.PIADOSO: ["Tu bondad se nota, {player}. Que Dios te la conserve."],
+		P.ASTUTO: ["Qué {a:amable|amable}… casi sospecho. Casi."],
+		P.VALIENTE: ["¡Bien dicho! Me caes bien, {player}."],
+		P.CRUEL: ["Hm. Hoy no me molestas."],
+		P.GENEROSO: ["¡Qué alegría charlar contigo! Vuelve cuando quieras."],
+		P.COBARDE: ["Gracias por tratarme bien. No es lo habitual."],
+		P.ROMANTICO: ["Tus palabras tienen algo cálido, {player}."],
+		P.HONORABLE: ["Cortesía sincera. Te la devuelvo de corazón."],
+	},
+	"talk_amable_bad": {
+		ANY: ["Sí, sí… muy amable. Tengo cosas que hacer.", "No estoy de humor, {player}."],
+		P.CRUEL: ["Tanta dulzura me revuelve el estómago."],
+		P.ARROGANTE: ["¿Buscas mi favor con buenos modales? Hará falta más."],
+		P.ASTUTO: ["¿Qué quieres de mí con tanta amabilidad?"],
+	},
+	"talk_halagador_good": {
+		P.AMBICIOSO: ["Por fin alguien que ve lo lejos que voy a llegar."],
+		P.LEAL: ["Me halagas… pero lo agradezco."],
+		P.PRUDENTE: ["Palabras bonitas. Las tomaré con moderación… y con gusto."],
+		P.ARROGANTE: ["Naturalmente. Me alegra que lo reconozcas."],
+		P.PIADOSO: ["No merezco tanto elogio, pero gracias."],
+		P.ASTUTO: ["Sabes adular con arte. Eso me gusta."],
+		P.VALIENTE: ["¡Ja! Lo dices porque me has visto pelear."],
+		P.CRUEL: ["Adula cuanto quieras. Me divierte."],
+		P.GENEROSO: ["¡Me vas a sonrojar, {player}!"],
+		P.COBARDE: ["¿De verdad piensas eso de mí?"],
+		P.ROMANTICO: ["Qué palabras tan bellas, {player}…"],
+		P.HONORABLE: ["Agradezco el elogio, aunque prefiero los hechos."],
+	},
+	"talk_halagador_bad": {
+		ANY: ["Ahórrate los halagos, {player}.", "Eso suena a lisonja barata."],
+		P.PRUDENTE: ["Quien mucho halaga, algo busca."],
+		P.HONORABLE: ["La adulación no es digna de ti."],
+		P.LEAL: ["No me gustan las palabras huecas."],
+	},
+	"talk_franco_good": {
+		P.AMBICIOSO: ["Directo. Sin rodeos. Así se hacen los negocios."],
+		P.LEAL: ["Me gusta que me hables claro. Cuenta conmigo."],
+		P.PRUDENTE: ["La verdad sin adornos. Lo valoro más que cualquier halago."],
+		P.ARROGANTE: ["Tienes agallas para hablarme así. Respeto eso."],
+		P.PIADOSO: ["La sinceridad es una virtud, {player}."],
+		P.ASTUTO: ["Una persona sincera… qué rareza. Te creo."],
+		P.VALIENTE: ["¡Así me gusta! Cara a cara."],
+		P.CRUEL: ["Al menos no finges. Eso te honra."],
+		P.GENEROSO: ["Gracias por ser {a:sincero|sincera} conmigo."],
+		P.COBARDE: ["Me asusta un poco… pero tienes razón."],
+		P.ROMANTICO: ["Tu franqueza también tiene su encanto."],
+		P.HONORABLE: ["Palabra clara, alma limpia. Te estrecho la mano."],
+	},
+	"talk_franco_bad": {
+		ANY: ["Eso ha sido demasiado directo, {player}.", "No te he pedido tu opinión."],
+		P.ARROGANTE: ["¿Cómo te atreves a hablarme así?"],
+		P.COBARDE: ["¿Por qué me dices algo así? Me ofendes."],
+		P.ROMANTICO: ["Qué palabras tan frías…"],
+	},
+	"talk_amenazante_good": {
+		ANY: ["Está bien, está bien… no quiero problemas.", "Entendido. Haré lo que dices."],
+		P.COBARDE: ["¡Por favor! Toma lo que quieras, pero déjame en paz."],
+		P.ASTUTO: ["Calma, {player}. Podemos llegar a un acuerdo."],
+		P.AMBICIOSO: ["Tomo nota de tu fuerza. Quizá me convenga estar de tu lado."],
+	},
+	"talk_amenazante_bad": {
+		ANY: ["¿Me amenazas? No lo olvidaré.", "Ten cuidado con lo que dices, {player}."],
+		P.VALIENTE: ["¿Amenazas? ¡Saca la espada si te atreves!"],
+		P.ARROGANTE: ["¿Tú, amenazarme a mí? Qué ridículo."],
+		P.CRUEL: ["Cuidado. Yo también sé hacer daño."],
+		P.HONORABLE: ["Las amenazas son el recurso de los cobardes."],
+	},
+	"talk_intima_good": {
+		P.AMBICIOSO: ["Contigo podría subir muy alto… y no solo de rango."],
+		P.LEAL: ["Puedes contar conmigo. Para lo que sea."],
+		P.PRUDENTE: ["No suelo abrirme así. Pero contigo, sí."],
+		P.ARROGANTE: ["Admito que me haces sentir… distinto. No se lo digas a nadie."],
+		P.PIADOSO: ["Siento que Dios nos ha puesto en el mismo camino."],
+		P.ASTUTO: ["Por una vez, no estoy calculando nada. Qué raro."],
+		P.VALIENTE: ["Me late el corazón más fuerte que en cualquier batalla."],
+		P.CRUEL: ["No te acostumbres… pero me gusta esto."],
+		P.GENEROSO: ["Todo lo mío es tuyo, {player}."],
+		P.COBARDE: ["Contigo no tengo miedo."],
+		P.ROMANTICO: ["Llevaba tanto tiempo esperando oírte decir esto…"],
+		P.HONORABLE: ["Mi palabra y mi corazón, si los quieres."],
+	},
+	"talk_intima_bad": {
+		ANY: ["Vas demasiado deprisa, {player}.", "No… no estoy {s:preparado|preparada} para esto."],
+		P.PIADOSO: ["Esto no es apropiado, {player}."],
+		P.PRUDENTE: ["Démonos tiempo."],
+		P.CRUEL: ["¿Esperabas que me derritiera? Qué ingenuidad."],
+	},
+
 	# --- Obsoletos (se mantienen vacíos de gestos eliminados) ---
 }
 
@@ -552,6 +712,38 @@ const INTERACTION_LIKES := {
 	P.ROMANTICO: {"friendly": 1.0, "intimate": 1.7, "gift": 1.2},
 	P.HONORABLE: {"friendly": 1.2, "intimate": 0.9, "gift": 0.5},
 }
+
+# --- Conversaciones por actitud ---
+# Actitudes: id -> nombre visible. "intima" solo con romance posible (hombre y mujer) y confianza.
+const ATTITUDES := {
+	"amable": "Amable", "halagador": "Halagador", "franco": "Franco",
+	"amenazante": "Amenazante", "intima": "Charla íntima",
+}
+const ATTITUDE_HINTS := {
+	"amable": "Trato cordial: seguro, sube poco la intimidad.",
+	"halagador": "Elogios: depende de tu Carisma; los vanidosos lo adoran, los prudentes desconfían.",
+	"franco": "Hablar claro: lo valoran los leales, honorables y prudentes; ofende a los arrogantes.",
+	"amenazante": "Intimidar: baja la intimidad, pero quien te teme puede soltar oro o rumores. Requiere honor o rango.",
+	"intima": "Abrir el corazón: puede nacer el romance. Depende del Carisma y de la confianza.",
+}
+# Reacción de cada personalidad a cada actitud (multiplicador; 1 neutral, ≤0.5 le disgusta).
+const ATTITUDE_REACTIONS := {
+	P.AMBICIOSO: {"amable": 1.0, "halagador": 1.5, "franco": 1.1, "amenazante": 0.8, "intima": 1.0},
+	P.LEAL: {"amable": 1.3, "halagador": 0.6, "franco": 1.5, "amenazante": 0.3, "intima": 1.1},
+	P.PRUDENTE: {"amable": 1.2, "halagador": 0.5, "franco": 1.4, "amenazante": 0.4, "intima": 0.8},
+	P.ARROGANTE: {"amable": 0.7, "halagador": 1.7, "franco": 0.4, "amenazante": 0.3, "intima": 1.0},
+	P.PIADOSO: {"amable": 1.5, "halagador": 0.7, "franco": 1.2, "amenazante": 0.2, "intima": 0.6},
+	P.ASTUTO: {"amable": 0.9, "halagador": 1.2, "franco": 1.0, "amenazante": 0.9, "intima": 0.9},
+	P.VALIENTE: {"amable": 1.0, "halagador": 0.8, "franco": 1.4, "amenazante": 0.5, "intima": 1.2},
+	P.CRUEL: {"amable": 0.4, "halagador": 1.1, "franco": 1.2, "amenazante": 1.0, "intima": 0.8},
+	P.GENEROSO: {"amable": 1.6, "halagador": 1.0, "franco": 1.1, "amenazante": 0.2, "intima": 1.1},
+	P.COBARDE: {"amable": 1.4, "halagador": 1.2, "franco": 0.6, "amenazante": 1.3, "intima": 0.7},
+	P.ROMANTICO: {"amable": 1.2, "halagador": 1.4, "franco": 0.6, "amenazante": 0.3, "intima": 1.7},
+	P.HONORABLE: {"amable": 1.2, "halagador": 0.5, "franco": 1.6, "amenazante": 0.2, "intima": 0.9},
+}
+
+static func attitude_reaction(personality: int, attitude: String) -> float:
+	return ATTITUDE_REACTIONS.get(personality, {}).get(attitude, 1.0)
 
 const PERSONALITY_NAMES := {
 	P.AMBICIOSO: "Ambicioso", P.LEAL: "Leal", P.PRUDENTE: "Prudente",
@@ -628,6 +820,10 @@ static func rank_address(c: Character) -> String:
 		Character.Role.CABALLERO: return "dama" if female else "señor caballero"
 		Character.Role.NOBLEZA_BAJA, Character.Role.NOBLEZA_ALTA: return "mi señora" if female else "mi señor"
 		Character.Role.REGENTE: return "majestad"
+		Character.Role.DUQUE: return "vuestra gracia"
+		Character.Role.MERCENARIO: return "espada de alquiler"
+		Character.Role.CAPITAN: return "capitana" if female else "capitán"
+		Character.Role.CONDOTIERO: return "mi señora" if female else "mi señor"
 	return "señor"
 
 ## Gusto de una personalidad por un tipo de interacción ("friendly", "intimate", "gift").
@@ -651,18 +847,16 @@ static func intimacy_tier(affection: int) -> int:
 	return tier
 
 ## Nombre del nivel de intimidad, concordado con el género del personaje.
-## "Amante" solo si hay romance; sin él, el nivel más alto es "Amigo íntimo".
-static func intimacy_name(affection: int, romance: bool, gender: int) -> String:
+## El nivel más alto es "Íntimo/Íntima", haya romance o no (el romance se indica aparte).
+## Desde ahí cualquiera puede unirse a tu séquito en las plazas de íntimos (ver RelationsData).
+static func intimacy_name(affection: int, _romance: bool, gender: int) -> String:
 	var female := gender == CharacterEnums.Gender.FEMENINO
 	match intimacy_tier(affection):
 		0: return "Desconocida" if female else "Desconocido"
 		1: return "Conocida" if female else "Conocido"
 		2: return "Amiga" if female else "Amigo"
 		3: return "Confidente"
-		4:
-			if romance:
-				return "Amante"
-			return "Amiga íntima" if female else "Amigo íntimo"
+		4: return "Íntima" if female else "Íntimo"
 	return ""
 
 static func personality_name(personality: int) -> String:

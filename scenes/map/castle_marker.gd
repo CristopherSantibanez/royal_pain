@@ -62,6 +62,24 @@ func _on_input_event(_viewport: Node, event: InputEvent, _shape_idx: int) -> voi
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		castle_clicked.emit(castle_data)
 
+const MapJuice = preload("res://scenes/map/map_juice.gd")
+const SELECT_RING_COLOR := Color("f0d48a")
+const SELECT_POP := 1.2
+var _icon_base_scale := Vector2.ZERO
+var _pop_tween: Tween
+
+## Latido al seleccionarlo: anillo dorado y el icono crece y vuelve.
+func select_pulse() -> void:
+	MapJuice.ring(get_parent() as Node2D, position, SELECT_RING_COLOR, 40.0)
+	if _icon_base_scale == Vector2.ZERO:
+		_icon_base_scale = icon.scale
+	if _pop_tween != null and _pop_tween.is_valid():
+		_pop_tween.kill()
+	icon.scale = _icon_base_scale
+	_pop_tween = create_tween()
+	_pop_tween.tween_property(icon, "scale", _icon_base_scale * SELECT_POP, 0.08)
+	_pop_tween.tween_property(icon, "scale", _icon_base_scale, 0.3).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+
 func _on_mouse_entered() -> void:
 	scale = Vector2(1.15, 1.15)
 	castle_hovered.emit(castle_data, true)

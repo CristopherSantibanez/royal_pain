@@ -16,6 +16,8 @@ extends RefCounted
 #     "alliance"       aliarte con un señor ({target})
 #     "conquer"        conquistar un castillo con tus ejércitos
 #   reward / penalty: efectos de EventCatalog (gold, honor, fame, garrison...) y "affinity" (con quien encarga)
+#   contract: true   contrato mercenario (CONTRACTS): lo ofrece cualquier señor que te contrate; el oro
+#                    de la recompensa se multiplica por CONTRACT_PAY_BY_ROLE y romperlo da infamia.
 
 const R := Character.Role
 
@@ -74,27 +76,62 @@ const TEMPLATES := [
 		"type": "castle_gold", "amount": 150,
 		"text": "La Corona necesita fondos: aumenta el tesoro de tu castillo en {amount} de oro.",
 		"reward": {"honor": 4, "affinity": 8, "fame": 4}, "penalty": {"honor": -4, "affinity": -6}},
-	{"id": "diplomacia", "title": "Una mano tendida", "roles": [R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.REGENTE], "months": 5, "weight": 1.0,
+	{"id": "diplomacia", "title": "Una mano tendida", "roles": [R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.DUQUE, R.REGENTE], "months": 5, "weight": 1.0,
 		"type": "affinity", "amount": 20,
 		"text": "Conviene acercarse a {target}: mejora vuestra relación en {amount} puntos.",
 		"reward": {"fame": 6, "affinity": 8, "honor": 2}, "penalty": {"affinity": -4}},
-	{"id": "alianza", "title": "Un pacto de armas", "roles": [R.NOBLEZA_ALTA, R.REGENTE], "months": 6, "weight": 0.8,
+	{"id": "alianza", "title": "Un pacto de armas", "roles": [R.NOBLEZA_ALTA, R.DUQUE, R.REGENTE], "months": 6, "weight": 0.8,
 		"type": "alliance",
 		"text": "Sella una alianza con {target} antes del plazo.",
 		"reward": {"fame": 10, "honor": 5, "affinity": 6}, "penalty": {"affinity": -4, "honor": -2}},
-	{"id": "conquista", "title": "Ensanchar el reino", "roles": [R.NOBLEZA_ALTA, R.REGENTE], "months": 8, "weight": 0.9,
+	{"id": "conquista", "title": "Ensanchar el reino", "roles": [R.NOBLEZA_ALTA, R.DUQUE, R.REGENTE], "months": 8, "weight": 0.9,
 		"type": "conquer",
 		"text": "El reino debe crecer: conquista un castillo con tus ejércitos antes del plazo.",
 		"reward": {"fame": 15, "honor": 8, "gold": 150, "affinity": 6}, "penalty": {"honor": -5, "affinity": -6}},
-	{"id": "levas_mayores", "title": "Un ejército para la Corona", "roles": [R.NOBLEZA_ALTA, R.REGENTE], "months": 5, "weight": 0.8,
+	{"id": "levas_mayores", "title": "Un ejército para la Corona", "roles": [R.NOBLEZA_ALTA, R.DUQUE, R.REGENTE], "months": 5, "weight": 0.8,
 		"type": "garrison", "amount": 40,
 		"text": "Aumenta la guarnición de tu castillo en {amount} soldados.",
 		"reward": {"honor": 5, "fame": 5, "affinity": 6}, "penalty": {"affinity": -5}},
 ]
 
+# --- Contratos mercenarios: los ofrece el señor que te contrata (no tienes señor fijo) ---
+const MR := [Character.Role.MERCENARIO, Character.Role.CAPITAN, Character.Role.CONDOTIERO]
+const CONTRACT_PAY_BY_ROLE := {Character.Role.MERCENARIO: 1.0, Character.Role.CAPITAN: 1.6, Character.Role.CONDOTIERO: 2.4}
+const CONTRACTS := [
+	{"id": "c_incursion", "title": "Romper una incursión", "roles": MR, "months": 3, "weight": 1.2,
+		"type": "fight", "contract": true, "fail_effects": {"honor": -2},
+		"fight": {"type": "battle", "no_rival": true, "enemy_name": "Los saqueadores de la frontera", "enemy_ratio": 0.9,
+			"foe": {"name": "Capitán de los saqueadores", "role": Character.Role.SOLDADO}},
+		"text": "{giver} te paga por dispersar a una partida que saquea sus aldeas. Tú pones las espadas.",
+		"reward": {"gold": 90, "fame": 4, "affinity": 5}, "penalty": {"affinity": -6}},
+	{"id": "c_campeon", "title": "Campeón a sueldo", "roles": MR, "months": 4, "weight": 1.0,
+		"type": "win_duels", "contract": true, "amount": 1,
+		"text": "{giver} quiere un campeón que defienda su nombre: gana {amount} duelo antes del plazo.",
+		"reward": {"gold": 70, "fame": 5, "affinity": 4}, "penalty": {"affinity": -4}},
+	{"id": "c_guarnicion", "title": "Reforzar una guarnición", "roles": MR, "months": 3, "weight": 1.0,
+		"type": "actions", "contract": true, "amount": 2, "step": {},
+		"text": "{giver} teme un ataque y te contrata para reforzar sus murallas: dedica {amount} acciones de guardia.",
+		"reward": {"gold": 60, "honor": 2, "affinity": 5}, "penalty": {"affinity": -5}},
+	{"id": "c_saqueo", "title": "Tierra quemada", "roles": [Character.Role.CAPITAN, Character.Role.CONDOTIERO], "months": 3, "weight": 0.9,
+		"type": "risk", "contract": true, "chance": 0.5, "stat": "strategy", "fail_effects": {"health": -20},
+		"text": "{giver} quiere que arrases las tierras de sus enemigos. Es buen oro, y poco honor.",
+		"reward": {"gold": 130, "honor": -3, "fame": 3, "affinity": 4}, "penalty": {"affinity": -4}},
+	{"id": "c_asalto", "title": "Tomar un castillo", "roles": [Character.Role.CAPITAN, Character.Role.CONDOTIERO], "months": 8, "weight": 0.8,
+		"type": "conquer", "contract": true,
+		"text": "{giver} paga a precio de oro una conquista: toma un castillo con tu compañía antes del plazo.",
+		"reward": {"gold": 300, "fame": 12, "affinity": 8}, "penalty": {"affinity": -6}},
+]
+
+## Un contrato válido para un rol mercenario, elegido por peso. exclude: ids ya activos.
+static func pick_contract(role: int, exclude: Array) -> Dictionary:
+	return _pick_from(CONTRACTS, role, exclude)
+
 ## Plantillas válidas para un rol, elegidas por peso. exclude: ids de encargos ya activos.
 static func pick(role: int, exclude: Array) -> Dictionary:
-	var pool: Array = TEMPLATES.filter(func(t): return role in t.roles and not t.id in exclude)
+	return _pick_from(TEMPLATES, role, exclude)
+
+static func _pick_from(templates: Array, role: int, exclude: Array) -> Dictionary:
+	var pool: Array = templates.filter(func(t): return role in t.roles and not t.id in exclude)
 	if pool.is_empty():
 		return {}
 	var total := 0.0

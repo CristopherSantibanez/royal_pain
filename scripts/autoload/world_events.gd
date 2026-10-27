@@ -15,6 +15,9 @@ const WORLD_EVENT_CHANCE := 0.2          # prob. mensual de un suceso del mundo 
 const PLAYER_EVENT_CHANCE := 0.08        # prob. mensual de un suceso global que pide decisión
 const LORD_DEATH_CHANCE := 0.005         # por señor y mes (~6% al año)
 const LORD_MARRIAGE_CHANCE := 0.01       # por señor soltero y mes
+const HEIRLESS_KING_CHANCE := 0.6       # si eres Duque, prob. de que el rey muera sin hijos (corona vacante)
+const SUPPORT_PRETENDER_AFFINITY := 15
+const SUPPORT_PRETENDER_HONOR := 3
 const MARRIAGE_ALLIANCE_CHANCE := 0.5    # una boda entre casas de reinos en paz puede sellar una alianza
 const INITIAL_WARS := 2                  # guerras entre reinos de la IA al empezar
 const INITIAL_ALLIANCES := 2
@@ -31,6 +34,12 @@ var deferred_event: Dictionary = {}          # suceso global con decisión que e
 func _ready() -> void:
 	GameManager.game_started.connect(func(_character: Character): reset())
 	GameManager.turn_advanced.connect(_on_month_passed)
+	GameManager.event_option_chosen.connect(_on_option_chosen)
+
+func _on_option_chosen(event: Dictionary, option: Dictionary) -> void:
+	if option.get("throne_claim", false):
+		event["_extra_result"] = RelationsData.claim_vacant_throne(str(event.get("pretender", "")))
+		GameManager.refresh_actions_for_role_change()
 
 func reset() -> void:
 	notifications.clear()
@@ -129,14 +138,27 @@ func _player_global_event() -> void:
 # Señores que mueren (con heredero) o se casan.
 func _lords_life() -> void:
 	for r: Relationship in RelationsData.lords():
-		if r.character == null or RelationsData.castles_of(r.person_name).is_empty():
+		if r.character == null or RelationsData.castles_of(r.person_name).is_empty() or CaptureData.is_prisoner(r.person_name):
 			continue
 		if randf() < LORD_DEATH_CHANCE:
 			_lord_dies(r)
 		elif not married_lords.has(r.person_name) and randf() < LORD_MARRIAGE_CHANCE:
 			_lord_marries(r)
 
-func _lord_dies(r: Relationship) -> void:
+## Un señor muere por una causa dada (p. ej. una ejecución): le sucede un heredero, o, si ya no
+## tenía castillos, desaparece del mundo.
+func kill_lord(r: Relationship, cause: String) -> void:
+	if r == null:
+		return
+	if RelationsData.castles_of(r.person_name).is_empty():
+		married_lords.erase(r.person_name)
+		RelationsData.relations.erase(r)
+		_news("%s muere por %s." % [r.person_name, cause], "", "Muere un señor")
+		RelationsData.relations_changed.emit()
+		return
+	_lord_dies(r, cause)
+
+func _lord_dies(r: Relationship, forced_cause: String = "") -> void:
 	var old_name := r.person_name
 	var castles: Array[Castle] = RelationsData.castles_of(old_name)
 	var kingdom: int = castles[0].kingdom
@@ -144,7 +166,7 @@ func _lord_dies(r: Relationship) -> void:
 	var gender := CharacterEnums.Gender.FEMENINO if female else CharacterEnums.Gender.MASCULINO
 	var crowned := old_name.begins_with("Rey ") or old_name.begins_with("Reina ")
 	var title := ("Reina" if female else "Rey") if crowned else ("Lady" if female else "Lord")
-	var heir_name := "%s %s %s" % [title, CharacterLoader.random_first_name(gender), RelationsData.family_name_of(old_name)]
+	var heir_name := "%s %s %s" % [title, CharacterLoader.random_first_name(gender, CharacterLoader.culture_of_kingdom(kingdom)), RelationsData.family_name_of(old_name)]
 	var portrait := ""
 	portrait = RelationsData.take_free_portrait(gender)
 	var heir := CharacterLoader.make_random_character(r.character.role, gender, portrait, heir_name)
@@ -152,12 +174,38 @@ func _lord_dies(r: Relationship) -> void:
 	var was_family := old_name == RelationsData.spouse_family
 	married_lords.erase(old_name)
 	RelationsData.replace_lord(old_name, heir)
-	var text := "%s muere por %s. Le sucede %s al frente de %s." % [old_name, DEATH_CAUSES.pick_random(), heir_name, KingdomEnums.kingdom_name(kingdom)]
+	var cause: String = forced_cause if not forced_cause.is_empty() else DEATH_CAUSES.pick_random()
+	var player: Character = GameManager.player_character
+	# La Corona es una sola: a su muerte sin hijos, cualquier gran duque puede reclamarla.
+	if crowned and player != null and player.role == Character.Role.DUQUE and randf() < HEIRLESS_KING_CHANCE:
+		_vacant_throne(old_name, heir_name, cause, castles[0].castle_id)
+		return
+	var text := "%s muere por %s. Le sucede %s al frente de %s." % [old_name, cause, heir_name, KingdomEnums.kingdom_name(kingdom)]
 	if was_liege:
 		text += " Tu nuevo señor aún no te conoce: la lealtad habrá que ganársela de nuevo."
 	elif was_family:
 		text += " La familia de tu cónyuge está de luto."
 	_news(text, castles[0].castle_id, "Muere un señor")
+
+# El rey muere sin hijos: un pariente lejano hereda, pero tú, como Duque, puedes reclamar la corona.
+func _vacant_throne(old_name: String, pretender: String, cause: String, castle_id: String) -> void:
+	_news("%s muere por %s sin dejar hijos. %s, un pariente lejano, reclama la corona." % [old_name, cause, pretender],
+		castle_id, "La corona vacante")
+	var e := {
+		"id": "corona_vacante", "title": "La corona vacante", "pretender": pretender, "speaker": pretender,
+		"text": "%s ha muerto sin herederos directos. Los nobles miran a %s, su pariente lejano… y a ti, el gran duque del reino. Es ahora o nunca." % [old_name, pretender],
+		"options": [
+			{"label": "Reclamar el trono", "effects": {}, "throne_claim": true,
+				"result": "Te presentas ante los nobles como el más digno de la corona."},
+			{"label": "Jurar lealtad a %s" % pretender, "effects": {"affinity": SUPPORT_PRETENDER_AFFINITY, "honor": SUPPORT_PRETENDER_HONOR},
+				"result": "Hincas la rodilla ante %s. El nuevo rey no olvidará tu lealtad." % pretender},
+		],
+	}
+	# La decisión manda sobre cualquier otro suceso del mes.
+	if GameManager.pending_event.is_empty():
+		GameManager.pending_event = e
+	else:
+		deferred_event = e
 
 func _lord_marries(r: Relationship) -> void:
 	var others: Array[Relationship] = []
@@ -168,7 +216,7 @@ func _lord_marries(r: Relationship) -> void:
 		return
 	var house: Relationship = others.pick_random()
 	var spouse_gender := CharacterEnums.Gender.MASCULINO if RelationsData.lord_gender(r.person_name) == CharacterEnums.Gender.FEMENINO else CharacterEnums.Gender.FEMENINO
-	var spouse := "%s %s" % [CharacterLoader.random_first_name(spouse_gender), RelationsData.family_name_of(house.person_name)]
+	var spouse := "%s %s" % [CharacterLoader.random_first_name(spouse_gender, CharacterLoader.culture_of_kingdom(house.kingdom)), RelationsData.family_name_of(house.person_name)]
 	married_lords[r.person_name] = spouse
 	var a: int = r.kingdom
 	var b: int = house.kingdom

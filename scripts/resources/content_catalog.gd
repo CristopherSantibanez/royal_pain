@@ -6,7 +6,9 @@ extends RefCounted
 # Cada entrada: {name, desc, mods: {stat: n}, fx: {efecto: valor}}; el equipo añade slot, tier y price.
 # Efectos (fx) disponibles — se suman entre todas las fuentes del personaje:
 #   Duelo:    dmg, dmg_taken, crit, crit_mult, parry, dodge, guard, stamina_cost, stamina_regen,
-#             morale_resist, disarm, push, low_hp_dmg, riposte, initiative, intimidate
+#             morale_resist, disarm, push, low_hp_dmg, riposte, initiative, intimidate,
+#             read, read_resist (leer al rival), esgrima_disarm, muro_guard, desperate_dmg (por postura)
+#   Experiencia: xp_duel, xp_battle, xp_training, xp_study, xp_mission, xp_exploration (+% por fuente)
 #   Batalla:  unit_power, inf_power, arch_power, cav_power, cav_move, arch_range, morale_start,
 #             morale_loss, terrain_def, retaliation, rally, wall_assault, fatigue, loyalty
 #   Mundo:    income, recruit, upkeep, social, gift, event_luck, fame_gain, honor_gain, heal,
@@ -20,6 +22,7 @@ const SLOT_ESCUDO := "Escudo"
 const SLOT_MONTURA := "Montura"
 const SLOT_ACCESORIO := "Accesorio"
 const SLOTS := [SLOT_ARMA, SLOT_ARMADURA, SLOT_ESCUDO, SLOT_MONTURA, SLOT_ACCESORIO]
+const UNIQUE_TIER := 4   # piezas únicas: raras y con una habilidad propia
 
 const GENERAL_SKILLS := [
 	{"name": "Paso Invernal", "desc": "Tus ejércitos marchan en 1 turno también en invierno (dic–feb), cuando los demás tardan 2.", "fx": {}},
@@ -58,6 +61,12 @@ const COMBAT_SKILLS := [
 	{"name": "Iniciativa", "desc": "+15% de probabilidad de atacar primero.", "fx": {"initiative": 0.15}},
 	{"name": "Temple", "desc": "Los golpes apenas te desmoralizan (−50% de moral perdida).", "fx": {"morale_resist": 0.5}},
 	{"name": "Intimidación", "desc": "Tu rival empieza el duelo con 15 de moral menos.", "fx": {"intimidate": 15}},
+	# Posturas y lectura del rival
+	{"name": "Lectura del Rival", "desc": "+15% de probabilidad de adivinar la próxima jugada de tu rival.", "fx": {"read": 0.15}},
+	{"name": "Rostro de Piedra", "desc": "Nadie sabe lo que vas a hacer: tus rivales te leen un 20% menos.", "fx": {"read_resist": 0.2}},
+	{"name": "Maestro de Esgrima", "desc": "En postura de Esgrima desarmas un 15% mejor y esquivas un 5% más.", "fx": {"esgrima_disarm": 0.15, "dodge": 0.05}},
+	{"name": "Muro de Acero", "desc": "En postura de Muro, Defender reduce todavía más el golpe (÷2,5 en vez de ÷2).", "fx": {"muro_guard": 0.5}},
+	{"name": "Furia Desatada", "desc": "En postura Desesperada causas un 15% más de daño.", "fx": {"desperate_dmg": 0.15}},
 ]
 
 const BATTLE_SKILLS := [
@@ -76,6 +85,11 @@ const BATTLE_SKILLS := [
 	{"name": "Represalia", "desc": "Tus pelotones responden a los ataques con un 30% más de fuerza.", "fx": {"retaliation": 0.3}},
 	{"name": "Estandarte Sagrado", "desc": "Tus pelotones empiezan la batalla con +8 de moral.", "fx": {"morale_start": 8}},
 	{"name": "Ataque Coordinado", "desc": "Todas tus tropas causan un 8% más de bajas.", "fx": {"unit_power": 0.08}},
+	# Comandancia, familias de tropa y general
+	{"name": "Muro de Picas", "desc": "Tus piqueros y lanceros causan un 20% más de bajas.", "fx": {"pike_power": 0.2}},
+	{"name": "Escolta del General", "desc": "El pelotón de tu general recibe un 20% menos de bajas.", "fx": {"general_def": 0.2}},
+	{"name": "Leer al Enemigo", "desc": "Adivinas lo que harán los pelotones enemigos como si tuvieras 3 de Estrategia más.", "fx": {"intent": 3}},
+	{"name": "Instructor de Tropas", "desc": "Ganas un 30% más de experiencia de mando.", "fx": {"mastery_xp": 0.3}},
 ]
 
 const ADVANTAGES := [
@@ -101,6 +115,12 @@ const ADVANTAGES := [
 	{"name": "Fama Precoz", "desc": "Tu nombre ya suena en las tabernas: +20% de fama ganada.", "fx": {"fame_gain": 0.2}},
 	{"name": "Lealtad Inquebrantable", "desc": "Tus compañeros de séquito luchan con +10 de moral.", "fx": {"loyalty": 10}},
 	{"name": "Belleza Legendaria", "desc": "Tu aspecto abre puertas y corazones.", "mods": {"charisma": 1}, "fx": {"social": 0.25}},
+	{"name": "Disciplinado", "desc": "Entrenas sin faltar un día: +25% de experiencia al entrenar.", "fx": {"xp_training": 0.25}},
+	{"name": "Instinto de Duelista", "desc": "Aprendes de cada duelo (+15% de experiencia) y lees mejor al rival (+5%).", "fx": {"xp_duel": 0.15, "read": 0.05}},
+	{"name": "Mente Analítica", "desc": "Calculas cada movimiento: lees al rival un 10% mejor.", "mods": {"strategy": 1}, "fx": {"read": 0.1}},
+	{"name": "Nacido para Mandar", "desc": "Los señores te prefieren como general de sus batallas.", "mods": {"leadership": 1}, "fx": {"general_score": 15}},
+	{"name": "Curtido en Campaña", "desc": "Cada batalla te enseña: +25% de experiencia de mando.", "fx": {"mastery_xp": 0.25}},
+	{"name": "Voz en el Consejo", "desc": "Los generales te escuchan: +15% al pedir otra tropa antes de la batalla.", "fx": {"negotiate": 0.15}},
 ]
 
 const DISADVANTAGES := [
@@ -126,6 +146,10 @@ const DISADVANTAGES := [
 	{"name": "Rencoroso", "desc": "No olvidas una ofensa: −10% de efecto social y de honor ganado.", "fx": {"social": -0.1, "honor_gain": -0.1}},
 	{"name": "Cicatriz Visible", "desc": "Una cicatriz que asusta tanto como afea.", "mods": {"charisma": -1}, "fx": {"intimidate": 5}},
 	{"name": "Insomne", "desc": "Duermes mal: tus acciones de duelo gastan un 15% más de aliento.", "fx": {"stamina_cost": 0.15}},
+	{"name": "Previsible", "desc": "Se te ve venir: tus rivales adivinan tus jugadas un 15% más.", "fx": {"read_resist": -0.15}},
+	{"name": "Impaciente", "desc": "Te aburre la práctica: −25% de experiencia al entrenar.", "fx": {"xp_training": -0.25}},
+	{"name": "Torpe con la Pica", "desc": "Nunca entendiste el muro de lanzas: tus piqueros pierden un 15% de eficacia.", "fx": {"pike_power": -0.15}},
+	{"name": "Mal Estratega", "desc": "Te cuesta leer el campo: −25% de experiencia de mando.", "mods": {"strategy": -1}, "fx": {"mastery_xp": -0.25}},
 ]
 
 const EQUIPMENT := [
@@ -164,6 +188,45 @@ const EQUIPMENT := [
 	{"name": "Reliquia Sagrada", "slot": SLOT_ACCESORIO, "tier": 3, "price": 200, "desc": "+10% de honor ganado y más templanza en duelo.", "fx": {"honor_gain": 0.1, "morale_resist": 0.2}},
 	{"name": "Libro de Tácticas", "slot": SLOT_ACCESORIO, "tier": 2, "price": 150, "desc": "Las enseñanzas de los grandes generales.", "mods": {"strategy": 2}},
 	{"name": "Bolsa de Hierbas", "slot": SLOT_ACCESORIO, "tier": 1, "price": 40, "desc": "Ungüentos y vendas: +8 de vida al mes.", "fx": {"heal": 8}},
+
+	# Piezas únicas (nivel 4): raras, con una habilidad propia además de sus bonos (ver SkillEffects.has_unique).
+	# No se venden en las tiendas normales: se ganan explorando, en torneos, en duelo o las forja una herrería de nivel 3.
+	{"name": "Durandal", "slot": SLOT_ARMA, "tier": UNIQUE_TIER, "price": 1600, "unique": "durandal", "mods": {"combat": 3},
+		"desc": "La espada de Roldán. Tu primer ataque de cada duelo no se puede esquivar ni parar."},
+	{"name": "Misericordia de Toledo", "slot": SLOT_ARMA, "tier": UNIQUE_TIER, "price": 1200, "unique": "sangrado", "mods": {"combat": 2}, "fx": {"crit": 0.03},
+		"desc": "Daga de acero toledano. Cada golpe que conecta abre una herida: el rival sangra 4 de vida en sus dos turnos siguientes."},
+	{"name": "Loriga de Covadonga", "slot": SLOT_ARMADURA, "tier": UNIQUE_TIER, "price": 1500, "unique": "anticritico", "mods": {"defense": 3},
+		"desc": "Malla bendecida en la cueva. El primer golpe crítico que recibes en cada duelo se queda en un golpe normal."},
+	{"name": "Escudo de Teodorico", "slot": SLOT_ESCUDO, "tier": UNIQUE_TIER, "price": 1300, "unique": "reflejo", "mods": {"defense": 2},
+		"desc": "Escudo del rey ostrogodo. Devuelve al atacante un 25% del daño que recibes en duelo."},
+	{"name": "Yelmo de Sutton Hoo", "slot": SLOT_ACCESORIO, "tier": UNIQUE_TIER, "price": 1100, "unique": "firmeza", "mods": {"defense": 1, "charisma": 1},
+		"desc": "Yelmo de un rey de los anglos. Nadie te desequilibra: los empujones no te dejan expuesto ni dan ventaja al rival."},
+	{"name": "Oriflama de San Dionisio", "slot": SLOT_ACCESORIO, "tier": UNIQUE_TIER, "price": 1800, "unique": "oriflama", "mods": {"leadership": 2}, "fx": {"morale_start": 10},
+		"desc": "El estandarte de los reyes francos. Tus tropas empiezan cada batalla con +10 de moral y el primer pelotón que fuera a huir resiste."},
+	{"name": "Olifante", "slot": SLOT_ACCESORIO, "tier": UNIQUE_TIER, "price": 1400, "unique": "olifante", "mods": {"leadership": 1},
+		"desc": "El cuerno de marfil de Roncesvalles. En cada batalla puedes usar una habilidad de mando más."},
+	{"name": "Babieca", "slot": SLOT_MONTURA, "tier": UNIQUE_TIER, "price": 1500, "unique": "babieca", "fx": {"cav_power": 0.2},
+		"desc": "El caballo del Campeador. Viajas en invierno sin coste extra y tu caballería pega un 20% más."},
+	{"name": "Anillo de Teodolinda", "slot": SLOT_ACCESORIO, "tier": UNIQUE_TIER, "price": 1200, "unique": "elocuencia", "mods": {"charisma": 2},
+		"desc": "Anillo de la reina de los lombardos. Tus conversaciones tienen un 15% más de probabilidad de salir bien."},
+	{"name": "Capa del Peregrino de Compostela", "slot": SLOT_ACCESORIO, "tier": UNIQUE_TIER, "price": 1000, "unique": "camino_seguro", "mods": {"defense": 1},
+		"desc": "Lleva la vieira del Apóstol: los salteadores la respetan. La mitad de encuentros en el camino."},
+	{"name": "Relicario de Aquisgrán", "slot": SLOT_ACCESORIO, "tier": UNIQUE_TIER, "price": 1400, "unique": "reliquia", "fx": {"heal": 25, "honor_gain": 0.1},
+		"desc": "Guarda un fragmento del manto de un santo. Cada mes curas 25 de vida y tus heridas graves sanan del todo."},
+	{"name": "Sello del Emperador", "slot": SLOT_ACCESORIO, "tier": UNIQUE_TIER, "price": 1300, "unique": "sello", "mods": {"charisma": 1, "leadership": 1},
+		"desc": "Un sello imperial que nadie se atreve a ignorar. Tus cartas a señores lejanos no cuestan acciones extra."},
+	# Posturas, lectura del rival y entrenamiento
+	{"name": "Estoque de Duelo", "slot": SLOT_ARMA, "tier": 2, "price": 140, "desc": "Hoja fina para la esgrima: en Esgrima desarmas un 10% mejor.", "mods": {"combat": 2}, "fx": {"esgrima_disarm": 0.1}},
+	{"name": "Hacha de Berserker", "slot": SLOT_ARMA, "tier": 3, "price": 230, "desc": "Pesada y brutal: en Desesperada causas un 15% más de daño.", "mods": {"combat": 3, "defense": -1}, "fx": {"desperate_dmg": 0.15}},
+	{"name": "Pavés", "slot": SLOT_ESCUDO, "tier": 2, "price": 110, "desc": "Escudo alto: en Muro, Defender reduce aún más el golpe.", "mods": {"defense": 2}, "fx": {"muro_guard": 0.5}},
+	{"name": "Capa Sombría", "slot": SLOT_ACCESORIO, "tier": 1, "price": 50, "desc": "Oculta tus movimientos: tus rivales te leen un 10% menos.", "fx": {"read_resist": 0.1}},
+	{"name": "Manual de Esgrima", "slot": SLOT_ACCESORIO, "tier": 2, "price": 90, "desc": "Un tratado de un maestro de armas: lees al rival un 8% mejor y entrenas un 15% mejor.", "fx": {"read": 0.08, "xp_training": 0.15}},
+	# Comandancia y familias de tropa
+	{"name": "Pica de Fresno", "slot": SLOT_ARMA, "tier": 1, "price": 70, "desc": "Para quien manda piqueros: +10% a tus piqueros y lanceros.", "mods": {"defense": 1}, "fx": {"pike_power": 0.1}},
+	{"name": "Ballesta de Cranequín", "slot": SLOT_ARMA, "tier": 3, "price": 320, "desc": "Una ballesta de asedio: +15% a tus arqueros y ballesteros.", "mods": {"strategy": 1}, "fx": {"arch_power": 0.15}},
+	{"name": "Bardas de Acero", "slot": SLOT_MONTURA, "tier": 3, "price": 480, "desc": "Caballo acorazado: +20% a tu caballería y tu pelotón recibe menos bajas si eres el general.", "fx": {"cav_power": 0.2, "general_def": 0.1}},
+	{"name": "Estandarte de Campaña", "slot": SLOT_ACCESORIO, "tier": 2, "price": 160, "desc": "Tu enseña en lo alto: los señores te prefieren como general y tus tropas empiezan con +4 de moral.", "fx": {"general_score": 8, "morale_start": 4}},
+	{"name": "Epitoma de Vegecio", "slot": SLOT_ACCESORIO, "tier": 2, "price": 130, "desc": "El tratado militar de los romanos: +20% de experiencia de mando y lees mejor al enemigo.", "mods": {"strategy": 1}, "fx": {"mastery_xp": 0.2, "intent": 1}},
 ]
 
 # Calidad del equipo inicial de los PNJ según su rango: niveles permitidos y piezas.

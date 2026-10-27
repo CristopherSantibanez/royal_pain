@@ -3,6 +3,13 @@ extends Control
 @export var player_character: Character
 @export var enemy_character: Character
 
+# Duelo singular dentro de una batalla (ver battle.gd): la escena va encima del tablero, no toca la
+# campaña (CombatSetup) y al terminar avisa con embedded_finished en vez de cambiar de escena.
+# player_character es quien lucha por tu bando (tú o el jefe de uno de tus pelotones).
+signal embedded_finished(winner: Character)
+var embedded := false
+var _embedded_winner: Character
+
 @onready var background: TextureRect = %TextureRect
 @onready var portrait_player: TextureRect = %PortraitPlayer
 @onready var portrait_enemy: TextureRect = %PortraitEnemy
@@ -13,19 +20,23 @@ extends Control
 @onready var screen_margin: MarginContainer = %ScreenMargin
 
 const ENEMY_TURN_DELAY := 1.2  # segundos de pausa antes de que el enemigo actúe
-const DEFAULT_HINT := "Elige una postura y luego una acción. Pasa el ratón sobre una orden para ver qué hace."
+const DEFAULT_HINT := "Elige una postura y una acción."
+const KO_SLOW_MO := 0.5        # segundos reales de cámara lenta en el golpe final
+const HINT_MAX_LINES := 2   # la pista tiene altura fija: así no descoloca el menú al pasar el ratón
 
 const HEALTH_COLOR := Color("a1342a")
 const STAMINA_COLOR := Color("6b8a2a")
 const MORALE_COLOR := Color("3f6d8a")
+const TO_DEATH_COLOR := Color("e0503c")
+const UniqueItems = preload("res://scripts/resources/unique_items.gd")
 
 # [postura, nombre, tecla, descripción]
 const POSTURES := [
-	[CombatEnums.Posture.OFENSIVA, "Ofensiva", KEY_Q, "Aumenta tu daño de ataque, pero te deja más vulnerable a recibir golpes."],
-	[CombatEnums.Posture.DEFENSIVA, "Defensiva", KEY_W, "Reduce el daño que recibes, a cambio de menor poder ofensivo."],
-	[CombatEnums.Posture.ESGRIMA, "Esgrima", KEY_E, "Prioriza la evasión y la agilidad sobre la fuerza bruta."],
-	[CombatEnums.Posture.MURO, "Muro", KEY_R, "Defensa máxima. Ideal para resistir, pero casi no aporta al ataque."],
-	[CombatEnums.Posture.DESESPERADA, "Desesperada", KEY_T, "Último recurso: gran daño ofensivo, pero tu defensa cae drásticamente."],
+	[CombatEnums.Posture.OFENSIVA, "Ofensiva", KEY_Q, "Aumenta tu daño de ataque, pero te deja más vulnerable a recibir golpes. No permite Defender ni Esquivar."],
+	[CombatEnums.Posture.DEFENSIVA, "Defensiva", KEY_W, "Reduce el daño que recibes, a cambio de menor poder ofensivo. No permite Empujar."],
+	[CombatEnums.Posture.ESGRIMA, "Esgrima", KEY_E, "Prioriza la evasión y la agilidad: esquiva sola un 15% y desarma mejor (+10%). No permite Empujar."],
+	[CombatEnums.Posture.MURO, "Muro", KEY_R, "Defensa máxima. Ideal para resistir, pero casi no aporta al ataque. No permite Esquivar ni Desarmar."],
+	[CombatEnums.Posture.DESESPERADA, "Desesperada", KEY_T, "Último recurso: gran daño ofensivo, pero tu defensa cae drásticamente. Solo permite Atacar y Empujar."],
 ]
 # [acción, nombre, tecla, descripción]
 const ACTIONS := [
@@ -46,6 +57,8 @@ var _posture_buttons := {}              # postura -> Button
 var _action_buttons: Array[Button] = []
 var _key_bindings := {}                 # keycode -> Callable
 var _hovered_order := ""                # orden bajo el ratón, para refrescar su previsión
+var _enemy_intent := {}                 # jugada del rival ya decidida y adivinada por el jugador (Estrategia)
+const READ_ICON := "👁 "
 var _spoken := {}                       # Character -> {"hurt": bool, "low": bool, "cooldown": int}
 const TAUNT_CHANCE := 0.6
 const TAUNT_COOLDOWN := 2               # turnos propios sin volver a hablar tras una pulla
@@ -59,10 +72,14 @@ var _demotion_text := ""
 var _pending_next_round := false   # torneo: el botón lleva a la siguiente ronda
 var _owner: Character              # el personaje del jugador (aunque luche un campeón por él)
 var _champion: Character           # miembro del séquito que lucha en tu lugar, o null
+var _practice := false             # duelo de práctica con un compañero (RelationsData.start_practice)
+var _practice_snapshot := {}       # Character -> estado previo: la práctica no hiere ni cuesta honor
 const TOURNAMENT_FAME := 10
 const CHAMPION_WIN_HONOR := 3
 const CHAMPION_WIN_FAME := 2
 const CHAMPION_LOSS_HONOR := -2
+const CHAMPION_OWNER_XP_SHARE := 0.25   # parte de la experiencia del campeón que recibe su señor
+const XpRules = preload("res://scripts/resources/xp_rules.gd")
 
 func _ready() -> void:
 	if player_character == null:
@@ -72,9 +89,17 @@ func _ready() -> void:
 		enemy_character = CombatSetup.enemy_character if CombatSetup.enemy_character != null \
 			else CharacterLoader.make_test_character("Bandido Renco", Character.Role.SOLDADO)
 	_owner = player_character
-	# En campaña (no en torneos), un campeón de tu séquito puede batirse por ti.
+	_practice = CombatSetup.is_campaign and not embedded and RelationsData.is_practice() \
+		and enemy_character.full_name() == RelationsData.practice_partner
+	if _practice:
+		for c: Character in [player_character, enemy_character]:
+			_practice_snapshot[c] = {"honor": c.honor, "gold": c.gold, "role": c.role, "health": c.current_health,
+				"won": c.duels_won, "lost": c.duels_lost, "wounds": c.wound_months}
+	if CombatSetup.duel_to_death and not embedded:
+		await _warn_to_death()
+	# En campaña (no en torneos ni prácticas), un campeón de tu séquito puede batirse por ti.
 	var champions: Array[Character] = []
-	if CombatSetup.is_campaign and not CombatSetup.is_tournament() and GameManager.is_game_active:
+	if CombatSetup.is_campaign and not CombatSetup.is_tournament() and GameManager.is_game_active and not embedded and not _practice:
 		champions = RelationsData.duel_champions()
 	if not champions.is_empty():
 		var chosen: Character = await _ask_champion(champions)
@@ -83,6 +108,41 @@ func _ready() -> void:
 			_champion.set_meta("champion", true)   # la IA del duelo sabe que es un luchador curtido
 			player_character = chosen
 	_begin()
+
+# Aviso previo de un duelo a muerte: queda claro lo que está en juego antes del primer golpe.
+func _warn_to_death() -> void:
+	var overlay := ColorRect.new()
+	overlay.color = Color(0.08, 0, 0, 0.75)
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.z_index = 70
+	add_child(overlay)
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.add_child(center)
+	var panel := PanelContainer.new()
+	center.add_child(panel)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 12)
+	panel.add_child(box)
+	var title := Label.new()
+	title.theme_type_variation = &"HeaderLabel"
+	title.text = "☠ DUELO A MUERTE contra %s" % enemy_character.full_name()
+	title.add_theme_color_override("font_color", TO_DEATH_COLOR)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(title)
+	var note := Label.new()
+	note.text = "Aquí no hay cuartel: quien caiga, muere. Si caes tú, tu heredero tomará el relevo de la dinastía; si lucha un campeón por ti, es su vida la que arriesga. Aún puedes rendirte o retirarte durante el duelo, a costa de tu honor."
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	note.custom_minimum_size = Vector2(560, 0)
+	box.add_child(note)
+	var btn := Button.new()
+	btn.text = "Desenvainar"
+	btn.theme_type_variation = &"PrimaryButton"
+	box.add_child(btn)
+	btn.grab_focus.call_deferred()
+	Sfx.play("guard", -4.0)
+	await btn.pressed
+	overlay.queue_free()
 
 # Ventana previa: ¿quién combate? Devuelve el personaje elegido.
 func _ask_champion(champions: Array[Character]) -> Character:
@@ -116,16 +176,20 @@ func _ask_champion(champions: Array[Character]) -> Character:
 	var result := [null]
 	var candidates: Array[Character] = [_owner]
 	candidates.append_array(champions)
+	# El campeón designado (RelationsData.designated_champion) se destaca y lleva el foco.
+	var preferred: Character = champions[0] if RelationsData.is_designated_champion(champions[0]) else _owner
 	for c: Character in candidates:
 		var card := VBoxContainer.new()
-		card.add_child(FaceIcon.make(c, 110, Color("d4af5a") if c == _owner else FaceIcon.FRAME_COLOR))
+		card.add_child(FaceIcon.make(c, 110, Color("d4af5a") if c == preferred else FaceIcon.FRAME_COLOR))
 		var btn := Button.new()
-		btn.text = "Yo mismo" if c == _owner else c.first_name
+		btn.text = "Yo mismo" if c == _owner else (c.first_name + (" (campeón)" if c == preferred else ""))
 		btn.tooltip_text = "%s · Combate %d, Defensa %d · Vida %d/%d" % [c.full_name(), c.combat, c.defense, c.current_health, c.max_health]
-		btn.theme_type_variation = &"PrimaryButton" if c == _owner else &""
+		btn.theme_type_variation = &"PrimaryButton" if c == preferred else &""
 		btn.pressed.connect(func(): result[0] = c)
 		card.add_child(btn)
 		row.add_child(card)
+		if c == preferred:
+			btn.grab_focus.call_deferred()
 	while result[0] == null:
 		await get_tree().process_frame
 	overlay.queue_free()
@@ -147,18 +211,31 @@ func _begin() -> void:
 
 	btn_volver_menu.pressed.connect(_on_volver_menu_pressed)
 	hint_label.text = DEFAULT_HINT
+	hint_label.max_lines_visible = HINT_MAX_LINES
+	hint_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	hint_label.custom_minimum_size.y = hint_label.get_line_height() * HINT_MAX_LINES + 4
 	portrait_player.texture = player_character.get_portrait()
 	portrait_enemy.texture = enemy_character.get_portrait()
 	_refresh_ui()
 	_update_turn_indicator()
 
-	is_campaign = CombatSetup.is_campaign
+	is_campaign = CombatSetup.is_campaign and not embedded
+	if embedded:
+		btn_volver_menu.text = "Volver a la batalla"
+		btn_volver_menu.disabled = true
+		btn_volver_menu.tooltip_text = "Termina el duelo (o ríndete / retírate) para volver a la batalla."
+		turn_log_buffer = "DUELO SINGULAR — %s contra %s, ante los dos ejércitos" % [player_character.full_name(), enemy_character.full_name()]
+		log_label.text = turn_log_buffer
 	_spoken[player_character] = {"hurt": false, "low": false, "cooldown": 0}
 	_spoken[enemy_character] = {"hurt": false, "low": false, "cooldown": 0}
 	_opening_lines()
 	_focus_attack()
 	if duel.roll_first(player_character, enemy_character) == enemy_character:
 		_enemy_opens()
+	else:
+		_read_enemy()
+		_refresh_ui()
+	_update_action_blocks()
 	if is_campaign:
 		_honor_before = _owner.honor
 		_gold_before = _owner.gold
@@ -170,6 +247,9 @@ func _begin() -> void:
 		if CombatSetup.is_tournament():
 			turn_log_buffer = "TORNEO — Ronda %d de %d contra %s" % [
 				CombatSetup.tournament_round, CombatSetup.tournament_opponents.size(), enemy_character.full_name()]
+			log_label.text = turn_log_buffer
+		elif _practice:
+			turn_log_buffer = "DUELO DE PRÁCTICA contra %s — sin heridas ni honor en juego" % enemy_character.full_name()
 			log_label.text = turn_log_buffer
 
 # --- Diálogo: cada luchador habla según su personalidad y su historia con el otro ---
@@ -314,6 +394,8 @@ func _build_orders() -> void:
 				b.remove_theme_stylebox_override(state)
 			_compact(b)
 		b.pressed.connect(_player_action.bind(a[0]))
+		b.set_meta("action", a[0])
+		b.set_meta("base_tooltip", b.tooltip_text)
 		_action_buttons.append(b)
 		_key_bindings[a[2]] = _player_action.bind(a[0])
 
@@ -339,12 +421,14 @@ func _order_button(parent: Node, text: String, key: Key, description: String) ->
 # Descripción de una orden con lo que cabe esperar ahora mismo (daño, probabilidades, aliento).
 func _order_hint(order_name: String) -> String:
 	var base := ""
+	var description := ""
 	for list in [POSTURES, ACTIONS]:
 		for entry in list:
 			if entry[1] == order_name:
-				base = "[%s] %s — %s" % [OS.get_keycode_string(entry[2]), entry[1], entry[3]]
+				base = "[%s] %s" % [OS.get_keycode_string(entry[2]), entry[1]]
+				description = entry[3]
 	if duel == null:
-		return base
+		return "%s — %s" % [base, description]
 	var me := player_character
 	var foe := enemy_character
 	var extra := ""
@@ -353,22 +437,40 @@ func _order_hint(order_name: String) -> String:
 			var dmg := duel.preview_damage(me, foe)
 			extra = "Daño previsto: %d–%d." % [dmg.x, dmg.y]
 			if duel.countering[foe]:
-				extra += " ¡Cuidado! Prepara una parada (%d%%)." % roundi(duel.parry_chance(me, foe) * 100)
+				extra += " Prepara una parada (%d%%)." % roundi(duel.parry_chance(me, foe) * 100)
 			elif duel.dodging[foe]:
 				extra += " Puede esquivarlo (%d%%)." % roundi(duel.dodge_chance(me, foe) * 100)
 			elif duel.defending[foe]:
-				extra += " Está en guardia: el golpe se reduce a la mitad."
+				extra += " En guardia: mitad de daño."
+			var my_adv: String = duel.advantage.get(me, "")
+			if my_adv == DuelManager.ADV_CONTRA:
+				extra += " ★ Contra: +50%, imparable."
+			elif my_adv == DuelManager.ADV_ACECHO:
+				extra += " ★ Acecho: +25% crítico."
+			if duel.is_predictable(me):
+				extra += " Tercer golpe seguido: −15%."
+			if duel.unbalanced.get(me, false):
+				extra += " Desequilibrado: −20%."
 		"Contraatacar":
 			extra = "Probabilidad de parar su próximo golpe: %d%%." % roundi(duel.parry_chance(foe, me) * 100)
+			if duel.advantage.get(foe, "") == duel.ADV_CONTRA:
+				extra += " Su contra no se puede parar."
 		"Esquivar":
 			extra = "Probabilidad de esquivar: %d%%." % roundi(duel.dodge_chance(foe, me) * 100)
 		"Desarmar":
-			extra = "Éxito: %d%%." % roundi(duel.disarm_chance(me, foe) * 100) if not duel.is_fatigued(me) else "Sin aliento: no puedes intentarlo."
+			extra = "Éxito: %d%%." % roundi(duel.disarm_chance(me, foe) * 100) if not duel.is_fatigued(me) else "Sin aliento."
+			if duel.posture.get(me) == CombatEnums.Posture.ESGRIMA:
+				extra += " Esgrima: +%d%%." % roundi(DuelManager.ESGRIMA_DISARM_BONUS * 100)
+			if duel.advantage.get(me, "") == duel.ADV_DESEQUILIBRIO:
+				extra += " ★ Rival desequilibrado: +25%."
 		"Empujar":
-			extra = "Éxito: %d%%. Rompe su guardia si la tiene." % roundi(duel.push_chance(me, foe) * 100) if not duel.is_fatigued(me) else "Sin aliento: no puedes intentarlo."
+			extra = "Éxito: %d%%. Rompe su guardia." % roundi(duel.push_chance(me, foe) * 100) if not duel.is_fatigued(me) else "Sin aliento."
 		"Retirarse":
 			extra = "Éxito: %d%% (cuesta honor)." % roundi(duel.retreat_chance(me, foe) * 100)
-	return base + ("\n" + extra if not extra.is_empty() else "")
+	for entry in ACTIONS:
+		if entry[1] == order_name and not duel.can_act(me, entry[0]):
+			extra = "✖ " + CombatEnums.block_reason(duel.posture[me], entry[0])
+	return "%s: %s" % [base, extra.strip_edges()] if not extra.is_empty() else "%s — %s" % [base, description]
 
 # Menos relleno lateral que un botón normal: caben 5 posturas y 4 acciones por fila.
 func _compact(b: Button) -> void:
@@ -409,9 +511,14 @@ func _player_posture(p: int) -> void:
 		return
 	duel.set_posture(player_character, p)
 	_refresh_ui()
+	_update_action_blocks()
 
 func _player_action(action: int) -> void:
 	if not player_turn or duel.is_over:
+		return
+	if not duel.can_act(player_character, action):
+		Sfx.play("whoosh", -10.0)
+		hint_label.text = CombatEnums.block_reason(duel.posture[player_character], action)
 		return
 	_start_new_turn_log()
 	duel.take_turn(player_character, action)
@@ -432,17 +539,47 @@ func _enemy_turn() -> void:
 	_start_new_turn_log()
 
 	# Cada personalidad pelea a su manera (ver DuelAI) y se adapta a lo que hace el jugador.
-	var choice := DuelAI.choose(duel, enemy_character, player_character)
+	# Si el jugador leyó su jugada, el rival ya está comprometido con ella (salvo que lo hayan desarmado).
+	var choice: Dictionary = _enemy_intent
+	_enemy_intent = {}
+	if choice.is_empty() or (CombatEnums.Status.DESARMADO in duel.statuses[enemy_character] \
+			and choice.action in [CombatEnums.ActionType.ATACAR, CombatEnums.ActionType.DESARMAR]):
+		choice = DuelAI.choose(duel, enemy_character, player_character)
 	duel.set_posture(enemy_character, choice.posture)
 	duel.take_turn(enemy_character, choice.action)
 	for c: Character in _spoken:
 		_spoken[c].cooldown -= 1
 
 	player_turn = true
+	_read_enemy()
 	_refresh_ui()
 	_set_buttons_enabled(not duel.is_over)
 	_focus_attack()
 	_update_turn_indicator()
+
+# Estrategia: al empezar tu turno puedes adivinar qué hará el rival. Si lo adivinas, el rival ya
+# ha decidido su jugada y la mantendrá (ver _enemy_turn).
+func _read_enemy() -> void:
+	_enemy_intent = {}
+	if duel.is_over or randf() >= duel.read_chance(player_character, enemy_character):
+		return
+	_enemy_intent = DuelAI.choose(duel, enemy_character, player_character)
+	turn_log_buffer += "\n%s%s" % [READ_ICON, DuelManager.intent_text(_enemy_intent)]
+	log_label.text = turn_log_buffer
+
+# Las acciones que la postura actual no permite se ven apagadas, con el motivo en la ayuda.
+func _update_action_blocks() -> void:
+	if duel == null:
+		return
+	var p: int = duel.posture.get(player_character, CombatEnums.Posture.DEFENSIVA)
+	for b: Button in _action_buttons:
+		var action: int = b.get_meta("action")
+		var reason := CombatEnums.block_reason(p, action)
+		b.disabled = not reason.is_empty() or not player_turn or duel.is_over
+		if not reason.is_empty():
+			b.tooltip_text = "%s\n✖ %s" % [b.get_meta("base_tooltip"), reason]
+		else:
+			b.tooltip_text = b.get_meta("base_tooltip")
 
 func _refresh_ui() -> void:
 	for c: Character in [player_character, enemy_character]:
@@ -456,7 +593,14 @@ func _refresh_ui() -> void:
 		var guard := duel.guard_text(c)
 		if not guard.is_empty():
 			refs.status.text += "\n⚑ " + guard
+		var adv := duel.advantage_text(c)
+		if not adv.is_empty():
+			refs.status.text += "\n★ Ventaja: " + adv
+		if duel.unbalanced.get(c, false):
+			refs.status.text += "\n↯ Desequilibrado: su próximo golpe hace −20%"
 		refs.posture.text = "Postura: " + CombatEnums.posture_name(duel.posture.get(c, CombatEnums.Posture.DEFENSIVA))
+		if c == enemy_character and not _enemy_intent.is_empty() and player_turn:
+			refs.status.text += "\n%s%s" % [READ_ICON, DuelManager.intent_text(_enemy_intent)]
 	var current: int = duel.posture.get(player_character, CombatEnums.Posture.DEFENSIVA)
 	if _posture_buttons.has(current):
 		_posture_buttons[current].set_pressed_no_signal(true)
@@ -493,9 +637,23 @@ func _float(c: Character, text: String, color: Color, font_size: int = 32) -> vo
 func _impact(c: Character, strength: float, spark_amount: int) -> void:
 	var portrait := _portrait_of(c)
 	CombatFx.flash(portrait)
-	CombatFx.punch(portrait, 0.08 + strength * 0.006)
+	CombatFx.squash(portrait, 0.05 + strength * 0.005)
 	CombatFx.sparks(self, _portrait_center(c) - global_position, Color(1.0, 0.85, 0.4), spark_amount)
 	CombatFx.shake(screen_margin, strength, 0.25)
+
+const ADVANTAGE_FLOATS := {"contra": "¡Contra lista!", "acecho": "¡Al acecho!", "desequilibrio": "¡Desequilibrado!"}
+
+# El que ataca embiste hacia su rival (los retratos están enfrentados: izquierda contra derecha).
+func _lunge(actor: Character) -> void:
+	var dir := Vector2.RIGHT if actor == player_character else Vector2.LEFT
+	CombatFx.lunge(_portrait_of(actor), dir, 26.0)
+
+# Golpe con su nivel: sacudida y pausa de impacto según el daño.
+func _tiered_hit(actor: Character, target: Character, amount: int, extra: int = 0) -> void:
+	var tier := mini(CombatFx.tier_for(amount) + extra, CombatFx.Tier.BIG)
+	_lunge(actor)
+	_impact(target, CombatFx.TIER_SHAKE[tier], 16 + tier * 16)
+	CombatFx.hit_stop(get_tree(), CombatFx.TIER_HIT_STOP[tier])
 
 func _on_combat_event(kind: String, actor: Character, target: Character, amount: int) -> void:
 	if kind in ["hit", "crit", "parry", "parry_fail"]:
@@ -504,26 +662,26 @@ func _on_combat_event(kind: String, actor: Character, target: Character, amount:
 		"hit":
 			Sfx.play("clash", -4.0)
 			Sfx.play("hit")
-			_impact(target, 6.0, 20)
-			_float(target, "-%d" % amount, CombatFx.DAMAGE_COLOR)
+			_tiered_hit(actor, target, amount)
+			_float(target, "-%d" % amount, CombatFx.DAMAGE_COLOR, 30 + CombatFx.tier_for(amount) * 6)
 		"crit":
 			Sfx.play("crit")
-			_impact(target, 16.0, 48)
+			_tiered_hit(actor, target, amount, 2)
 			_float(target, "¡CRÍTICO! -%d" % amount, CombatFx.CRIT_COLOR, 44)
-			CombatFx.hit_stop(get_tree(), 0.12)
 		"parry":
 			# El acero choca primero y la respuesta llega justo después: dos impactos.
 			Sfx.play("clash")
+			CombatFx.flash(_portrait_of(actor), Color(1.7, 1.55, 0.8), 0.35)
 			_float(actor, "¡Parada!", CombatFx.CRIT_COLOR, 30)
 			CombatFx.sparks(self, _portrait_center(actor) - global_position, Color(1.0, 0.95, 0.7), 30)
 			await get_tree().create_timer(0.3).timeout
 			Sfx.play("hit", -2.0)
-			_impact(target, 10.0, 24)
+			_tiered_hit(actor, target, amount, 1)
 			_float(target, "Respuesta -%d" % amount, CombatFx.DAMAGE_COLOR, 30)
 		"parry_fail":
 			Sfx.play("clash", -6.0)
 			Sfx.play("hit")
-			_impact(target, 8.0, 20)
+			_tiered_hit(actor, target, amount)
 			_float(target, "Parada fallida -%d" % amount, CombatFx.DAMAGE_COLOR, 28)
 		"guard_break":
 			Sfx.play("push")
@@ -536,7 +694,9 @@ func _on_combat_event(kind: String, actor: Character, target: Character, amount:
 			_float(actor, "Sin aliento", CombatFx.MISS_COLOR, 26)
 		"dodge":
 			Sfx.play("whoosh")
-			CombatFx.shake(_portrait_of(target), 14.0, 0.2)
+			_lunge(actor)
+			CombatFx.lunge(_portrait_of(target), Vector2.LEFT if target == player_character else Vector2.RIGHT, 30.0)
+			CombatFx.flash(_portrait_of(target), Color(0.75, 0.95, 1.7), 0.3)
 			_float(target, "¡Esquiva!", CombatFx.MISS_COLOR)
 		"unarmed":
 			Sfx.play("whoosh", -6.0)
@@ -554,19 +714,32 @@ func _on_combat_event(kind: String, actor: Character, target: Character, amount:
 			_float(actor, "Espera para parar", CombatFx.INFO_COLOR, 24)
 		"disarm":
 			Sfx.play("disarm")
-			_impact(target, 8.0, 32)
+			_tiered_hit(actor, target, 10)
 			_float(target, "¡Desarmado!", CombatFx.CRIT_COLOR, 36)
 		"push":
 			Sfx.play("push")
-			CombatFx.punch(_portrait_of(target), 0.2)
+			_lunge(actor)
+			CombatFx.squash(_portrait_of(target), 0.2)
 			CombatFx.shake(screen_margin, 8.0, 0.2)
 			_float(target, "¡Empujón!", CombatFx.DAMAGE_COLOR, 28)
 		"miss":
 			Sfx.play("whoosh")
+			_lunge(actor)
 			_float(target, "Falla", CombatFx.MISS_COLOR, 28)
+		"advantage":
+			# Llega justo después del golpe que la provocó: se muestra un poco más tarde y más arriba.
+			await get_tree().create_timer(0.45).timeout
+			Sfx.stinger("crit", -8.0, 0.5)
+			CombatFx.flash(_portrait_of(actor), Color(1.7, 1.5, 0.6), 0.5)
+			var adv_text: String = "★ " + ADVANTAGE_FLOATS.get(duel.advantage.get(actor, ""), "¡Ventaja!")
+			CombatFx.banner(self, adv_text, CombatFx.CRIT_COLOR, 30, 0.6, _banner_area())
 		"retreat_fail":
 			Sfx.play("guard", -4.0)
 			_float(actor, "¡No logra huir!", CombatFx.MISS_COLOR, 28)
+
+# Los carteles salen sobre el registro central (no tapan los botones ni los retratos).
+func _banner_area() -> Rect2:
+	return (log_label.get_parent() as Control).get_global_rect()
 
 func _exit_tree() -> void:
 	Engine.time_scale = 1.0   # por si se sale de la escena durante un hit-stop
@@ -601,11 +774,27 @@ func _on_duel_ended(winner: Character, reason: String) -> void:
 	var winner_name := winner.full_name() if winner != null else "Nadie (huida)"
 	turn_log_buffer += "\n DUELO TERMINADO Ganador: %s" % winner_name
 	log_label.text = turn_log_buffer
+	if embedded:
+		_embedded_winner = winner
+		if winner != null and player_character.is_alive():
+			var xp_text := _xp_line(player_character, XpRules.BATTLE_DUEL_WIN if winner == player_character else XpRules.BATTLE_DUEL_LOSS)
+			if not xp_text.is_empty():
+				turn_log_buffer += "\n" + xp_text
+				log_label.text = turn_log_buffer
+		btn_volver_menu.disabled = false
+		btn_volver_menu.tooltip_text = ""
+		btn_volver_menu.grab_focus.call_deferred()
+		return
 
+	if is_campaign and _practice:
+		_end_practice(winner)
+		return
 	if is_campaign:
 		# La rivalidad se registra antes del resumen: vencer a un rival conocido suma honor.
 		# Los combates de evento contra bandidos y similares no crean rivalidades.
 		var event_foe: bool = CombatSetup.pending_outcome.get("no_rival", false)
+		var event_fight := not CombatSetup.pending_outcome.is_empty()
+		var death := _resolve_death(winner)
 		var rivalry := "" if event_foe else RelationsData.register_duel(enemy_character, winner == player_character, winner == null)
 		var outcome := CombatSetup.apply_outcome(winner == player_character)
 		if not outcome.is_empty():
@@ -613,14 +802,164 @@ func _on_duel_ended(winner: Character, reason: String) -> void:
 		rivalry += _champion_outcome(winner)
 		if MissionData.has_method("on_duel_finished"):
 			MissionData.on_duel_finished(enemy_character, winner == player_character)
+		rivalry = " ".join([rivalry, death, _award_xp(winner, event_fight)]).strip_edges()
+		# Fuera de los torneos, un duelo hostil puede acabar con el vencido preso del vencedor.
+		if not CombatSetup.is_tournament():
+			var caught := CaptureData.after_duel(_owner, player_character, enemy_character, winner, event_fight or _hostile_foe())
+			if not caught.is_empty():
+				rivalry = (rivalry + " " + caught).strip_edges()
+				if CaptureData.is_captive():
+					CombatSetup.return_scene = "res://scenes/map/map.tscn"
 		btn_volver_menu.disabled = false
 		btn_volver_menu.tooltip_text = ""
 		if CombatSetup.is_tournament():
 			_tournament_round_ended(winner, rivalry)
 			return
 		# Las heridas ya no se curan solas al terminar: la vida se recupera con los meses.
-		var wound := player_character.after_fight_recovery() if _champion == null else ""
+		var wound := player_character.after_fight_recovery() if _champion == null and player_character.is_alive() else ""
 		CombatSetup.last_result_text = " ".join([_campaign_summary(winner), rivalry, wound]).strip_edges()
+		if winner == player_character and not event_foe:
+			_offer_trophy()
+
+## ¿Es un enemigo de verdad (rival enconado, némesis o de un reino en guerra con el tuyo)?
+func _hostile_foe() -> bool:
+	var r := RelationsData.get_relation(enemy_character.full_name())
+	if r == null:
+		return false
+	if r.at_war or r.rivalry_stage() in [Relationship.RivalryStage.RIVAL, Relationship.RivalryStage.NEMESIS]:
+		return true
+	return r.kingdom >= 0 and GameManager.player_kingdom >= 0 \
+		and KingdomDiplomacy.at_war(RelationsData.kingdom_wars, r.kingdom, GameManager.player_kingdom)
+
+# Práctica con un compañero: se deshace lo que el duelo haya cambiado (vida, honor, rescate, récord)
+# y solo quedan la experiencia y la confianza (RelationsData.finish_practice).
+func _end_practice(winner: Character) -> void:
+	for c: Character in _practice_snapshot:
+		var s: Dictionary = _practice_snapshot[c]
+		c.honor = s.honor
+		c.gold = s.gold
+		c.role = s.role
+		c.current_health = s.health
+		c.duels_won = s.won
+		c.duels_lost = s.lost
+		c.wound_months = s.wounds
+	_demotion_text = ""
+	var text := RelationsData.finish_practice(winner == player_character, winner == null)
+	CombatSetup.last_result_text = text
+	turn_log_buffer += "\n" + text
+	log_label.text = turn_log_buffer
+	btn_volver_menu.disabled = false
+	btn_volver_menu.tooltip_text = ""
+	btn_volver_menu.grab_focus.call_deferred()
+
+# Trofeo: si el vencido lleva una pieza única, el jugador puede reclamarla (cuesta honor y el vencido
+# guarda rencor) o dejarla estar. Lo decide en una ventana al terminar el duelo.
+func _offer_trophy() -> void:
+	var item := UniqueItems.carried_by(enemy_character)
+	var taker: Character = _owner if _owner != null else player_character
+	if item == null or taker == null:
+		return
+	var overlay := ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0.65)
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.z_index = 70
+	add_child(overlay)
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.add_child(center)
+	var panel := PanelContainer.new()
+	center.add_child(panel)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 12)
+	panel.add_child(box)
+	var title := Label.new()
+	title.theme_type_variation = &"HeaderLabel"
+	title.text = "%s lleva %s" % [enemy_character.full_name(), item.equipment_name]
+	title.add_theme_color_override("font_color", Color("f0c060"))
+	box.add_child(title)
+	var note := Label.new()
+	note.text = "%s\n\nPuedes reclamarla como trofeo: es tu derecho de vencedor, pero no es de caballeros (−%d de honor) y %s no lo olvidará (+%d de rencor)." % [
+		item.description, UniqueItems.TROPHY_HONOR_COST, enemy_character.full_name(), UniqueItems.TROPHY_GRUDGE]
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	note.custom_minimum_size = Vector2(560, 0)
+	box.add_child(note)
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 12)
+	box.add_child(row)
+	var claim := Button.new()
+	claim.text = "Reclamar el trofeo"
+	claim.theme_type_variation = &"PrimaryButton"
+	row.add_child(claim)
+	var leave := Button.new()
+	leave.text = "Dejarla estar"
+	row.add_child(leave)
+	claim.pressed.connect(func():
+		var text := UniqueItems.claim_trophy(taker, enemy_character)
+		CombatSetup.last_result_text = (CombatSetup.last_result_text + " " + text).strip_edges()
+		turn_log_buffer += "\n" + text
+		log_label.text = turn_log_buffer
+		overlay.queue_free())
+	leave.pressed.connect(func(): overlay.queue_free())
+	leave.grab_focus.call_deferred()
+
+# Duelo a muerte: quien cae (vida a 0) muere. Rendirse o huir salva la vida.
+func _resolve_death(winner: Character) -> String:
+	if not CombatSetup.duel_to_death or winner == null:
+		return ""
+	var loser := duel.opponent_of(winner)
+	if loser.is_alive():
+		return ""
+	var cause := "en un duelo a muerte contra %s" % winner.full_name()
+	if loser == _owner:
+		if DynastyData.has_method("on_player_died"):
+			DynastyData.on_player_died(cause)
+		CombatSetup.return_scene = "res://scenes/map/map.tscn"   # el mapa abre la sucesión
+		btn_volver_menu.text = "Volver al Mapa"
+		turn_log_buffer += "\n☠ %s muere %s." % [loser.full_name(), cause]
+		log_label.text = turn_log_buffer
+		return "☠ Has muerto %s. Tu dinastía buscará un heredero." % cause
+	if RelationsData.has_method("on_character_died"):
+		RelationsData.on_character_died(loser.full_name(), "duelo a muerte")
+	turn_log_buffer += "\n☠ %s muere %s." % [loser.full_name(), cause]
+	log_label.text = turn_log_buffer
+	if loser == _champion:
+		return "☠ Tu campeón %s muere en el duelo." % loser.full_name()
+	return "☠ %s muere a tus pies." % loser.full_name() if _champion == null else "☠ %s muere a manos de tu campeón." % loser.full_name()
+
+# Experiencia del duelo (ver XpRules): para quien luchó; si fue un campeón, su señor recibe una parte.
+func _award_xp(winner: Character, event_fight: bool) -> String:
+	var fighter := player_character
+	if winner == null or not fighter.is_alive():
+		return ""
+	var won := winner == fighter
+	var amount: int
+	if CombatSetup.is_tournament():
+		amount = XpRules.TOURNAMENT_ROUND if won else XpRules.DUEL_LOSS
+		if won and CombatSetup.is_final_round():
+			amount += XpRules.TOURNAMENT_CHAMPION
+	elif won:
+		amount = XpRules.DUEL_WIN + XpRules.DUEL_RANK_BONUS * maxi(0, enemy_character.rank() - fighter.rank())
+		if event_fight:
+			amount += XpRules.EVENT_FIGHT_WIN
+	else:
+		amount = XpRules.DUEL_LOSS
+	var text := _xp_line(fighter, amount)
+	if _champion != null and _owner.is_alive():
+		text += " " + _xp_line(_owner, roundi(amount * CHAMPION_OWNER_XP_SHARE))
+	return text.strip_edges()
+
+func _xp_line(c: Character, amount: int) -> String:
+	if amount <= 0:
+		return ""
+	var levels := c.gain_xp(amount, XpRules.SOURCE_DUEL)
+	amount = c.last_xp_gained
+	if amount <= 0:
+		return ""
+	var who := "" if c == _owner else c.first_name + ": "
+	if levels > 0:
+		return "%sExperiencia +%d. ¡Sube a nivel %d!" % [who, amount, c.level]
+	return "%sExperiencia +%d." % [who, amount]
 
 # Si luchó un campeón, el jugador recibe parte de la gloria (o de la vergüenza).
 func _champion_outcome(winner: Character) -> String:
@@ -640,8 +979,11 @@ func _champion_outcome(winner: Character) -> String:
 	return ""
 
 func _play_end_sound(won: bool) -> void:
+	CombatFx.slow_mo(get_tree(), KO_SLOW_MO)
 	await get_tree().create_timer(0.5).timeout   # deja sonar el último golpe
-	Sfx.play("victory" if won else "defeat", 0.0, 0.0)
+	Sfx.stinger("victory" if won else "defeat", 0.0, 2.5)
+	CombatFx.banner(self, "¡Victoria!" if won else "Derrota",
+		CombatFx.CRIT_COLOR if won else CombatFx.DAMAGE_COLOR, 46, 1.2, _banner_area())
 	if not won:
 		CombatFx.flash(portrait_player, Color(0.6, 0.6, 0.6), 1.2)
 
@@ -668,6 +1010,10 @@ func _tournament_round_ended(winner: Character, rivalry: String) -> void:
 			total, CombatSetup.TOURNAMENT_PRIZE_GOLD, CombatSetup.TOURNAMENT_PRIZE_HONOR]
 		player_character.add_fame(TOURNAMENT_FAME)
 		text += " Fama %+d." % TOURNAMENT_FAME
+		if randf() < UniqueItems.TOURNAMENT_CHANCE:   # a veces el premio del campeón es una pieza única
+			var prize := UniqueItems.grant(player_character)
+			if not prize.is_empty():
+				text += " " + prize
 		var reactions := RelationsData.rival_reactions()
 		if not reactions.is_empty():
 			text += " " + reactions
@@ -704,6 +1050,9 @@ func _on_character_demoted(character: Character, old_role: int, new_role: int) -
 		_demotion_text = "Caes en deshonra: de %s a %s." % [Character.role_name_for(old_role), Character.role_name_for(new_role)]
 
 func _on_volver_menu_pressed() -> void:
+	if embedded:
+		embedded_finished.emit(_embedded_winner)
+		return
 	if _pending_next_round:
 		CombatSetup.advance_tournament_round()
 		get_tree().change_scene_to_file("res://scenes/combat/combat.tscn")
@@ -726,6 +1075,8 @@ func _set_buttons_enabled(enabled: bool) -> void:
 		b.disabled = not enabled
 	for b: Button in _posture_buttons.values():
 		b.disabled = not enabled
+	if enabled:
+		_update_action_blocks()
 
 func _update_turn_indicator() -> void:
 	if duel.is_over:
@@ -734,3 +1085,5 @@ func _update_turn_indicator() -> void:
 		turn_indicator_label.text = "Tu turno"
 	else:
 		turn_indicator_label.text = "Turno de %s..." % enemy_character.full_name()
+	if CombatSetup.duel_to_death and not embedded:
+		turn_indicator_label.text = "☠ A MUERTE · " + turn_indicator_label.text

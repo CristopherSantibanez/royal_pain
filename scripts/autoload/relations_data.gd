@@ -31,8 +31,6 @@ const BETRAYAL_AFFINITY := -50
 const BETRAYAL_REPUTATION := -5      # con todos los demás señores
 const UNDECLARED_ATTACK_AFFINITY := -15
 
-const SPOUSE_NAMES_FOR_MALE_PLAYER := ["Isabel", "Constanza", "Berenguela", "Elvira", "Mencía", "Blanca"]
-const SPOUSE_NAMES_FOR_FEMALE_PLAYER := ["Alfonso", "Fernando", "Enrique", "Ramiro", "Bermudo", "García"]
 
 # --- Población del mundo ---
 # --- Rivalidad ---
@@ -69,6 +67,28 @@ const WEDDING_COST := 50
 const LOVE_MARRIAGE_HONOR := 3
 const LOVE_FAMILY_AFFINITY := 10          # el señor del reino de tu cónyuge te mira con mejores ojos
 
+# --- Conversaciones por actitud (ver DialogueCatalog.ATTITUDE_REACTIONS) ---
+# Probabilidad de éxito = (base + carisma * CHA [+ extras]) * reacción de su personalidad (tope 1), entre 5% y 95%.
+const TALK_CHANCE_BASE := {"amable": 0.8, "halagador": 0.35, "franco": 0.45, "amenazante": 0.45, "intima": 0.25}
+const TALK_CHANCE_CHA := {"amable": 0.01, "halagador": 0.03, "franco": 0.0, "amenazante": 0.0, "intima": 0.025}
+const TALK_GAIN := {"amable": 5, "halagador": 8, "franco": 7, "amenazante": -6, "intima": 12}   # intimidad si sale bien (× reacción)
+const TALK_LOSS := {"amable": -2, "halagador": -6, "franco": -5, "amenazante": -10, "intima": -8}  # intimidad si sale mal
+const TALK_CHANCE_MIN := 0.05
+const TALK_CHANCE_MAX := 0.95
+const FRANK_HONOR_BONUS := 0.003          # el honor hace creíble la franqueza (+0.15 con honor 50)
+const INTIMATE_AFFECTION_BONUS := 0.01    # cada punto de intimidad por encima de INTIMATE_MIN_AFFECTION
+const SPOUSE_INTIMATE_MIN_CHANCE := 0.8
+const TALK_GRUDGE_FAIL := 4               # una mala charla con un rival aviva su rencor
+const THREAT_MIN_HONOR := 40              # para amenazar hace falta honor... o estar por encima en rango
+const THREAT_RANK_BONUS := 0.12           # por cada rango que superes a quien amenazas
+const THREAT_GRUDGE := 8                  # amenazar a un rival y fallar le enciende
+const THREAT_GOLD_MIN := 10               # el pueblo asustado suelta oro...
+const THREAT_GOLD_MAX := 20
+const THREAT_HONOR_COST := -3             # ...a costa de tu honor
+const RUMOR_MIN_TIER := 3                 # un Confidente (o más) puede contarte secretos
+const RUMOR_CHANCE := 0.4                 # tras una charla amable o franca que sale bien
+const THREAT_RUMOR_CHANCE := 0.5          # un cortesano amedrentado suelta un rumor
+
 # --- Retos a duelo ---
 const CHALLENGE_RANK_GAP := 2             # quien te supera en 2+ rangos rechaza el reto...
 const CHALLENGE_FAME_PER_RANK := 20       # ...salvo que tu fama lo justifique (20 por rango de diferencia)
@@ -82,18 +102,24 @@ const FAME_FLED := -2
 const RETINUE_SIZE := {
 	Character.Role.CAMPESINO: 0, Character.Role.SOLDADO: 1, Character.Role.CABALLERO: 2,
 	Character.Role.NOBLEZA_BAJA: 3, Character.Role.NOBLEZA_ALTA: 4, Character.Role.REGENTE: 5,
+	Character.Role.DUQUE: 5, Character.Role.MERCENARIO: 1, Character.Role.CAPITAN: 3, Character.Role.CONDOTIERO: 4,
 }
 const RETINUE_MIN_AFFECTION := 50
 # Lo que exige cada rango para seguirte: [fama mínima, honor mínimo].
 const RETINUE_REQUIREMENTS := {
 	Character.Role.CAMPESINO: [0, 0], Character.Role.SOLDADO: [0, 20], Character.Role.CABALLERO: [15, 40],
 	Character.Role.NOBLEZA_BAJA: [35, 60], Character.Role.NOBLEZA_ALTA: [60, 75], Character.Role.REGENTE: [90, 90],
+	Character.Role.DUQUE: [75, 80], Character.Role.MERCENARIO: [5, 0], Character.Role.CAPITAN: [20, 10], Character.Role.CONDOTIERO: [40, 20],
 }
 const RETINUE_UPKEEP := 5                 # oro al mes por cada miembro del séquito
 const RETINUE_UNPAID_AFFECTION := -10
 const RETINUE_LEAVE_AFFECTION := 30       # por debajo de esta intimidad, quien no cobra se marcha
 const FACTION_COMPANIONS := 2             # compañeros que presta tu señor si no tienes séquito
 const FACTION_MIN_LIEGE_AFFINITY := -20   # con peor relación, tu señor no te presta a nadie
+# Desde «Íntimo» (nivel 4 de intimidad) cualquiera te sigue, sea cual sea tu rol, en plazas aparte.
+const INTIMATE_TIER := 4
+const INTIMATE_SLOTS := 2                 # plazas extra solo para íntimos (el cónyuge cuenta como íntimo)
+const OccupationRules = preload("res://scripts/resources/occupation_rules.gd")
 
 # --- Pueblo ---
 const COMMONERS_PER_CASTLE := 4
@@ -127,6 +153,10 @@ var last_victory_month: int = -1     # mes de la última victoria (duelo, torneo
 var retinue: Array[String] = []       # nombres de quienes forman tu séquito
 var requested_tab := ""               # pestaña con la que abrir la pantalla de relaciones ("lugar", "sequito"...)
 var retinue_news: Array[String] = []  # avisos del séquito (bajas por falta de paga...) para mostrar en Relaciones
+var occupations: Dictionary = {}      # nombre -> ocupación del mes (OccupationRules) de tu cónyuge y tu séquito
+var designated_champion := ""         # miembro del séquito que se ofrece primero para batirse por ti
+var practice_month: Dictionary = {}   # nombre -> mes (months_elapsed) del último duelo de práctica con él
+var practice_partner := ""            # compañero del duelo de práctica en curso ("" si no hay)
 
 func _ready() -> void:
 	GameManager.game_started.connect(func(_character: Character): reset())
@@ -141,6 +171,10 @@ func reset() -> void:
 	spouse_family = ""
 	retinue.clear()
 	retinue_news.clear()
+	occupations.clear()
+	designated_champion = ""
+	practice_month.clear()
+	practice_partner = ""
 	var home: Castle = MapData.get_castle_by_id(GameManager.home_castle_id)
 	liege_name = home.owner_name if home != null else ""
 	_populate_world()
@@ -173,7 +207,7 @@ func _populate_world() -> void:
 			continue
 		for i in range(COURTIERS_PER_CASTLE):
 			var gender := pool.pick_gender()
-			var person := _unique_random_character(COURTIER_ROLES.pick_random(), gender, _take_portrait(pool, gender))
+			var person := _unique_random_character(COURTIER_ROLES.pick_random(), gender, _take_portrait(pool, gender), MapData.culture_of_castle(c))
 			var r := Relationship.new()
 			r.person_name = person.full_name()
 			r.kind = Relationship.Kind.CORTESANO
@@ -183,7 +217,7 @@ func _populate_world() -> void:
 		# Campesinos y soldados: gente del lugar con la que también se puede tratar.
 		for i in range(COMMONERS_PER_CASTLE):
 			var gender := pool.pick_gender()
-			var person := _unique_random_character(COMMONER_ROLES[i % COMMONER_ROLES.size()], gender, _take_portrait(pool, gender))
+			var person := _unique_random_character(COMMONER_ROLES[i % COMMONER_ROLES.size()], gender, _take_portrait(pool, gender), MapData.culture_of_castle(c))
 			var r := Relationship.new()
 			r.person_name = person.full_name()
 			r.kind = Relationship.Kind.PUEBLO
@@ -201,14 +235,18 @@ func _take_portrait(pool: PortraitPool, gender: int) -> String:
 		used_portraits.append(path)
 	return path
 
-func _unique_random_character(role: int, gender: int, portrait_path: String) -> Character:
-	var person := CharacterLoader.make_random_character(role, gender, portrait_path)
+func _unique_random_character(role: int, gender: int, portrait_path: String, culture: int = -1) -> Character:
+	var person := CharacterLoader.make_random_character(role, gender, portrait_path, "", "", culture)
 	var tries := 0
 	while get_relation(person.full_name()) != null and tries < 20:
-		person.first_name = CharacterLoader.random_first_name(gender)
-		person.last_name = CharacterLoader.random_last_name()
+		person.first_name = CharacterLoader.random_first_name(gender, culture)
+		person.last_name = CharacterLoader.random_last_name(culture, gender, person.rank())
 		tries += 1
 	return person
+
+## Nombre de pila del cónyuge de una boda política: de la cultura de la casa con la que te casas.
+func _spouse_first_name(player: Character, kingdom: int) -> String:
+	return CharacterLoader.random_first_name(_spouse_gender(player), CharacterLoader.culture_of_kingdom(kingdom))
 
 static func lord_gender(lord_name: String) -> int:
 	return CharacterEnums.Gender.FEMENINO if lord_name.begins_with("Lady ") or lord_name.begins_with("Reina ") else CharacterEnums.Gender.MASCULINO
@@ -221,14 +259,14 @@ func character_of(person_name: String) -> Character:
 func courtiers(kingdom: int = -1) -> Array[Relationship]:
 	var result: Array[Relationship] = []
 	for r: Relationship in relations:
-		if r.kind == Relationship.Kind.CORTESANO and (kingdom < 0 or r.kingdom == kingdom):
+		if r.kind == Relationship.Kind.CORTESANO and (kingdom < 0 or r.kingdom == kingdom) and not CaptureData.is_prisoner(r.person_name):
 			result.append(r)
 	return result
 
 func commoners(kingdom: int = -1) -> Array[Relationship]:
 	var result: Array[Relationship] = []
 	for r: Relationship in relations:
-		if r.kind == Relationship.Kind.PUEBLO and (kingdom < 0 or r.kingdom == kingdom):
+		if r.kind == Relationship.Kind.PUEBLO and (kingdom < 0 or r.kingdom == kingdom) and not CaptureData.is_prisoner(r.person_name):
 			result.append(r)
 	return result
 
@@ -277,29 +315,116 @@ func _kingdoms_where(predicate: Callable) -> Array[int]:
 				result.append(c.kingdom)
 	return result
 
+# --- Trato con señores: rango y presencia ---
+# Campesinos y soldados no pueden dirigirse a ningún señor (ni al suyo): solo responden si él les llama.
+# A un señor de otra tierra solo se le trata por carta (✉): diplomacia, presentes y noticias, con una
+# acción más (el Sello del Emperador la ahorra). Conversar, cortejar o retar exige estar allí.
+const LORD_FORBIDDEN_ROLES := [Character.Role.CAMPESINO, Character.Role.SOLDADO]
+const COURIER_GIFT_COST := 10          # el mensajero que lleva los presentes a un señor lejano
+
+## Por qué no puedes dirigirte a ningún señor por tu rango ("" si puedes).
+func lord_rank_blocker() -> String:
+	var player: Character = GameManager.player_character
+	if player == null or not player.role in LORD_FORBIDDEN_ROLES:
+		return ""
+	var fem := player.gender == CharacterEnums.Gender.FEMENINO
+	return "%s %s no puede dirigirse a un señor: solo responder cuando él %s llama." % [
+		"Una" if fem else "Un", player.role_title().to_lower(), "la" if fem else "lo"]
+
+## ¿Está el señor en la tierra donde te encuentras? Si no, solo se le puede escribir.
+func lord_present(r: Relationship) -> bool:
+	if r == null:
+		return false
+	var travel := get_node_or_null("/root/TravelData")
+	if travel == null:
+		return true
+	var here: Castle = travel.current_castle()
+	return r.kingdom == zone_kingdom() or (here != null and here.owner_name == r.person_name)
+
+## Acciones extra de tratar con ese señor por carta (0 si está aquí o llevas el Sello del Emperador).
+func letter_extra_actions(r: Relationship) -> int:
+	if lord_present(r) or SkillEffects.has_unique(GameManager.player_character, SkillEffects.UNIQUE_SEAL):
+		return 0
+	var travel := get_node_or_null("/root/TravelData")
+	return travel.REMOTE_EXTRA_ACTIONS if travel != null else 1
+
+## Motivo por el que no puedes tratar ahora con un señor ("" si puedes). by_letter: la gestión vale por carta.
+func lord_contact_blocker(r: Relationship, by_letter: bool = true) -> String:
+	var rank_reason := lord_rank_blocker()
+	if not rank_reason.is_empty():
+		return rank_reason
+	if not lord_present(r) and not by_letter:
+		return "Eso no se arregla por carta: tienes que ir a las tierras de %s." % r.person_name
+	var needed := 1 + letter_extra_actions(r)
+	if GameManager.actions_remaining < needed:
+		return "Por carta cuesta %d acciones (te quedan %d)." % [needed, GameManager.actions_remaining] if needed > 1 \
+			else "No te quedan acciones este turno."
+	return ""
+
+# Gasta la acción extra de la carta (la acción de la gestión la gasta cada función). Devuelve el prefijo del texto.
+func _spend_letter(r: Relationship) -> String:
+	var extra := letter_extra_actions(r)
+	for i in extra:
+		GameManager.consume_action()
+	return "" if lord_present(r) else "✉ Por carta: "
+
 # --- Acciones del jugador (cada una gasta 1 acción del turno) ---
 
 func can_send_gift(r: Relationship) -> String:
 	var player: Character = GameManager.player_character
 	if player == null or r == null or r.kind != Relationship.Kind.SENOR:
 		return "No disponible."
+	var contact := lord_contact_blocker(r)
+	if not contact.is_empty():
+		return contact
 	if not GameManager.has_actions_remaining():
 		return "No te quedan acciones este turno."
-	if player.gold < GIFT_COST:
-		return "Necesitas %d de oro." % GIFT_COST
+	var cost := gift_cost(r)
+	if player.gold < cost:
+		return "Necesitas %d de oro." % cost
 	return ""
+
+## Presentes a un señor: más caros si hay que mandarlos con un mensajero.
+func gift_cost(r: Relationship) -> int:
+	return GIFT_COST + (0 if lord_present(r) else COURIER_GIFT_COST)
 
 func send_gift(r: Relationship) -> String:
 	if not can_send_gift(r).is_empty():
 		return can_send_gift(r)
 	var player: Character = GameManager.player_character
+	var cost := gift_cost(r)
+	var prefix := _spend_letter(r)
 	GameManager.consume_action()
-	player.gold -= GIFT_COST
+	player.gold -= cost
 	var gain := GIFT_BASE_AFFINITY + player.charisma / 2
 	r.adjust(gain)
 	relations_changed.emit()
-	return "Envías presentes a %s. Afinidad %+d (ahora %d).\n%s" % [
-		r.person_name, gain, r.affinity, DialogueCatalog.line("lord_gift", r.character, player)]
+	return "%sEnvías presentes a %s. Afinidad %+d (ahora %d).\n%s" % [
+		prefix, r.person_name, gain, r.affinity, DialogueCatalog.line("lord_gift", r.character, player)]
+
+## Noticias por carta: el señor lejano te cuenta cómo están los castillos de su reino.
+func can_ask_news(r: Relationship) -> String:
+	if r == null or r.kind != Relationship.Kind.SENOR:
+		return "No disponible."
+	if lord_present(r):
+		return "Está aquí: pídele audiencia en su castillo."
+	if r.at_war:
+		return "Estáis en guerra: no responderá a tus cartas."
+	return lord_contact_blocker(r)
+
+func ask_news(r: Relationship) -> String:
+	var reason := can_ask_news(r)
+	if not reason.is_empty():
+		return reason
+	var prefix := _spend_letter(r)
+	GameManager.consume_action()
+	var parts: Array[String] = []
+	for c: Castle in MapData.castles:
+		if c.kingdom == r.kingdom:
+			parts.append("%s: %d soldados, %d de oro" % [c.castle_name, c.garrison_size, c.gold])
+	var text := "%s%s te escribe sobre su reino. %s." % [prefix, r.person_name, "; ".join(parts)]
+	WorldEvents.record("Carta de %s: %s" % [r.person_name, "; ".join(parts)], "", true)
+	return text
 
 func can_propose_alliance(r: Relationship) -> String:
 	var player: Character = GameManager.player_character
@@ -307,10 +432,11 @@ func can_propose_alliance(r: Relationship) -> String:
 		return "No disponible."
 	if r.allied:
 		return "Ya es tu aliado."
-	if player.role < Character.Role.NOBLEZA_BAJA:
+	if player.rank() < Character.rank_of(Character.Role.NOBLEZA_BAJA):
 		return "Solo la nobleza puede pactar alianzas."
-	if not GameManager.has_actions_remaining():
-		return "No te quedan acciones este turno."
+	var contact := lord_contact_blocker(r)
+	if not contact.is_empty():
+		return contact
 	if r.affinity < Relationship.ALLIANCE_MIN_AFFINITY:
 		return "Necesitas al menos %d de afinidad (tienes %d)." % [Relationship.ALLIANCE_MIN_AFFINITY, r.affinity]
 	return ""
@@ -318,11 +444,12 @@ func can_propose_alliance(r: Relationship) -> String:
 func propose_alliance(r: Relationship) -> String:
 	if not can_propose_alliance(r).is_empty():
 		return can_propose_alliance(r)
+	var prefix := _spend_letter(r)
 	GameManager.consume_action()
 	r.allied = true
 	relations_changed.emit()
-	return "%s acepta la alianza: sus ejércitos no atacarán tus castillos.\n%s" % [
-		r.person_name, DialogueCatalog.line("lord_alliance_yes", r.character, GameManager.player_character)]
+	return "%s%s acepta la alianza: sus ejércitos no atacarán tus castillos.\n%s" % [
+		prefix, r.person_name, DialogueCatalog.line("lord_alliance_yes", r.character, GameManager.player_character)]
 
 # --- Reacciones a sucesos del mundo ---
 
@@ -446,7 +573,7 @@ func register_duel(rival: Character, player_won: bool, fled: bool) -> String:
 	elif player_won:
 		last_victory_month = GameManager.months_elapsed()
 		if player != null:
-			var fame_gain := FAME_DUEL_WIN + maxi(0, rival.role - player.role) * FAME_PER_RANK_ABOVE
+			var fame_gain := FAME_DUEL_WIN + maxi(0, rival.rank() - player.rank()) * FAME_PER_RANK_ABOVE
 			player.add_fame(fame_gain)
 			text = "Fama %+d. " % fame_gain
 		r.duels_won_against += 1
@@ -510,10 +637,11 @@ func can_propose_marriage(r: Relationship) -> String:
 		return "No disponible."
 	if is_married():
 		return "Ya estás %s con %s." % [_married_word(player), spouse_name]
-	if player.role < Character.Role.CABALLERO:
+	if player.rank() < Character.rank_of(Character.Role.CABALLERO):
 		return "Ninguna casa noble casaría a los suyos con alguien de tu rango."
-	if not GameManager.has_actions_remaining():
-		return "No te quedan acciones este turno."
+	var contact := lord_contact_blocker(r, false)   # una mano se pide en persona
+	if not contact.is_empty():
+		return contact
 	if r.affinity < MARRIAGE_MIN_AFFINITY:
 		return "Necesitas al menos %d de afinidad (tienes %d)." % [MARRIAGE_MIN_AFFINITY, r.affinity]
 	if player.gold < DOWRY_COST:
@@ -528,8 +656,7 @@ func propose_marriage(r: Relationship) -> String:
 	GameManager.consume_action()
 	player.gold -= DOWRY_COST
 	player.honor = clampi(player.honor + MARRIAGE_HONOR, 0, 100)
-	var names: Array = SPOUSE_NAMES_FOR_MALE_PLAYER if player.gender == CharacterEnums.Gender.MASCULINO else SPOUSE_NAMES_FOR_FEMALE_PLAYER
-	var spouse_first: String = names.pick_random()
+	var spouse_first := _spouse_first_name(player, r.kingdom)
 	spouse_name = "%s %s" % [spouse_first, family_name_of(r.person_name)]
 	spouse_family = r.person_name
 	r.adjust(MARRIAGE_AFFINITY)
@@ -589,33 +716,36 @@ func can_declare_war(r: Relationship) -> String:
 	var player: Character = GameManager.player_character
 	if player == null or r == null or r.kind != Relationship.Kind.SENOR:
 		return "No disponible."
-	if player.role < Character.Role.NOBLEZA_ALTA:
+	if player.rank() < Character.rank_of(Character.Role.NOBLEZA_ALTA):
 		return "Solo la Nobleza Alta y el Regente pueden declarar la guerra."
 	if r.at_war:
 		return "Ya estás en guerra con %s." % r.person_name
 	if r.allied:
 		return "Es tu aliado: rompe la alianza antes (o atácalo y asume la traición)."
-	if not GameManager.has_actions_remaining():
-		return "No te quedan acciones este turno."
+	var contact := lord_contact_blocker(r)
+	if not contact.is_empty():
+		return contact
 	return ""
 
 func declare_war(r: Relationship) -> String:
 	var reason := can_declare_war(r)
 	if not reason.is_empty():
 		return reason
+	var prefix := _spend_letter(r)
 	GameManager.consume_action()
 	r.at_war = true
 	r.adjust(WAR_AFFINITY)
 	relations_changed.emit()
-	return "Declaras la guerra a %s. Conquistar sus castillos ya no se considera una agresión, pero sus ejércitos irán a por ti.\n%s" % [
-		r.person_name, DialogueCatalog.line("lord_war", r.character, GameManager.player_character)]
+	return "%sDeclaras la guerra a %s. Conquistar sus castillos ya no se considera una agresión, pero sus ejércitos irán a por ti.\n%s" % [
+		prefix, r.person_name, DialogueCatalog.line("lord_war", r.character, GameManager.player_character)]
 
 func can_propose_peace(r: Relationship) -> String:
 	var player: Character = GameManager.player_character
 	if player == null or r == null or not r.at_war:
 		return "No estás en guerra con él."
-	if not GameManager.has_actions_remaining():
-		return "No te quedan acciones este turno."
+	var contact := lord_contact_blocker(r)
+	if not contact.is_empty():
+		return contact
 	if player.gold < PEACE_TRIBUTE:
 		return "Necesitas %d de oro de tributo." % PEACE_TRIBUTE
 	if r.affinity < PEACE_MIN_AFFINITY:
@@ -626,12 +756,13 @@ func propose_peace(r: Relationship) -> String:
 	var reason := can_propose_peace(r)
 	if not reason.is_empty():
 		return reason
+	var prefix := _spend_letter(r)
 	GameManager.consume_action()
 	GameManager.player_character.gold -= PEACE_TRIBUTE
 	r.at_war = false
 	r.adjust(PEACE_AFFINITY)
 	relations_changed.emit()
-	return "Firmas la paz con %s a cambio de %d de oro." % [r.person_name, PEACE_TRIBUTE]
+	return "%sFirmas la paz con %s a cambio de %d de oro." % [prefix, r.person_name, PEACE_TRIBUTE]
 
 # Se llama cuando el jugador ordena marchar contra un castillo ajeno. Devuelve una noticia ("" si nada).
 func on_player_marches_against(owner_name: String) -> String:
@@ -664,7 +795,8 @@ func spouse_relation() -> Relationship:
 ## Personas con las que se puede tratar de tú a tú (no los señores, que se tratan por diplomacia).
 func sociable(r: Relationship) -> bool:
 	return r != null and r.character != null and r.kind in [
-		Relationship.Kind.CORTESANO, Relationship.Kind.RIVAL_DUELO, Relationship.Kind.PUEBLO, Relationship.Kind.CONYUGE]
+		Relationship.Kind.CORTESANO, Relationship.Kind.RIVAL_DUELO, Relationship.Kind.PUEBLO, Relationship.Kind.CONYUGE] \
+		and not CaptureData.is_prisoner(r.person_name)   # los presos solo se tratan desde la pestaña Prisioneros
 
 ## El romance solo es posible entre un hombre y una mujer.
 func romance_possible(r: Relationship) -> bool:
@@ -675,9 +807,29 @@ func romance_possible(r: Relationship) -> bool:
 func courtable(r: Relationship) -> bool:
 	return romance_possible(r) and r.kind != Relationship.Kind.CONYUGE
 
-## Gente de tu zona (tu reino): con ella puedes tratar y a ella puedes retar.
+## Gente de tu zona (el reino donde estás ahora, ver TravelData): con ella puedes tratar y a ella puedes retar.
 func in_area(r: Relationship) -> bool:
-	return r != null and (r.kingdom < 0 or r.kingdom == GameManager.player_kingdom)
+	return r != null and (r.kingdom < 0 or r.kingdom == zone_kingdom())
+
+func zone_kingdom() -> int:
+	var travel := get_node_or_null("/root/TravelData")
+	return travel.zone_kingdom() if travel != null else GameManager.player_kingdom
+
+## ¿Tienes a esa persona delante? Tu séquito viaja contigo y tu cónyuge vive en tu casa.
+func person_present(r: Relationship) -> bool:
+	if r == null:
+		return false
+	if r.person_name in retinue or in_area(r):
+		return true
+	var travel := get_node_or_null("/root/TravelData")
+	return r.kind == Relationship.Kind.CONYUGE and (travel == null or travel.is_at_home())
+
+## Motivo por el que no puedes tratar en persona con alguien que está lejos ("" si está aquí).
+func presence_blocker(r: Relationship) -> String:
+	if person_present(r):
+		return ""
+	var where := KingdomEnums.kingdom_name(r.kingdom) if r.kind != Relationship.Kind.CONYUGE else "tu castillo"
+	return "%s está en %s: tienes que viajar hasta allí (esto no se hace por carta)." % [r.person_name, where]
 
 func people_in_area() -> Array[Relationship]:
 	var result: Array[Relationship] = []
@@ -699,7 +851,7 @@ func intimacy_label(r: Relationship) -> String:
 	if r.kind == Relationship.Kind.CONYUGE:
 		return "Tu esposa" if gender == CharacterEnums.Gender.FEMENINO else "Tu esposo"
 	var female := gender == CharacterEnums.Gender.FEMENINO
-	var fallback: String = ["Desconocido", "Conocido", "Amigo", "Confidente", "Amante" if r.romance else "Íntimo"][intimacy_tier(r.affection)]
+	var fallback: String = ["Desconocido", "Conocido", "Amigo", "Confidente", "Íntimo"][intimacy_tier(r.affection)]
 	if female:
 		fallback = fallback.trim_suffix("o") + "a" if fallback.ends_with("o") else fallback
 	return catalog("intimacy_name", [r.affection, r.romance, gender], fallback)
@@ -744,6 +896,9 @@ func can_interact(r: Relationship, kind: String) -> String:
 	var player: Character = GameManager.player_character
 	if player == null or not sociable(r):
 		return "No disponible."
+	var away := presence_blocker(r)
+	if not away.is_empty():
+		return away
 	if not GameManager.has_actions_remaining():
 		return "No te quedan acciones este turno."
 	if r.last_courted_month == GameManager.months_elapsed():
@@ -777,7 +932,7 @@ func interact(r: Relationship, kind: String) -> String:
 	var greet_topic: String = greet_topics[tier]
 	if tier == 4 and not r.romance:
 		greet_topic = "greet_close"
-	if r.kind == Relationship.Kind.PUEBLO and player.role > r.character.role and tier < 2:
+	if r.kind == Relationship.Kind.PUEBLO and player.rank() > r.character.rank() and tier < 2:
 		greet_topic = "commoner_greet"
 	var lines: Array[String] = []
 	var greeting := DialogueCatalog.line(greet_topic, r.character, player, ctx)
@@ -829,6 +984,179 @@ func interact(r: Relationship, kind: String) -> String:
 	relations_changed.emit()
 	return text
 
+# --- Conversaciones por actitud ---
+
+## Rango que permite amenazar sin el honor necesario.
+func _outranks(player: Character, r: Relationship) -> bool:
+	return player.rank() > r.character.rank()
+
+## Motivo por el que no se puede conversar con esa actitud ("" si se puede).
+func can_converse(r: Relationship, attitude: String) -> String:
+	var reason := can_interact(r, "intimate" if attitude == "intima" else "friendly")
+	if not reason.is_empty():
+		return reason
+	if attitude == "amenazante":
+		var player: Character = GameManager.player_character
+		if player.honor < THREAT_MIN_HONOR and not _outranks(player, r):
+			return "Para amenazar necesitas %d de honor o un rango superior." % THREAT_MIN_HONOR
+	return ""
+
+## Probabilidad de que la actitud salga bien (0..1).
+func converse_chance(r: Relationship, attitude: String) -> float:
+	var player: Character = GameManager.player_character
+	var chance: float = TALK_CHANCE_BASE.get(attitude, 0.5) + player.charisma * TALK_CHANCE_CHA.get(attitude, 0.0)
+	match attitude:
+		"franco":
+			chance += player.honor * FRANK_HONOR_BONUS
+		"amenazante":
+			chance += maxi(0, player.rank() - r.character.rank()) * THREAT_RANK_BONUS
+		"intima":
+			chance += (r.affection - INTIMATE_MIN_AFFECTION) * INTIMATE_AFFECTION_BONUS
+	var react: float = catalog("attitude_reaction", [r.character.personality, attitude], 1.0)
+	chance *= minf(react, 1.0)
+	if attitude == "intima" and r.kind == Relationship.Kind.CONYUGE:
+		chance = maxf(chance, SPOUSE_INTIMATE_MIN_CHANCE)
+	if SkillEffects.has_unique(player, SkillEffects.UNIQUE_ELOQUENCE):   # Anillo de Teodolinda
+		chance += SkillEffects.ELOQUENCE_BONUS
+	return clampf(chance, TALK_CHANCE_MIN, TALK_CHANCE_MAX)
+
+## Actitudes disponibles con esa persona: [{id, label, hint, chance, reason}]. reason "" = elegible.
+## "Charla íntima" solo aparece si el romance es posible (hombre y mujer).
+func conversation_options(r: Relationship) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	if not sociable(r):
+		return result
+	for attitude: String in ["amable", "halagador", "franco", "amenazante", "intima"]:
+		if attitude == "intima" and not romance_possible(r):
+			continue
+		result.append({
+			"id": attitude,
+			"label": DialogueCatalog.ATTITUDES.get(attitude, attitude.capitalize()),
+			"hint": DialogueCatalog.ATTITUDE_HINTS.get(attitude, ""),
+			"chance": converse_chance(r, attitude),
+			"reason": can_converse(r, attitude),
+		})
+	return result
+
+## Saludo según la confianza (lo muestra el panel antes de elegir actitud).
+const SERF_GREET_TOPICS := ["serf_greet_hostile", "serf_greet_hostile", "serf_greet_resigned", "serf_greet_resigned", "serf_greet_loyal"]
+
+func greeting_line(r: Relationship) -> String:
+	var player: Character = GameManager.player_character
+	var ctx := {"player": player.full_name(), "rank": player.role_name()}
+	var greet_topics := ["greet_stranger", "greet_acquaintance", "greet_friend", "greet_close", "greet_lover"]
+	var tier: int = intimacy_tier(r.affection)
+	var topic: String = greet_topics[tier]
+	if tier == 4 and not r.romance:
+		topic = "greet_close"
+	if r.kind == Relationship.Kind.PUEBLO and player.rank() > r.character.rank() and tier < 2:
+		topic = "commoner_greet"
+	if CaptureData.is_serf(r.person_name):
+		topic = SERF_GREET_TOPICS[mini(tier, SERF_GREET_TOPICS.size() - 1)]
+	return DialogueCatalog.line(topic, r.character, player, ctx)
+
+## Conversa con una actitud. Devuelve {ok, success, reply, delta, reward, text}; si no se puede, ok=false y text=motivo.
+## Gasta 1 acción y ocupa el trato del mes con esa persona.
+func converse(r: Relationship, attitude: String) -> Dictionary:
+	var reason := can_converse(r, attitude)
+	if not reason.is_empty():
+		return {"ok": false, "text": reason}
+	var player: Character = GameManager.player_character
+	var chance := converse_chance(r, attitude)
+	GameManager.consume_action()
+	r.last_courted_month = GameManager.months_elapsed()
+	var react: float = catalog("attitude_reaction", [r.character.personality, attitude], 1.0)
+	var before := r.affection
+	var success := randf() < chance
+	var gain := 0
+	if success:
+		gain = TALK_GAIN.get(attitude, 0)
+		if gain > 0:
+			if attitude in ["halagador", "intima"]:
+				gain += player.charisma / 3
+			gain = maxi(1, roundi(gain * maxf(react, 0.5) * (1.0 + SkillEffects.fx(player, "social"))))
+		if attitude == "intima":
+			r.romance = true
+	else:
+		gain = TALK_LOSS.get(attitude, 0)
+	r.adjust_affection(gain)
+	if r.kind == Relationship.Kind.RIVAL_DUELO:
+		if gain > 0:
+			r.adjust_grudge(-roundi(gain * GRUDGE_EASE))
+		elif attitude == "amenazante" and not success:
+			r.adjust_grudge(THREAT_GRUDGE)
+		else:
+			r.adjust_grudge(TALK_GRUDGE_FAIL)
+	var reward := ""
+	if success:
+		reward = _conversation_reward(r, attitude, player)
+	var ctx := {"player": player.full_name(), "rank": player.role_name()}
+	var reply := DialogueCatalog.line("talk_%s_%s" % [attitude, "good" if success else "bad"], r.character, player, ctx)
+	var delta := r.affection - before
+	var text := "%s: «%s»\n(Intimidad %+d — %s)" % [r.person_name, reply, delta, intimacy_label(r)]
+	if r.romance and before < PROPOSAL_MIN_AFFECTION and r.affection >= PROPOSAL_MIN_AFFECTION and not is_married():
+		text += "\nParece esperar una propuesta."
+	if not reward.is_empty():
+		text += "\n" + reward
+	relations_changed.emit()
+	return {"ok": true, "success": success, "reply": reply, "delta": delta, "reward": reward, "text": text}
+
+## Premios de una buena charla: oro del pueblo amedrentado o rumores de un confidente.
+func _conversation_reward(r: Relationship, attitude: String, player: Character) -> String:
+	if attitude == "amenazante":
+		if r.kind == Relationship.Kind.PUEBLO:
+			var gold := randi_range(THREAT_GOLD_MIN, THREAT_GOLD_MAX)
+			player.gold += gold
+			player.gain_honor(THREAT_HONOR_COST)
+			return "Te entrega %d de oro para que le dejes en paz (honor %+d)." % [gold, THREAT_HONOR_COST]
+		if randf() < THREAT_RUMOR_CHANCE:
+			return _rumor(r)
+		return ""
+	if attitude in ["amable", "franco"] and r.kind in [Relationship.Kind.CORTESANO, Relationship.Kind.CONYUGE] \
+			and intimacy_tier(r.affection) >= RUMOR_MIN_TIER and randf() < RUMOR_CHANCE:
+		return _rumor(r)
+	return ""
+
+## Un secreto sobre otro reino: su señor, su guarnición y sus arcas (datos reales del mapa).
+func _rumor(r: Relationship) -> String:
+	var foreign: Array[Castle] = []
+	for c: Castle in MapData.castles:
+		if c.kingdom != GameManager.player_kingdom and c.kingdom != KingdomEnums.Kingdom.NEUTRAL:
+			foreign.append(c)
+	if foreign.is_empty():
+		return ""
+	var c: Castle = foreign.pick_random()
+	var kingdom := KingdomEnums.kingdom_name(c.kingdom)
+	var place := c.castle_name if c.castle_name == kingdom else "%s (%s)" % [c.castle_name, kingdom]
+	var text := "Rumor: en %s, %s tiene unos %d hombres y %d de oro en las arcas." % [
+		place, c.owner_name, c.garrison_size, c.gold]
+	WorldEvents.record("%s te cuenta un secreto sobre %s." % [r.person_name, c.castle_name], c.castle_id, true)
+	return text
+
+## Alguien ha muerto (vejez, duelo a muerte, batalla): se le quita de relaciones, séquito y pretendientes.
+## Si era tu cónyuge, el matrimonio termina. Los señores siguen su propio relevo (replace_lord).
+func on_character_died(person_name: String, cause: String) -> void:
+	if person_name.is_empty():
+		return
+	var r := get_relation(person_name)
+	var was_spouse := person_name == spouse_name or (r != null and r.kind == Relationship.Kind.CONYUGE)
+	if r != null and r.kind != Relationship.Kind.SENOR:
+		relations.erase(r)
+	retinue.erase(person_name)
+	occupations.erase(person_name)
+	practice_month.erase(person_name)
+	if designated_champion == person_name:
+		designated_champion = ""
+	for other: Relationship in relations:
+		if other.rival_suitor == person_name:
+			other.rival_suitor = ""
+	if was_spouse:
+		spouse_name = ""
+		spouse_family = ""
+	var why := (" (%s)" % cause) if not cause.is_empty() else ""
+	WorldEvents.record("Muere %s%s.%s" % [person_name, why, " Tu matrimonio termina con su muerte." if was_spouse else ""], "", true)
+	relations_changed.emit()
+
 func can_propose_love(r: Relationship) -> String:
 	var player: Character = GameManager.player_character
 	if player == null or not courtable(r):
@@ -839,6 +1167,9 @@ func can_propose_love(r: Relationship) -> String:
 		return "Antes debe nacer algo más que amistad."
 	if r.affection < PROPOSAL_MIN_AFFECTION:
 		return "Aún no hay suficiente intimidad (%d de %d)." % [r.affection, PROPOSAL_MIN_AFFECTION]
+	var away := presence_blocker(r)
+	if not away.is_empty():
+		return away
 	if not GameManager.has_actions_remaining():
 		return "No te quedan acciones este turno."
 	if player.gold < WEDDING_COST:
@@ -909,7 +1240,7 @@ func can_challenge(r: Relationship) -> String:
 	if r.kind == Relationship.Kind.CONYUGE or r.person_name in retinue:
 		return "No vas a batirte con los tuyos."
 	if not in_area(r):
-		return "Solo puedes retar a quien esté en tu zona (tu reino)."
+		return "Solo puedes retar a quien esté en tu zona (el reino donde estás): viaja hasta su tierra."
 	if not player.can_fight_duels() or player.is_wounded():
 		return "No estás en condiciones de batirte."
 	if r.character.is_wounded():
@@ -928,7 +1259,7 @@ func challenge(r: Relationship) -> Dictionary:
 	GameManager.consume_action()
 	var rival := r.character
 	var ctx := {"player": player.full_name(), "rank": player.role_name()}
-	var rank_gap: int = rival.role - player.role
+	var rank_gap: int = rival.rank() - player.rank()
 	if rival.role == Character.Role.CAMPESINO:
 		return {"accepted": false, "text": "%s: «%s»\n(Un campesino no se bate en duelo.)" % [
 			r.person_name, DialogueCatalog.line("challenge_refuse_fear", rival, player, ctx)]}
@@ -965,11 +1296,22 @@ func can_invite(r: Relationship) -> String:
 		return "No disponible."
 	if r.person_name in retinue:
 		return "Ya forma parte de tu séquito."
-	if retinue.size() >= max_retinue():
-		return "Tu séquito está completo (%d de %d para un %s)." % [retinue.size(), max_retinue(), player.role_name()]
+	var away := presence_blocker(r)
+	if not away.is_empty():
+		return away
+	var intimate := is_intimate(r)
+	var counts := retinue_counts()
+	var fits: bool = _retinue_fits(counts.others + (0 if intimate else 1), counts.intimates + (1 if intimate else 0))
+	if not fits:
+		if intimate:
+			return "Tu séquito está completo (%s)." % retinue_slots_text()
+		if max_retinue() == 0:
+			return "Un %s no tiene séquito: solo te seguiría alguien íntimo (intimidad %d)." % [
+				player.role_name(), DialogueCatalog.INTIMACY_THRESHOLDS[INTIMATE_TIER]]
+		return "No quedan plazas normales (%s). Las plazas extra son solo para íntimos." % retinue_slots_text()
 	if not GameManager.has_actions_remaining():
 		return "No te quedan acciones este turno."
-	if r.kind != Relationship.Kind.CONYUGE:
+	if not intimate:   # un íntimo te sigue sin mirar tu fama ni tu honor
 		if r.affection < RETINUE_MIN_AFFECTION:
 			return "Necesitas más intimidad (%d de %d)." % [r.affection, RETINUE_MIN_AFFECTION]
 		var req: Array = RETINUE_REQUIREMENTS.get(r.character.role, [0, 0])
@@ -993,25 +1335,246 @@ func invite_to_retinue(r: Relationship) -> String:
 
 func dismiss_from_retinue(r: Relationship) -> String:
 	retinue.erase(r.person_name)
+	if designated_champion == r.person_name:
+		designated_champion = ""
+	if r.kind != Relationship.Kind.CONYUGE:
+		occupations.erase(r.person_name)
 	r.adjust_affection(-5)
 	relations_changed.emit()
 	return "%s deja tu séquito." % r.person_name
 
+## Íntimo: intimidad de nivel «Íntimo» o tu cónyuge. Te sigue sin importar tu rol (plazas aparte).
+func is_intimate(r: Relationship) -> bool:
+	return r != null and (r.kind == Relationship.Kind.CONYUGE or intimacy_tier(r.affection) >= INTIMATE_TIER)
+
+## Plazas del séquito: los demás solo caben en las normales; los íntimos llenan primero las extra.
+func retinue_counts() -> Dictionary:
+	var intimates := 0
+	var others := 0
+	for r: Relationship in retinue_members():
+		if CaptureData.is_serf(r.person_name):
+			continue
+		if is_intimate(r):
+			intimates += 1
+		else:
+			others += 1
+	var normal_max := max_retinue()
+	# Quien entró como íntimo y luego se enfrió sigue en su plaza extra (no se le echa).
+	var extra_used := mini(INTIMATE_SLOTS, maxi(mini(intimates, INTIMATE_SLOTS), others + intimates - normal_max))
+	var normal_used := others + intimates - extra_used
+	return {"intimates": intimates, "others": others, "normal_used": normal_used, "normal_max": normal_max,
+		"intimate_used": extra_used, "intimate_max": INTIMATE_SLOTS}
+
+func _retinue_fits(others: int, intimates: int) -> bool:
+	return others <= max_retinue() and others + intimates <= max_retinue() + INTIMATE_SLOTS
+
+## «Séquito 3/4 (+1/2 íntimos)».
+func retinue_slots_text() -> String:
+	var c := retinue_counts()
+	return "Séquito %d/%d (+%d/%d íntimos)" % [c.normal_used, c.normal_max, c.intimate_used, c.intimate_max]
+
 ## Quienes pueden luchar en duelo en tu lugar (campeones): miembros del séquito sanos y con armas.
+## El campeón designado va siempre primero.
 func duel_champions() -> Array[Character]:
 	var result: Array[Character] = []
 	for r: Relationship in retinue_members():
 		var c := r.character
-		if c.role != Character.Role.CAMPESINO and not c.is_wounded() and c.current_health > c.max_health * 0.5:
-			result.append(c)
+		if c.role != Character.Role.CAMPESINO and not c.is_wounded() and c.current_health > c.max_health * 0.5 and not CaptureData.is_serf(r.person_name):
+			if r.person_name == designated_champion:
+				result.push_front(c)
+			else:
+				result.append(c)
 	return result
+
+func is_designated_champion(c: Character) -> bool:
+	return c != null and not designated_champion.is_empty() and c.full_name() == designated_champion
+
+func can_designate_champion(r: Relationship) -> String:
+	if r == null or not r.person_name in retinue:
+		return "Solo un miembro de tu séquito puede ser tu campeón."
+	if r.character == null or r.character.role == Character.Role.CAMPESINO:
+		return "Un campesino no se bate en duelo."
+	return ""
+
+## Designa (o retira) al campeón que lucha por ti en los duelos donde cabe un campeón.
+func toggle_champion(r: Relationship) -> String:
+	if designated_champion == r.person_name:
+		designated_champion = ""
+		relations_changed.emit()
+		return "%s ya no es tu campeón designado." % r.person_name
+	var reason := can_designate_champion(r)
+	if not reason.is_empty():
+		return reason
+	designated_champion = r.person_name
+	relations_changed.emit()
+	return "%s será tu campeón: se ofrecerá primero cuando alguien pueda batirse por ti." % r.person_name
+
+# --- Ocupaciones del mes (cónyuge y séquito) ---
+
+## Quienes tienen ocupación: tu cónyuge y los miembros del séquito.
+func occupation_people() -> Array[Relationship]:
+	var result: Array[Relationship] = []
+	var spouse := spouse_relation() if is_married() else null
+	if spouse != null and spouse.character != null and not CaptureData.is_prisoner(spouse.person_name):
+		result.append(spouse)
+	for r: Relationship in retinue_members():
+		if not r in result and not CaptureData.is_serf(r.person_name):
+			result.append(r)
+	return result
+
+func has_occupation(r: Relationship) -> bool:
+	return r in occupation_people()
+
+func occupation_of(r: Relationship) -> String:
+	return str(occupations.get(r.person_name, OccupationRules.DEFAULT))
+
+func set_occupation(r: Relationship, id: String) -> String:
+	if not has_occupation(r):
+		return "Solo tu cónyuge y tu séquito tienen ocupación."
+	if not id in OccupationRules.ALL:
+		return "Ocupación desconocida."
+	occupations[r.person_name] = id
+	relations_changed.emit()
+	var note := " (ahora está herido: descansará hasta curarse)" if r.character.is_wounded() and id != OccupationRules.DESCANSAR else ""
+	return "%s: %s este mes%s." % [r.person_name, OccupationRules.name_of(id).to_lower(), note]
+
+func _apply_occupations(player: Character) -> void:
+	var lines: Array[String] = []
+	for r: Relationship in occupation_people():
+		var result: Dictionary = OccupationRules.apply(r.character, occupation_of(r))
+		if player != null:
+			player.gold += int(result.gold)
+		OccupationRules.auto_spend_points(r.character)
+		_auto_pick_skills(r.character)
+		if not str(result.text).is_empty():
+			lines.append(str(result.text))
+	if lines.is_empty():
+		return
+	var summary := "Tu casa este mes: " + "; ".join(lines) + "."
+	retinue_news.append(summary)
+	WorldEvents.record(summary, "", true)
+
+## Cada SKILL_EVERY_LEVELS niveles un compañero aprende sola una habilidad nueva (según su tipo).
+func _auto_pick_skills(c: Character) -> void:
+	while c.pending_skill_choices > 0:
+		c.pending_skill_choices -= 1
+		var data: Node = get_node_or_null("/root/GameData")
+		if data == null:
+			return
+		var pool: Array = data.combat_skills + data.general_skills
+		if c.fighter_type == CharacterEnums.FighterType.ESTRATEGA:
+			pool = data.battle_skills + data.general_skills
+		var owned: Array = (c.general_skills + c.combat_skills + c.battle_skills).map(func(s: Skill): return s.skill_name)
+		pool = pool.filter(func(s: Skill) -> bool: return not s.skill_name in owned)
+		if pool.is_empty():
+			return
+		var skill: Skill = pool.pick_random()
+		match skill.category:
+			CharacterEnums.SkillCategory.COMBATE: c.combat_skills.append(skill)
+			CharacterEnums.SkillCategory.BATALLA: c.battle_skills.append(skill)
+			_: c.general_skills.append(skill)
+
+# --- Equipo de tus compañeros ---
+
+## Intercambia la pieza de una ranura entre tú y tu compañero (cualquiera de las dos puede faltar).
+func can_swap_equipment(r: Relationship, slot: String) -> String:
+	var player: Character = GameManager.player_character
+	if player == null or not has_occupation(r):
+		return "Solo puedes equipar a tu cónyuge y a tu séquito."
+	var mine := _item_in_slot(player, slot)
+	var theirs := _item_in_slot(r.character, slot)
+	if mine == null and theirs == null:
+		return "Ninguno de los dos lleva nada en esa ranura."
+	if mine != null and theirs == null and r.character.equipment.size() >= Character.MAX_EQUIPMENT:
+		return "%s ya lleva %d piezas." % [r.character.first_name, Character.MAX_EQUIPMENT]
+	if theirs != null and mine == null and player.equipment.size() >= Character.MAX_EQUIPMENT:
+		return "Ya llevas %d piezas." % Character.MAX_EQUIPMENT
+	return ""
+
+func swap_equipment(r: Relationship, slot: String) -> String:
+	var reason := can_swap_equipment(r, slot)
+	if not reason.is_empty():
+		return reason
+	var player: Character = GameManager.player_character
+	var mine := _item_in_slot(player, slot)
+	var theirs := _item_in_slot(r.character, slot)
+	if mine != null:
+		player.unequip(mine)
+	if theirs != null:
+		r.character.unequip(theirs)
+	if mine != null:
+		r.character.equip(mine)
+	if theirs != null:
+		player.equip(theirs)
+	relations_changed.emit()
+	if mine != null and theirs != null:
+		return "Cambias tu %s por %s de %s." % [mine.equipment_name, theirs.equipment_name, r.character.first_name]
+	if mine != null:
+		return "Das %s a %s." % [mine.equipment_name, r.character.first_name]
+	return "Tomas %s de %s." % [theirs.equipment_name, r.character.first_name]
+
+func _item_in_slot(c: Character, slot: String) -> Equipment:
+	for e: Equipment in c.equipment:
+		if e.slot == slot:
+			return e
+	return null
+
+# --- Duelo de práctica con un compañero ---
+
+func can_practice(r: Relationship) -> String:
+	var player: Character = GameManager.player_character
+	if player == null or not has_occupation(r):
+		return "Solo puedes practicar con tu cónyuge o tu séquito."
+	if r.character.is_wounded():
+		return "%s está herido." % r.character.first_name
+	if player.is_wounded():
+		return "Estás herido: descansa antes de practicar."
+	if int(practice_month.get(r.person_name, -99)) == GameManager.months_elapsed():
+		return "Ya habéis practicado este mes."
+	if not GameManager.has_actions_remaining():
+		return "No te quedan acciones este turno."
+	return ""
+
+## Prepara el duelo de práctica (sin heridas ni honor en juego). Devuelve "" si se puede empezar,
+## o el motivo. Quien llama arranca el duelo (CombatSetup.start_campaign_duel) y cambia de escena.
+func start_practice(r: Relationship) -> String:
+	var reason := can_practice(r)
+	if not reason.is_empty():
+		return reason
+	GameManager.consume_action()
+	practice_month[r.person_name] = GameManager.months_elapsed()
+	practice_partner = r.person_name
+	return ""
+
+func is_practice() -> bool:
+	return not practice_partner.is_empty()
+
+## Al terminar la práctica: experiencia para los dos y algo más de confianza. Devuelve el resumen.
+func finish_practice(player_won: bool, fled: bool) -> String:
+	var r := get_relation(practice_partner)
+	practice_partner = ""
+	var player: Character = GameManager.player_character
+	if r == null or player == null:
+		return ""
+	var parts: Array[String] = ["Duelo de práctica con %s: %s." % [r.person_name,
+		"nadie se impone" if fled else ("vences tú" if player_won else "se impone %s" % r.character.first_name)]]
+	if not fled:
+		player.gain_xp(OccupationRules.PRACTICE_XP_WIN if player_won else OccupationRules.PRACTICE_XP_LOSS, OccupationRules.XpRules.SOURCE_DUEL)
+		parts.append("Tú: +%d exp." % player.last_xp_gained)
+		r.character.gain_xp(OccupationRules.PRACTICE_XP_LOSS if player_won else OccupationRules.PRACTICE_XP_WIN, OccupationRules.XpRules.SOURCE_DUEL)
+		parts.append("%s: +%d exp." % [r.character.first_name, r.character.last_xp_gained])
+		OccupationRules.auto_spend_points(r.character)
+	r.adjust_affection(OccupationRules.PRACTICE_INTIMACY)
+	parts.append("Intimidad %+d." % OccupationRules.PRACTICE_INTIMACY)
+	relations_changed.emit()
+	return " ".join(parts)
 
 ## Compañeros que lideran unidades en tus batallas: tu séquito; si no tienes, tu señor te presta
 ## gente de tu reino (compañeros de facción, menos leales: pelean con menos moral).
 func battle_companions() -> Array[Character]:
 	var result: Array[Character] = []
 	for r: Relationship in retinue_members():
-		if r.character.role != Character.Role.CAMPESINO and not r.character.is_wounded():
+		if r.character.role != Character.Role.CAMPESINO and not r.character.is_wounded() and not CaptureData.is_serf(r.person_name):
 			r.character.remove_meta("faction_companion")
 			result.append(r.character)
 	if not result.is_empty():
@@ -1054,6 +1617,7 @@ func _on_month_passed(_month: int, _year: int) -> void:
 		elif r.affection >= SUITOR_MIN_AFFECTION and not is_married() and randf() < SUITOR_CHANCE:
 			r.rival_suitor = _pick_suitor_for(r)
 	_pay_retinue(player)
+	_apply_occupations(player)
 	if GameManager.pending_event.is_empty():
 		GameManager.pending_event = roll_social_event()
 	relations_changed.emit()
@@ -1062,6 +1626,8 @@ func _pay_retinue(player: Character) -> void:
 	if player == null:
 		return
 	for r: Relationship in retinue_members():
+		if CaptureData.is_serf(r.person_name):
+			continue
 		if player.gold >= RETINUE_UPKEEP:
 			player.gold -= RETINUE_UPKEEP
 			continue
@@ -1147,7 +1713,7 @@ func _rival_event(r: Relationship, player: Character) -> Dictionary:
 					"result": "Retas a %s a un duelo para callar sus mentiras." % r.person_name},
 				{"label": "Ignorarlo", "effects": {"honor": -2}, "result": "El rumor se apaga solo… casi del todo."},
 			]}
-	return {"id": "rival_reto", "title": "Un reto público", "speaker": r.person_name,
+	var event := {"id": "rival_reto", "title": "Un reto público", "speaker": r.person_name,
 		"quote": _quote("rival_challenge", c, player),
 		"text": "%s (%s) te desafía ante toda la corte." % [r.person_name, r.rivalry_text().to_lower()],
 		"options": [
@@ -1156,6 +1722,12 @@ func _rival_event(r: Relationship, player: Character) -> Dictionary:
 			{"label": "Rechazar el reto", "effects": {"honor": refuse_honor, "grudge": 5},
 				"result": "Rechazas el reto. Unos te llaman prudente; otros, cobarde."},
 		]}
+	if stage == Relationship.RivalryStage.NEMESIS:
+		# Entre némesis, el odio puede llevar a un duelo del que solo uno sale con vida.
+		event.options.insert(1, {"label": "Aceptar un duelo a muerte", "requires": {"healthy": true},
+			"start_duel": true, "to_death": true, "effects": {},
+			"result": "Aceptas un duelo a muerte. Solo uno de los dos saldrá del palenque."})
+	return event
 
 func _spar_event(r: Relationship, player: Character) -> Dictionary:
 	return {"id": "rival_entreno", "title": "Un viejo rival te ofrece entrenar", "speaker": r.person_name,
@@ -1251,6 +1823,26 @@ func replace_lord(old_name: String, heir: Character) -> String:
 	relations_changed.emit()
 	return heir_name
 
+## El rey murió sin hijos y tú, Duque, reclamas la corona frente al pariente lejano que la hereda.
+## Los castillos de la Corona pasan a ti y el pretendiente queda resentido. Devuelve el texto.
+func claim_vacant_throne(pretender_name: String) -> String:
+	var player: Character = GameManager.player_character
+	if player == null:
+		return ""
+	var taken := 0
+	for c: Castle in MapData.castles:
+		if c.owner_name == pretender_name or c.castle_id == GameManager.home_castle_id:
+			c.owner_name = player.full_name()
+			taken += 1
+	var pretender := get_relation(pretender_name)
+	if pretender != null:
+		pretender.adjust(USURPATION_AFFINITY)
+		pretender.allied = false
+	player.role = Character.Role.REGENTE
+	relations_changed.emit()
+	return "Los grandes del reino te aclaman: ciñes la corona como %s y %d castillos de la Corona pasan a tus manos. %s, el pariente lejano del difunto rey, jura que no lo olvidará." % [
+		player.role_title(), taken, pretender_name]
+
 ## Tu señor te ofrece en matrimonio político con alguien de su casa (sin dote).
 ## Devuelve el texto del resultado, o el motivo por el que no es posible.
 func arrange_political_marriage(lord_name: String) -> String:
@@ -1260,8 +1852,7 @@ func arrange_political_marriage(lord_name: String) -> String:
 		return "No disponible."
 	if is_married():
 		return "Ya estás %s con %s." % [_married_word(player), spouse_name]
-	var names: Array = SPOUSE_NAMES_FOR_MALE_PLAYER if player.gender == CharacterEnums.Gender.MASCULINO else SPOUSE_NAMES_FOR_FEMALE_PLAYER
-	var spouse_first: String = names.pick_random()
+	var spouse_first := _spouse_first_name(player, r.kingdom)
 	spouse_name = "%s %s" % [spouse_first, family_name_of(lord_name)]
 	spouse_family = lord_name
 	r.adjust(MARRIAGE_AFFINITY)
@@ -1272,11 +1863,21 @@ func arrange_political_marriage(lord_name: String) -> String:
 
 ## Estado extra para el guardado (las relaciones en sí van en SaveGame.relations).
 func save_state() -> Dictionary:
-	return {"retinue": retinue.duplicate(), "last_victory_month": last_victory_month}
+	return {"retinue": retinue.duplicate(), "last_victory_month": last_victory_month,
+		"occupations": occupations.duplicate(), "designated_champion": designated_champion,
+		"practice_month": practice_month.duplicate()}
 
 func load_state(data: Dictionary) -> void:
 	retinue.clear()
 	for person_name in data.get("retinue", []):
 		retinue.append(str(person_name))
 	last_victory_month = int(data.get("last_victory_month", -1))
+	occupations = {}
+	for key in data.get("occupations", {}):
+		occupations[str(key)] = str(data.occupations[key])
+	designated_champion = str(data.get("designated_champion", ""))
+	practice_month = {}
+	for key in data.get("practice_month", {}):
+		practice_month[str(key)] = int(data.practice_month[key])
+	practice_partner = ""
 	retinue_news.clear()

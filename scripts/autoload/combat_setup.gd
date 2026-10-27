@@ -20,6 +20,10 @@ var enemy_character: Character
 var is_campaign: bool = false
 var return_scene: String = ""
 var last_result_text: String = ""   # resumen que el castillo muestra al volver
+# Duelo a muerte: si cae el jugador (no un campeón), muere (DynastyData.on_player_died); si cae
+# el rival, muere él. Quien lance el duelo lo activa justo después de start_campaign_duel:
+#   CombatSetup.duel_to_death = option.get("to_death", false)
+var duel_to_death: bool = false
 
 # --- Combates que nacen de un evento (ver opciones "fight" en EventCatalog) ---
 # pending_outcome: {title, win: {effects, result}, lose: {effects, result}, no_rival}
@@ -28,6 +32,16 @@ var pending_outcome: Dictionary = {}
 var skirmish: Dictionary = {}
 const SKIRMISH_GARRISON_SHARE := 0.3     # parte de tu guarnición que sale contigo
 const SKIRMISH_MIN_SOLDIERS := 12
+
+# --- Batallas ajenas: alguien que te conoce te llama a filas (ver InvitationCatalog) ---
+# invited: {kind ("army" asedio de un ejército de la IA | "field" batalla campal), title, inviter, lord, side,
+#   army_id, castle_id, ally_castle_id, enemy_castle_id, player_soldiers}
+var invited: Dictionary = {}
+const PERSONAL_LEVY_BY_RANK := [12, 15, 20, 30, 40, 50, 60]   # gente que llevas según tu rango (campesino: milicia)
+const RETINUE_LEVY := 8                  # hombres que aporta cada miembro de tu séquito
+const MERCENARY_MIN_LEVY := 20
+const FIELD_BATTLE_SHARE := 0.4          # parte de cada guarnición que sale a la batalla campal
+const FIELD_BATTLE_MIN := 20
 
 # --- Torneo en curso ---
 var tournament_opponents: Array[Character] = []
@@ -41,6 +55,7 @@ func start_campaign_duel(player: Character, rival: Character) -> void:
 	is_campaign = true
 	return_scene = CASTLE_SCENE
 	last_result_text = ""
+	duel_to_death = false
 	tournament_opponents.clear()
 	tournament_round = 0
 
@@ -65,6 +80,29 @@ func advance_tournament_round() -> void:
 	player_character.current_stamina = player_character.max_stamina
 	player_character.current_morale = player_character.max_morale
 
+## Por qué el jugador no puede ir a una batalla por su cuenta ("" si puede). Un campesino solo lucha
+## en una batalla si alguien que lo conoce lo llama a filas (las invitaciones no pasan por aquí).
+func battle_blocker(player: Character) -> String:
+	if player != null and player.role == Character.Role.CAMPESINO:
+		return "Un campesino no va a la guerra por su cuenta: solo si alguien que te conoce te llama a filas."
+	return ""
+
+## Gente que llevas a una batalla ajena: tu compañía si eres mercenario; si no, tu leva según tu rango y tu séquito.
+func player_levy(player: Character) -> int:
+	if player == null:
+		return PERSONAL_LEVY_BY_RANK[0]
+	var retinue: int = RelationsData.battle_companions().filter(func(c: Character) -> bool: return not c.has_meta("faction_companion")).size()
+	if player.is_mercenary():
+		return maxi(MERCENARY_MIN_LEVY, MissionData.company_size()) + retinue * RETINUE_LEVY
+	return PERSONAL_LEVY_BY_RANK[clampi(player.rank(), 0, PERSONAL_LEVY_BY_RANK.size() - 1)] + retinue * RETINUE_LEVY
+
+## Prepara una batalla ajena a partir de la opción aceptada (datos planos: nombres e ids).
+func begin_invited_battle(fight: Dictionary, event_title: String) -> String:
+	invited = fight.duplicate()
+	invited["title"] = event_title
+	invited["player_soldiers"] = player_levy(GameManager.player_character)
+	return "res://scenes/battle/battle.tscn"
+
 ## Rival generado para un combate de evento: algo más fuerte o débil que el jugador según "power".
 func make_event_foe(spec: Dictionary, player: Character) -> Character:
 	var gender: int = spec.get("gender", [CharacterEnums.Gender.MASCULINO, CharacterEnums.Gender.FEMENINO].pick_random())
@@ -86,6 +124,10 @@ func make_event_foe(spec: Dictionary, player: Character) -> Character:
 ## Prepara el combate de una opción de evento. Devuelve la escena a la que ir ("" si no hay combate).
 func begin_event_fight(fight: Dictionary, event_title: String) -> String:
 	var player: Character = GameManager.player_character
+	if fight.get("type", "duel") == "invited":
+		return begin_invited_battle(fight, event_title)
+	if fight.get("type", "duel") == "battle" and not battle_blocker(player).is_empty():
+		return ""   # quien llama ya debió impedirlo (EventCatalog.can_choose, MissionData.action_blocker)
 	pending_outcome = {"title": event_title, "win": fight.get("win", {}), "lose": fight.get("lose", {}),
 		"no_rival": fight.get("no_rival", false)}
 	var foe := make_event_foe(fight.get("foe", {}), player)
@@ -96,6 +138,7 @@ func begin_event_fight(fight: Dictionary, event_title: String) -> String:
 			"player_soldiers": mine, "enemy_soldiers": maxi(6, roundi(mine * float(fight.get("enemy_ratio", 1.0)))), "foe": foe}
 		return "res://scenes/battle/battle.tscn"
 	start_campaign_duel(player, foe)
+	duel_to_death = bool(fight.get("to_death", false))
 	return_scene = "res://scenes/map/map.tscn"
 	return "res://scenes/combat/combat.tscn"
 
@@ -119,9 +162,11 @@ func apply_outcome(won: bool) -> String:
 	return text
 
 func clear() -> void:
+	invited = {}
 	player_character = null
 	enemy_character = null
 	is_campaign = false
 	return_scene = ""
+	duel_to_death = false
 	tournament_opponents.clear()
 	tournament_round = 0

@@ -22,6 +22,7 @@ extends Resource
 @export var actions_remaining: int = 0
 @export var actions_per_turn: int = 0
 @export var pending_event: Dictionary = {}
+@export var event_queue: Array = []   # eventos esperando turno (ver GameManager.queue_event)
 @export var last_annual_event: String = ""
 
 @export_group("Mundo")

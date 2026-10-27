@@ -151,6 +151,27 @@ func _build_lessons() -> Array:
 				{"text": "No puedes. Defiéndete para recuperar el aliento.",
 					"posture": P.DEFENSIVA, "action": A.DEFENDER, "enemy": [P.OFENSIVA, A.ATACAR]},
 			]},
+		{"title": "Posturas que comprometen", "kind": "duel",
+			"intro": "Cada postura cierra alguna acción: Ofensiva no deja Defender ni Esquivar; Defensiva y Esgrima no dejan Empujar; Muro no deja Esquivar ni Desarmar; Desesperada solo deja Atacar y Empujar. Rendirse y Retirarse siempre se pueden.",
+			"player": [8, 6], "enemy": [8, 6, Character.Personality.ARROGANTE],
+			"steps": [
+				{"text": "Elige Muro: fíjate en que Esquivar y Desarmar se apagan. Desde el muro, espera su golpe con una parada.",
+					"posture": P.MURO, "action": A.CONTRAATACAR, "enemy": [P.OFENSIVA, A.ATACAR]},
+				{"text": "Ahora Esgrima: no puedes empujar, pero desarmas mejor (+10%). Intenta desarmarlo.",
+					"posture": P.ESGRIMA, "action": A.DESARMAR, "enemy": [P.OFENSIVA, A.ATACAR]},
+				{"text": "Desesperada lo apuesta todo: solo Atacar o Empujar. Ataca con todo.",
+					"posture": P.DESESPERADA, "action": A.ATACAR, "enemy": [P.DEFENSIVA, A.ATACAR]},
+			]},
+		{"title": "Leer al rival", "kind": "duel",
+			"intro": "Con buena Estrategia, al empezar tu turno puedes adivinar la próxima jugada del rival (👁 «Parece que va a desarmarte»). Si la adivinas, el rival la mantiene: aprovéchalo. La probabilidad sube con tu Estrategia frente a la suya y con Lectura del Rival.",
+			"player": [8, 6], "enemy": [8, 6, Character.Personality.ARROGANTE],
+			"steps": [
+				{"text": "Has leído que va a atacarte en postura Ofensiva. Espéralo con una parada.",
+					"posture": P.DEFENSIVA, "action": A.CONTRAATACAR, "enemy": [P.OFENSIVA, A.ATACAR]},
+				{"enemy_first": [P.DEFENSIVA, A.CONTRAATACAR],
+					"text": "Leíste bien: se ha quedado esperando para parar. Empújalo para romper su parada… pero en Defensiva no se puede empujar. Cambia a Ofensiva y empuja.",
+					"posture": P.OFENSIVA, "action": A.EMPUJAR, "enemy": [P.DEFENSIVA, A.DEFENDER]},
+			]},
 		{"title": "Rendirse y huir", "kind": "duel",
 			"intro": "Huir puede fallar y cuesta 3 de honor si sale bien. Rendirse es una derrota segura: −5 de honor, −3 extra y 25 de oro de rescate, pero evita caer herido.",
 			"player": [8, 6], "enemy": [10, 7, Character.Personality.ARROGANTE], "player_health": 18,
@@ -164,14 +185,16 @@ func _build_lessons() -> Array:
 			"intro": "El rival elige según su carácter y se adapta a ti. Aquí cada personalidad pelea 5 turnos contra alguien que solo ataca: fíjate cómo empiezan a esperarte con paradas.",
 			"steps": [{"text": "Pulsa «Simular de nuevo» para ver otra pelea: las decisiones tienen algo de azar."}]},
 		{"title": "Batalla: tipos de pelotón", "kind": "battle",
-			"intro": "Caballería vence a arqueros, infantería a caballería y los arqueros castigan a la infantería desde lejos sin recibir respuesta.",
+			"intro": "Un círculo de ventajas: caballería > arqueros > infantería > piqueros > caballería. Quien ataca a su presa hace un 30% más; caballería contra infantería y arqueros contra piqueros luchan sin ventaja. ★ marca la versión avanzada de cada familia.",
 			"steps": [
 				{"text": "Tu caballería carga contra unos arqueros: los arqueros no responden en el cuerpo a cuerpo.",
 					"setup": [[U.CABALLERIA, Vector2i(4, 3), T.LLANO], [U.ARQUEROS, Vector2i(5, 3), T.LLANO]]},
-				{"text": "Tu infantería frena a la caballería enemiga: le hace más daño y aguanta su respuesta.",
-					"setup": [[U.INFANTERIA, Vector2i(4, 3), T.LLANO], [U.CABALLERIA, Vector2i(5, 3), T.LLANO]]},
+				{"text": "Tus piqueros frenan a la caballería enemiga: el muro de picas le hace más daño y aguanta su respuesta.",
+					"setup": [[U.PIQUEROS, Vector2i(4, 3), T.LLANO], [U.CABALLERIA, Vector2i(5, 3), T.LLANO]]},
 				{"text": "Tus arqueros disparan a la infantería desde 3 casillas: nadie les responde.",
 					"setup": [[U.ARQUEROS, Vector2i(2, 3), T.LLANO], [U.INFANTERIA, Vector2i(5, 3), T.LLANO]]},
+				{"text": "Tu infantería se mete entre las picas: contra los piqueros es la que manda.",
+					"setup": [[U.INFANTERIA, Vector2i(4, 3), T.LLANO], [U.PIQUEROS, Vector2i(5, 3), T.LLANO]]},
 			]},
 		{"title": "Batalla: terreno, murallas y moral", "kind": "battle",
 			"intro": "El terreno del defensor reduce las bajas: Bosque +25% de defensa, Colina +20%, Muralla +50%. Un pelotón con moral por debajo de 25 huye.",
@@ -305,7 +328,9 @@ func _build_duel_arena() -> void:
 		var b := _small_button(CombatEnums.posture_name(p))
 		b.toggle_mode = true
 		b.button_group = group
-		b.pressed.connect(func(): _chosen_posture = p)
+		b.pressed.connect(func():
+			_chosen_posture = p
+			_update_blocks())
 		postures.add_child(b)
 		_posture_buttons[p] = b
 	var lbl2 := Label.new()
@@ -391,6 +416,7 @@ func _duel_step(step: Dictionary) -> void:
 		b.theme_type_variation = &"PrimaryButton" if a == step.action else &""
 		b.disabled = duel.is_over
 	_awaiting_input = not duel.is_over
+	_update_blocks()
 	_refresh_cards()
 	arena.find_child("Preview", true, false).text = _forecast(step.action) + ("\n" + before_text if not before_text.is_empty() else "")
 	if duel.is_over:
@@ -417,8 +443,18 @@ func _forecast(action: int) -> String:
 		lines.append("El rival prepara una parada (%d%%)." % roundi(duel.parry_chance(player, enemy) * 100))
 	return " ".join(lines)
 
+# Cada postura cierra alguna acción: esas se ven apagadas, con el motivo al pasar el ratón.
+func _update_blocks() -> void:
+	for a in _action_buttons:
+		var b: Button = _action_buttons[a]
+		var reason := CombatEnums.block_reason(_chosen_posture, a)
+		b.disabled = duel == null or duel.is_over or not _awaiting_input or not reason.is_empty()
+		b.tooltip_text = reason
+
 func _on_player_action(action: int) -> void:
 	if not _awaiting_input or duel.is_over:
+		return
+	if CombatEnums.is_blocked(_chosen_posture, action):
 		return
 	_awaiting_input = false
 	var step: Dictionary = _steps()[_step]

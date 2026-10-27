@@ -5,7 +5,7 @@ class_name SaveSystem
 const SAVE_VERSION := 3
 # Autoloads que guardan su propio estado con save_state() -> Dictionary y load_state(d).
 # Deben devolver datos planos (números, textos, arrays, diccionarios), nunca objetos.
-const MODULES := ["RelationsData", "MissionData", "WorldEvents"]
+const MODULES := ["RelationsData", "MissionData", "WorldEvents", "DynastyData", "ExplorationData", "TravelData", "AchievementData", "CaptureData", "StoryData", "AmbitionData"]
 # Guardado y carga de la partida completa en ranuras: un autoguardado (cada mes) y varias
 # ranuras manuales. Cada ranura es un archivo JSON en <datos>/saves (ver DataCodec y DataPaths).
 # Las partidas .tres de versiones anteriores se convierten a JSON la primera vez que se leen.
@@ -88,6 +88,7 @@ static func save_game(slot: String = AUTO_SLOT) -> Error:
 	s.actions_remaining = GameManager.actions_remaining
 	s.actions_per_turn = GameManager.actions_per_turn
 	s.pending_event = GameManager.pending_event
+	s.event_queue = GameManager.event_queue
 	s.last_annual_event = GameManager.last_annual_event
 	s.castles = MapData.castles
 	s.armies = ArmyData.armies
@@ -133,6 +134,7 @@ static func load_game(slot: String = AUTO_SLOT) -> bool:
 	GameManager.restore_game(s.player, s.home_castle_id, s.player_kingdom, s.month, s.year,
 		s.actions_remaining, s.actions_per_turn)
 	GameManager.pending_event = s.pending_event
+	GameManager.event_queue = s.event_queue.duplicate()
 	GameManager.last_annual_event = s.last_annual_event
 	# Partidas guardadas antes de existir las victorias: se usa el rol actual como meta.
 	GameManager.starting_role = s.starting_role if s.starting_role >= 0 else s.player.role

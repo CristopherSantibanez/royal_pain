@@ -10,6 +10,10 @@ const MOBILIZE_FRACTION := 0.4
 const MAX_ACTIVE_AI_ARMIES := 4
 const ATTACK_CONFIDENCE := 0.7        # solo ataca si su ejército supera este % de la defensa estimada
 const WALL_FACTOR := 1.5
+const AUTO_WALL_FACTOR := 1.6   # al resolverse sola: un poco más que en la estimación de la IA, para igualar el asedio táctico (≈35–40% con 1,5× la guarnición)
+const BuildingCatalog = preload("res://scripts/resources/building_catalog.gd")
+const AI_BUILD_CHANCE := 0.15      # probabilidad mensual de que un señor de la IA ordene una obra
+const AI_BUILD_RESERVE := 120      # oro que la IA deja siempre en las arcas para pagar a la tropa
 const RECRUIT_PER_MONTH := 2
 const GARRISON_CAP := 200
 const LOSER_ATTACKER_SURVIVAL := 0.3
@@ -99,7 +103,7 @@ static func plan_attacks(castles: Array[Castle], armies: Array[Army], player_kin
 			var needs_war := not is_player_castle and not reconquest and not unclaimed
 			if needs_war and wars != null and not KingdomDiplomacy.at_war(wars, c.kingdom, n.kingdom):
 				continue
-			var defense: float = n.garrison_size * WALL_FACTOR
+			var defense: float = n.garrison_size * WALL_FACTOR * (1.0 + n.wall_bonus())
 			var score := defense * (HOSTILE_TARGET_FACTOR if is_player_castle and c.kingdom in hostile_kingdoms else 1.0)
 			if reconquest:
 				score *= RECONQUEST_TARGET_FACTOR
@@ -129,11 +133,11 @@ static func plan_attacks(castles: Array[Castle], armies: Array[Army], player_kin
 
 # Resolución rápida de una batalla sin tablero (IA contra IA, o defensa no jugada).
 # defender_factor < 1 cuando el defensor es el jugador y no dirige la batalla.
-static func auto_resolve(attacker_size: int, defender_size: int, defender_factor: float = 1.0) -> Dictionary:
+static func auto_resolve(attacker_size: int, defender_size: int, defender_factor: float = 1.0, attacker_factor: float = 1.0) -> Dictionary:
 	if defender_size <= 0:
 		return {"attacker_won": true, "attacker_survivors": attacker_size, "defender_survivors": 0}
-	var a_power: float = attacker_size * randf_range(0.8, 1.2)
-	var d_power: float = defender_size * WALL_FACTOR * defender_factor * randf_range(0.8, 1.2)
+	var a_power: float = attacker_size * attacker_factor * randf_range(0.8, 1.2)
+	var d_power: float = defender_size * AUTO_WALL_FACTOR * defender_factor * randf_range(0.8, 1.2)
 	if a_power > d_power:
 		return {
 			"attacker_won": true,
@@ -148,7 +152,8 @@ static func auto_resolve(attacker_size: int, defender_size: int, defender_factor
 
 static func recruit(castles: Array[Castle]) -> void:
 	for c: Castle in castles:
-		c.garrison_size = mini(GARRISON_CAP, c.garrison_size + RECRUIT_PER_MONTH) if c.garrison_size < GARRISON_CAP else c.garrison_size
+		var gain := RECRUIT_PER_MONTH + int(c.building_value("cuartel", "recruits"))   # el Cuartel acelera el reclutamiento
+		c.garrison_size = mini(GARRISON_CAP, c.garrison_size + gain) if c.garrison_size < GARRISON_CAP else c.garrison_size
 
 # Paga, comida y recaudación de cada castillo. Devuelve los castillos que sufrieron hambre o
 # deserciones este mes: [{castle, lost, reason}] (para las noticias).
@@ -158,7 +163,7 @@ static func castle_economy(castles: Array[Castle], winter: bool, player_castle_i
 		player_upkeep: float = 1.0) -> Array[Dictionary]:
 	var troubles: Array[Dictionary] = []
 	for c: Castle in castles:
-		c.gold += CASTLE_TAX_INCOME
+		c.gold += CASTLE_TAX_INCOME + int(c.building_value("mercado", "income"))   # el Mercado recauda más
 		var factor := player_upkeep if c.castle_id in player_castle_ids else 1.0
 		var upkeep: int = ceili(c.garrison_size / float(UPKEEP_PER_SOLDIERS) * factor)
 		var unpaid := upkeep > c.gold
@@ -177,6 +182,28 @@ static func castle_economy(castles: Array[Castle], winter: bool, player_castle_i
 			c.garrison_size -= lost
 			troubles.append({"castle": c, "lost": lost, "reason": reason})
 	return troubles
+
+# Los señores de la IA ordenan obras cuando les sobra oro (una a la vez, como el jugador).
+# Devuelve los castillos que empezaron una obra este mes.
+static func plan_constructions(castles: Array[Castle], skip_castle_ids: Array = []) -> Array[Castle]:
+	var started: Array[Castle] = []
+	for c: Castle in castles:
+		if c.is_building() or c.castle_id in skip_castle_ids or c.kingdom == KingdomEnums.Kingdom.NEUTRAL:
+			continue
+		if randf() > AI_BUILD_CHANCE:
+			continue
+		# Prefiere murallas si linda con enemigos; si no, lo más barato que pueda pagar con holgura.
+		var options: Array = []
+		for id: String in BuildingCatalog.ORDER:
+			var next := BuildingCatalog.level_data(id, c.building_level(id) + 1)
+			if not next.is_empty() and c.gold >= int(next.cost) + AI_BUILD_RESERVE:
+				options.append({"id": id, "cost": int(next.cost) - (100 if id == "murallas" else 0)})
+		if options.is_empty():
+			continue
+		options.sort_custom(func(a, b): return a.cost < b.cost)
+		c.start_construction(options[0].id)
+		started.append(c)
+	return started
 
 static func _kingdom_at_war(wars: Dictionary, kingdom: int) -> bool:
 	for key: String in wars.keys():

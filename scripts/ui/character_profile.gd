@@ -5,6 +5,7 @@ extends Control
 #   CharacterProfile.open(self, relacion)
 
 const PORTRAIT_SIZE := Vector2(180, 260)
+const UNIQUE_COLOR := Color("f0c060")   # piezas únicas (igual que en la armería)
 
 var relation: Relationship
 
@@ -72,10 +73,16 @@ func _ready() -> void:
 	var details := VBoxContainer.new()
 	details.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(details)
+	# Las piezas únicas se destacan en dorado, con su habilidad.
+	for e: Equipment in c.equipment:
+		if SkillEffects.is_unique_item(e):
+			var unique_lbl := _label(details, "★★★★ %s (Única) — %s" % [e.equipment_name, e.description], "BodyBoldLabel")
+			unique_lbl.add_theme_color_override("font_color", UNIQUE_COLOR)
+			unique_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_section(details, "Habilidades", _names(c.general_skills + c.combat_skills + c.battle_skills, "skill_name"))
 	_section(details, "Ventajas", _names(c.advantages, "trait_name"))
 	_section(details, "Desventajas", _names(c.disadvantages, "trait_name"))
-	_section(details, "Equipamiento", _names(c.equipment, "equipment_name"))
+	_section(details, "Equipamiento", _names(c.equipment.filter(func(e: Equipment) -> bool: return not SkillEffects.is_unique_item(e)), "equipment_name"))
 	if not c.biography.is_empty():
 		_section(details, "Historia", c.biography)
 
@@ -85,6 +92,15 @@ func _ready() -> void:
 	root.add_child(buttons)
 	var feedback := _label(buttons, "", "MutedLabel")
 	feedback.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	if GameManager.is_game_active and RelationsData.has_occupation(relation):
+		var manage := Button.new()
+		manage.text = "Gestionar"
+		manage.tooltip_text = "Ocupación del mes, equipo, campeón y duelo de práctica."
+		manage.pressed.connect(func():
+			var host := get_parent()
+			queue_free()
+			load("res://scripts/ui/companion_panel.gd").open(host, relation))
+		buttons.add_child(manage)
 	var save_btn := Button.new()
 	save_btn.text = "Guardar en el editor"
 	save_btn.tooltip_text = "Guarda una copia de este personaje para usarlo en Nueva Partida, el duelo de práctica o el editor."
@@ -114,7 +130,9 @@ func _relation_text() -> String:
 	if r.romance and not r.romance_text().is_empty():
 		parts.append("♥ " + r.romance_text())
 	if r.person_name in RelationsData.retinue:
-		parts.append("Forma parte de tu séquito.")
+		parts.append("Forma parte de tu séquito%s." % (" y es tu campeón" if r.person_name == RelationsData.designated_champion else ""))
+	if GameManager.is_game_active and RelationsData.has_occupation(r):
+		parts.append("Ocupación: %s." % RelationsData.OccupationRules.name_of(RelationsData.occupation_of(r)))
 	return "\n".join(parts)
 
 func _section(parent: Node, title: String, text: String) -> void:

@@ -29,6 +29,12 @@ const JOY_AXIS_ACTIONS := {   # acción -> [eje, dirección]
 
 var volumes := DEFAULT_VOLUMES.duplicate()
 var fullscreen := false
+# Accesibilidad: intensidad de la sacudida de pantalla (0 = sin sacudidas) y efectos reducidos
+# (sin pausas de impacto, destellos ni partículas; las animaciones se acortan).
+const SHAKE_LEVELS := [0.0, 0.5, 1.0]
+const SHAKE_LEVEL_NAMES := ["Sin sacudida", "Suave", "Normal"]
+var shake_level := 2
+var reduced_effects := false
 
 func _ready() -> void:
 	_register_input_actions()
@@ -38,6 +44,8 @@ func _ready() -> void:
 		for bus in BUSES:
 			volumes[bus] = clampf(float(cfg.get_value("audio", bus, DEFAULT_VOLUMES[bus])), 0.0, 1.0)
 		fullscreen = bool(cfg.get_value("video", "fullscreen", false))
+		shake_level = clampi(int(cfg.get_value("video", "shake_level", 2)), 0, SHAKE_LEVELS.size() - 1)
+		reduced_effects = bool(cfg.get_value("video", "reduced_effects", false))
 	for bus in BUSES:
 		_apply_volume(bus)
 	_apply_fullscreen()
@@ -70,11 +78,25 @@ func set_fullscreen(on: bool) -> void:
 	_apply_fullscreen()
 	changed.emit()
 
+func set_shake_level(level: int) -> void:
+	shake_level = clampi(level, 0, SHAKE_LEVELS.size() - 1)
+	changed.emit()
+
+func set_reduced_effects(on: bool) -> void:
+	reduced_effects = on
+	changed.emit()
+
+## Factor por el que multiplicar cualquier sacudida (0 si están desactivadas).
+func shake_scale() -> float:
+	return SHAKE_LEVELS[shake_level]
+
 func save() -> void:
 	var cfg := ConfigFile.new()
 	for bus in BUSES:
 		cfg.set_value("audio", bus, volumes[bus])
 	cfg.set_value("video", "fullscreen", fullscreen)
+	cfg.set_value("video", "shake_level", shake_level)
+	cfg.set_value("video", "reduced_effects", reduced_effects)
 	DirAccess.make_dir_recursive_absolute(settings_path.get_base_dir())
 	cfg.save(settings_path)
 

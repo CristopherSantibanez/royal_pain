@@ -55,6 +55,27 @@ func _ready() -> void:
 	fs.toggled.connect(Settings.set_fullscreen)
 	box.add_child(fs)
 
+	var shake_row := HBoxContainer.new()
+	shake_row.add_theme_constant_override("separation", 12)
+	var shake_label := Label.new()
+	shake_label.text = "Sacudida de pantalla"
+	shake_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	shake_row.add_child(shake_label)
+	var shake := OptionButton.new()
+	for i in Settings.SHAKE_LEVEL_NAMES.size():
+		shake.add_item(Settings.SHAKE_LEVEL_NAMES[i], i)
+	shake.select(Settings.shake_level)
+	shake.item_selected.connect(Settings.set_shake_level)
+	shake_row.add_child(shake)
+	box.add_child(shake_row)
+
+	var reduced := CheckBox.new()
+	reduced.text = "Efectos reducidos"
+	reduced.tooltip_text = "Sin pausas de impacto, destellos ni partículas."
+	reduced.button_pressed = Settings.reduced_effects
+	reduced.toggled.connect(Settings.set_reduced_effects)
+	box.add_child(reduced)
+
 	var close := Button.new()
 	close.text = "Cerrar"
 	close.theme_type_variation = "PrimaryButton"

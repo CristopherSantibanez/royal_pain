@@ -8,22 +8,14 @@ const MAP_HEIGHT: float = 1024.0
 const GARRISON_VARIATION := 0.25        # ±25% sobre la guarnición base de cada castillo
 const RESOURCE_VARIATION := 0.3         # ±30% sobre oro y comida
 
-# Casas nobles posibles por reino (el apellido del señor). Se elige una al azar en cada partida.
-const HOUSES := {
-	KingdomEnums.Kingdom.HIELO: ["Escarcha", "Nevada", "Glaciar", "Invernal", "Albanieve"],
-	KingdomEnums.Kingdom.BOSQUE: ["Silvano", "Robledal", "Fronda", "Hojarasca", "Musgoverde"],
-	KingdomEnums.Kingdom.DORADO: ["Dorado", "Aureo", "Solmayor", "Trigal", "Oroviejo"],
-	KingdomEnums.Kingdom.CUMBRES: ["Roca Alta", "Peñascal", "Cumbrenegra", "Risco", "Altocerro"],
-	KingdomEnums.Kingdom.AZUL: ["Marea", "Oleaje", "Azulmar", "Bruma", "Salobre"],
-	KingdomEnums.Kingdom.CARMESI: ["Carmesí", "Sangreal", "Granate", "Rubiel", "Escarlata"],
-	KingdomEnums.Kingdom.ESMERALDA: ["Verdemar", "Esmeril", "Jade", "Prado Hondo", "Valleverde"],
-	KingdomEnums.Kingdom.DESIERTO: ["Duna", "Arenal", "Espejismo", "Solano", "Oasis"],
-	KingdomEnums.Kingdom.AMBAR: ["Ámbar", "Resina", "Otoñal", "Cobrizo", "Melado"],
-	KingdomEnums.Kingdom.GRIS: ["Piedra Gris", "Ceniza", "Pizarra", "Grisvalle", "Sombra"],
-	KingdomEnums.Kingdom.OLIVA: ["Olivar", "Almazara", "Verdín", "Acebuche", "Lagar"],
-}
+const NameCatalog = preload("res://scripts/resources/name_catalog.gd")
+const REALM_NAME_TRIES := 20
+const LORD_NAME_TRIES := 20
 
-var castles: Array[Castle] = []
+var castles: Array[Castle] = []:
+	set(value):
+		castles = value
+		refresh_kingdom_names()   # también al cargar una partida
 var world_seed: int = 0
 var world_used := false     # el mundo actual ya se jugó: una partida nueva debe generar otro
 
@@ -53,22 +45,92 @@ func _randomize_world() -> void:
 			continue
 		if strongest == null or c.garrison_size > strongest.garrison_size:
 			strongest = c
+	_assign_cultures(rng)
+	_name_realms(rng)
+	var used_lords := {}
 	for c: Castle in castles:
 		if c.kingdom == KingdomEnums.Kingdom.NEUTRAL:
 			continue
 		var female := rng.randf() < 0.5
 		var crowned := c == strongest
 		var title := ("Reina" if female else "Rey") if crowned else ("Lady" if female else "Lord")
-		var houses: Array = HOUSES.get(c.kingdom, ["Sinnombre"])
-		var house: String = houses[rng.randi() % houses.size()]
 		var gender := CharacterEnums.Gender.FEMENINO if female else CharacterEnums.Gender.MASCULINO
-		var first := _random_first_name(rng, gender)
-		c.owner_name = "%s %s %s" % [title, first, house]
+		var lord := ""
+		for _attempt in LORD_NAME_TRIES:
+			var first := NameCatalog.first_name(c.culture, gender, rng)
+			var house := NameCatalog.gendered_surname(NameCatalog.house(c.culture, rng), c.culture, gender)
+			lord = "%s %s %s" % [title, first, house]
+			if not used_lords.has(lord):
+				break
+		used_lords[lord] = true
+		c.owner_name = lord
 		c.original_owner = c.owner_name
 
-func _random_first_name(rng: RandomNumberGenerator, gender: int) -> String:
-	var names: Array = CharacterLoader.FEMALE_NAMES if gender == CharacterEnums.Gender.FEMENINO else CharacterLoader.MALE_NAMES
-	return names[rng.randi() % names.size()]
+# Cada reino tiene una cultura (franca, anglonormanda, castellana...): de ella salen los nombres de su gente.
+# Se reparten barajadas para que no haya dos reinos iguales mientras alcancen; la isla neutral toma una al azar.
+func _assign_cultures(rng: RandomNumberGenerator) -> void:
+	var order: Array = range(NameCatalog.CULTURE_COUNT)
+	for i in range(order.size() - 1, 0, -1):
+		var j := rng.randi() % (i + 1)
+		var tmp = order[i]
+		order[i] = order[j]
+		order[j] = tmp
+	var by_kingdom := {}
+	var next := 0
+	for c: Castle in castles:
+		if c.kingdom == KingdomEnums.Kingdom.NEUTRAL:
+			c.culture = rng.randi() % NameCatalog.CULTURE_COUNT
+			continue
+		if not by_kingdom.has(c.kingdom):
+			by_kingdom[c.kingdom] = order[next % order.size()]
+			next += 1
+		c.culture = by_kingdom[c.kingdom]
+
+# Cada reino recibe un nombre de su cultura («Reino de Valdemora», «Ducado de Hohenstein»...), sin repetir.
+# El castillo principal lleva el mismo nombre que su reino.
+func _name_realms(rng: RandomNumberGenerator) -> void:
+	var used := {}
+	for c: Castle in castles:
+		var realm := ""
+		for _attempt in REALM_NAME_TRIES:
+			realm = NameCatalog.realm_name(c.culture, rng, c.kingdom == KingdomEnums.Kingdom.NEUTRAL)
+			if not used.has(realm):
+				break
+		used[realm] = true
+		c.castle_name = realm
+	refresh_kingdom_names()
+
+## Nombres de los reinos del mundo actual, sacados del castillo de origen de cada uno. Las partidas
+## antiguas guardan los nombres fijos en sus castillos, así que siguen viéndose igual.
+func refresh_kingdom_names() -> void:
+	KingdomEnums.custom_names.clear()
+	for c: Castle in castles:
+		var k: int = c.original_kingdom if c.original_kingdom >= 0 else c.kingdom
+		if not KingdomEnums.custom_names.has(k) and not c.castle_name.is_empty():
+			KingdomEnums.custom_names[k] = c.castle_name
+
+## Cultura de la gente de un reino (la de su castillo de origen). Partidas antiguas: una fija por reino.
+func culture_of_kingdom(kingdom: int) -> int:
+	for c: Castle in castles:
+		if c.original_kingdom == kingdom and c.culture >= 0:
+			return c.culture
+	for c: Castle in castles:
+		if c.kingdom == kingdom and c.culture >= 0:
+			return c.culture
+	return absi(kingdom) % NameCatalog.CULTURE_COUNT
+
+## Cultura del lugar donde está un castillo.
+func culture_of_castle(castle: Castle) -> int:
+	if castle == null:
+		return -1
+	return castle.culture if castle.culture >= 0 else culture_of_kingdom(castle.original_kingdom if castle.original_kingdom >= 0 else castle.kingdom)
+
+## «Reino de X», o «Reino de X (ahora de Reino de Y)» si el castillo cambió de manos.
+func place_label(castle: Castle) -> String:
+	if castle == null:
+		return ""
+	var realm := KingdomEnums.kingdom_name(castle.kingdom)
+	return castle.castle_name if castle.castle_name == realm else "%s (%s)" % [castle.castle_name, realm]
 
 ## Título del monarca del mundo actual (o "" si no hay).
 func crown_holder() -> String:

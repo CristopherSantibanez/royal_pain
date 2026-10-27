@@ -32,6 +32,7 @@ func _ready() -> void:
 	elif latest != "":
 		btn_mapa.text = "Continuar"
 		save_info_label.text = "%s — %s" % [SaveSystem.slot_title(latest), SaveSystem.read_summary(latest)]
+		save_info_label.tooltip_text = save_info_label.text
 	else:
 		btn_mapa.text = "Ver Mapa"
 		btn_mapa.theme_type_variation = &"MenuButtonLarge"

@@ -3,20 +3,21 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://6pjn0mlgl3yq"
-path="res://.godot/imported/1108601b-7400-4276-b417-e5e5afa40b34.png-024a0179d5956eb96533714b3bf4276c.ctex"
+path.bptc="res://.godot/imported/1108601b-7400-4276-b417-e5e5afa40b34.png-024a0179d5956eb96533714b3bf4276c.bptc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/portraits/characters/female/1108601b-7400-4276-b417-e5e5afa40b34.png"
-dest_files=["res://.godot/imported/1108601b-7400-4276-b417-e5e5afa40b34.png-024a0179d5956eb96533714b3bf4276c.ctex"]
+dest_files=["res://.godot/imported/1108601b-7400-4276-b417-e5e5afa40b34.png-024a0179d5956eb96533714b3bf4276c.bptc.ctex"]
 
 [params]
 
-compress/mode=0
-compress/high_quality=false
+compress/mode=2
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

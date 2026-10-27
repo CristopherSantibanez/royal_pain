@@ -3,20 +3,21 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://ck77t5s8qbad2"
-path="res://.godot/imported/regente.png-50f46014469efb29d43343eb686b7ffd.ctex"
+path.bptc="res://.godot/imported/regente.png-50f46014469efb29d43343eb686b7ffd.bptc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/portraits/roles/regente.png"
-dest_files=["res://.godot/imported/regente.png-50f46014469efb29d43343eb686b7ffd.ctex"]
+dest_files=["res://.godot/imported/regente.png-50f46014469efb29d43343eb686b7ffd.bptc.ctex"]
 
 [params]
 
-compress/mode=0
-compress/high_quality=false
+compress/mode=2
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

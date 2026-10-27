@@ -19,3 +19,9 @@ Thumbs.db
 *.log
 # Ejecutables del editor de Godot (pesan >100 MB, no van al repositorio)
 Godot_v*.exe
+
+# Visual Studio
+.vs/
+
+# Python
+__pycache__/

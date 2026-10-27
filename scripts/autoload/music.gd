@@ -66,6 +66,7 @@ func set_intensity(value: float) -> void:
 ## Baja la música (para que se oiga la fanfarria de victoria o derrota).
 func stop(fade: float = FADE_TIME) -> void:
 	current_track = ""
+	_context_key = ""
 	_fade_out(_music, fade)
 	_fade_out(_tension, fade)
 	_music = null
@@ -76,8 +77,102 @@ func _on_scene_changed() -> void:
 	if scene == null:
 		return
 	var key := scene.scene_file_path.get_file().get_basename()
-	if SCENE_MUSIC.has(key):
-		play(SCENE_MUSIC[key][0], SCENE_MUSIC[key][1])
+	if MusicCatalog.SCENE_CONTEXT.has(key):
+		play_context(_resolve_context(MusicCatalog.SCENE_CONTEXT[key]))
+	elif SCENE_MUSIC.has(key):
+		play(SCENE_MUSIC[key][0], "")
+
+# --- Música por contexto y cultura (ver MusicCatalog). El ambiente de los lugares lo lleva Ambience. ---
+const MusicCatalog = preload("res://scripts/resources/music_catalog.gd")
+const ROTATE_SECONDS := 150.0     # pasado este tiempo, otra pieza del mismo contexto (nunca la misma dos veces)
+const STING_DB := -2.0
+
+var current_context := ""
+var _context_key := ""            # contexto + cultura que suena ahora
+var _last_by_context := {}        # contexto -> última pista elegida
+var _rotate_timer: Timer
+var _sting: AudioStreamPlayer
+
+## Pone la música de un contexto ("map", "castle", "duel"…). culture = -1: la del lugar donde está el jugador.
+## Si ya suena ese contexto con esa cultura, no corta nada.
+func play_context(context: String, culture: int = -1) -> void:
+	if culture < 0 and MusicCatalog.CULTURE_PREFIX.has(context):
+		culture = _location_culture()
+	var key := "%s:%d" % [context, culture]
+	if key == _context_key and not current_track.is_empty():
+		return
+	_context_key = key
+	current_context = context
+	var track := MusicCatalog.pick(context, culture, _last_by_context.get(context, current_track), _track_exists)
+	if track.is_empty():
+		return
+	_last_by_context[context] = track
+	play(track, "")
+	_restart_rotation(context)
+
+## Vuelve a decidir la música de la escena actual (al viajar, al caer preso, al quedar libre…).
+func refresh_context() -> void:
+	_on_scene_changed()
+
+## Fanfarria de una sola vez por encima de la música (victorias, finales).
+func sting(name: String = "") -> void:
+	if name.is_empty():
+		name = MusicCatalog.STINGS[randi() % MusicCatalog.STINGS.size()]
+	var path := MUSIC_DIR + name + ".ogg"
+	if not ResourceLoader.exists(path):
+		return
+	if _sting != null:
+		_sting.queue_free()
+	var stream: AudioStream = load(path)
+	if stream is AudioStreamOggVorbis:
+		stream.loop = false
+	_sting = AudioStreamPlayer.new()
+	_sting.stream = stream
+	_sting.bus = "SFX"   # va por encima del bus de música, que se aparta
+	_sting.volume_db = STING_DB
+	add_child(_sting)
+	_sting.play()
+	_sting.finished.connect(_sting.queue_free)
+	duck(stream.get_length() * 0.8)
+
+func _resolve_context(context: String) -> String:
+	var capture := get_node_or_null("/root/CaptureData")
+	if context in ["map", "castle"] and capture != null and capture.has_method("is_captive") and capture.is_captive():
+		return "captivity"
+	var travel := get_node_or_null("/root/TravelData")
+	if context == "map" and travel != null and GameManager.is_game_active and not travel.is_at_home():
+		return "travel"
+	return context
+
+func _location_culture() -> int:
+	if not GameManager.is_game_active:
+		return -1
+	var travel := get_node_or_null("/root/TravelData")
+	var castle: Castle = travel.current_castle() if travel != null else GameManager.current_castle
+	if castle == null:
+		castle = GameManager.current_castle
+	if castle == null:
+		return -1
+	return castle.culture if castle.culture >= 0 else MapData.culture_of_kingdom(castle.kingdom)
+
+func _track_exists(track: String) -> bool:
+	return ResourceLoader.exists(MUSIC_DIR + track + ".ogg")
+
+func _restart_rotation(context: String) -> void:
+	if _rotate_timer == null:
+		_rotate_timer = Timer.new()
+		_rotate_timer.one_shot = true
+		add_child(_rotate_timer)
+		_rotate_timer.timeout.connect(_rotate)
+	_rotate_timer.stop()
+	if not context in MusicCatalog.NO_ROTATION:
+		_rotate_timer.start(ROTATE_SECONDS)
+
+func _rotate() -> void:
+	if current_context.is_empty() or current_context in MusicCatalog.NO_ROTATION:
+		return
+	_context_key = ""   # fuerza una pieza nueva del mismo contexto
+	play_context(current_context)
 
 func _start(stream_name: String, target_db: float, synced: bool = false, bus: String = "Music") -> AudioStreamPlayer:
 	if stream_name.is_empty():
@@ -99,6 +194,28 @@ func _start(stream_name: String, target_db: float, synced: bool = false, bus: St
 		return p
 	create_tween().tween_property(p, "volume_db", target_db, FADE_TIME).set_trans(Tween.TRANS_SINE)
 	return p
+
+## Baja la música un momento para que se oiga un aviso (victoria, hazaña, cartel grande) y la repone.
+const DUCK_DB := -12.0
+const DUCK_IN := 0.08
+const DUCK_OUT := 0.6
+var _duck_tween: Tween
+
+func duck(hold: float = 1.2, amount_db: float = DUCK_DB) -> void:
+	var idx := AudioServer.get_bus_index("Music")
+	if idx < 0:
+		return
+	if _duck_tween != null and _duck_tween.is_valid():
+		_duck_tween.kill()
+	var base := _bus_db_from_settings(idx)
+	_duck_tween = create_tween()
+	_duck_tween.tween_method(func(db: float): AudioServer.set_bus_volume_db(idx, db), base, base + amount_db, DUCK_IN)
+	_duck_tween.tween_interval(hold)
+	_duck_tween.tween_method(func(db: float): AudioServer.set_bus_volume_db(idx, db), base + amount_db, base, DUCK_OUT)
+
+func _bus_db_from_settings(idx: int) -> float:
+	var v: float = Settings.volumes.get("Music", 1.0)
+	return linear_to_db(maxf(v * v, 0.0001)) if v > 0.0 else AudioServer.get_bus_volume_db(idx)
 
 func _fade_out(p: AudioStreamPlayer, fade: float = FADE_TIME) -> void:
 	if p == null:

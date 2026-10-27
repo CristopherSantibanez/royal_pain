@@ -38,8 +38,45 @@ const PARRY_RIPOSTE_FACTOR := 1.25    # la respuesta a una parada llega con vent
 const MURO_PARRY_PENALTY := 0.2       # tras el escudo es difícil devolver el golpe
 const PUSH_STAMINA_DAMAGE := 20
 const DISARM_TURNS := 2
+const ESGRIMA_DISARM_BONUS := 0.1     # en Esgrima se desarma mejor
+
+# Estrategia: leer al rival (adivinar su próxima postura y acción).
+const READ_BASE := 0.15
+const READ_PER_POINT := 0.04          # por punto de Estrategia de diferencia
+const READ_MAX := 0.6
+const INTENT_TEXT := {
+	CombatEnums.ActionType.ATACAR: "va a atacarte",
+	CombatEnums.ActionType.DEFENDER: "va a ponerse en guardia",
+	CombatEnums.ActionType.ESQUIVAR: "se dispone a esquivar",
+	CombatEnums.ActionType.CONTRAATACAR: "espera tu golpe para pararlo y devolverlo",
+	CombatEnums.ActionType.DESARMAR: "va a desarmarte",
+	CombatEnums.ActionType.EMPUJAR: "va a empujarte",
+	CombatEnums.ActionType.RENDIRSE: "está a punto de rendirse",
+	CombatEnums.ActionType.RETIRARSE: "busca la forma de huir",
+}
 
 # --- Consecuencias de abandonar ---
+# --- Combos y ventaja: encadenar bien las acciones da bonos en el turno siguiente ---
+# contra: tras parar un golpe, el siguiente ataque hace +50% y no se puede parar.
+# acecho: tras esquivar, el siguiente ataque tiene +25% de crítico.
+# desequilibrio: tras empujar con éxito, el siguiente desarme tiene +25%; el rival queda
+#   desequilibrado y su próximo golpe hace −20%.
+# Atacar tres veces seguidas es previsible: −15% de daño (salvo en Ofensiva o Desesperada).
+const ADV_CONTRA := "contra"
+const ADV_ACECHO := "acecho"
+const ADV_DESEQUILIBRIO := "desequilibrio"
+const CONTRA_DAMAGE := 1.5
+const ACECHO_CRIT := 0.25
+const DESEQUILIBRIO_DISARM := 0.25
+const UNBALANCED_DAMAGE := 0.8
+const PREDICTABLE_DAMAGE := 0.85
+const PREDICTABLE_STREAK := 3
+const ADVANTAGE_TEXT := {
+	"contra": "Contra devastadora: su próximo ataque hace +50% y no se puede parar",
+	"acecho": "Al acecho: su próximo ataque tiene +25% de crítico",
+	"desequilibrio": "Rival desequilibrado: su próximo desarme tiene +25%",
+}
+
 const RETREAT_HONOR_COST := 3
 const SURRENDER_EXTRA_HONOR_COST := 3   # además de la derrota (−5)
 const SURRENDER_RANSOM := 25
@@ -54,6 +91,11 @@ var defending := {}
 var dodging := {}
 var countering := {}
 var last_actions := {}   # Character -> últimas acciones (la IA lee las del rival para adaptarse)
+var advantage := {}      # Character -> ventaja ganada para su próximo turno ("" si ninguna)
+var unbalanced := {}     # Character -> su próximo golpe sale debilitado (lo empujaron)
+var _current_adv := ""   # ventaja que está usando quien actúa en este turno
+var bleeding := {}       # Character -> turnos que le quedan sangrando (Misericordia de Toledo)
+var unique_spent := {}   # Character -> {id: true}: efectos de piezas únicas de una vez por duelo ya gastados
 
 const HISTORY_SIZE := 4
 
@@ -70,6 +112,10 @@ func start_duel(a: Character, b: Character) -> void:
 		dodging[c] = false
 		countering[c] = false
 		last_actions[c] = []
+		advantage[c] = ""
+		unbalanced[c] = false
+		bleeding[c] = 0
+		unique_spent[c] = {}
 	# Intimidación: el rival empieza con menos moral.
 	for c in [a, b]:
 		var other: Character = b if c == a else a
@@ -101,6 +147,24 @@ func attack_rate(c: Character) -> float:
 func is_fatigued(c: Character) -> bool:
 	return c.current_stamina < c.max_stamina * FATIGUE_RATIO
 
+## Ventaja de un luchador para su próximo turno, con texto para la interfaz ("" si no tiene).
+func advantage_text(c: Character) -> String:
+	return ADVANTAGE_TEXT.get(advantage.get(c, ""), "")
+
+## ¿Su próximo ataque sería previsible (atacó las dos últimas veces y no va a por todas)?
+func is_predictable(c: Character) -> bool:
+	var history: Array = last_actions.get(c, [])
+	if history.size() < PREDICTABLE_STREAK - 1:
+		return false
+	for a in history.slice(history.size() - (PREDICTABLE_STREAK - 1)):
+		if a != CombatEnums.ActionType.ATACAR:
+			return false
+	return not posture.get(c) in [CombatEnums.Posture.OFENSIVA, CombatEnums.Posture.DESESPERADA]
+
+func _grant(c: Character, kind: String) -> void:
+	advantage[c] = kind
+	combat_event.emit("advantage", c, c, 0)
+
 ## Guardia preparada por un luchador (lo que el rival puede ver venir).
 func guard_text(c: Character) -> String:
 	if countering.get(c, false):
@@ -111,16 +175,53 @@ func guard_text(c: Character) -> String:
 		return "En guardia"
 	return ""
 
-func take_turn(actor: Character, action: int) -> void:
+## Ejecuta el turno. Devuelve false (sin gastar el turno) si la postura actual no permite esa acción.
+func take_turn(actor: Character, action: int) -> bool:
 	if is_over:
-		return
+		return false
+	var p: int = posture.get(actor, CombatEnums.Posture.DEFENSIVA)
+	if CombatEnums.is_blocked(p, action):
+		log_message.emit(CombatEnums.block_reason(p, action))
+		return false
+	_take_turn(actor, action)
+	return true
+
+## ¿Puede este luchador hacer esa acción con su postura actual?
+func can_act(actor: Character, action: int) -> bool:
+	return not CombatEnums.is_blocked(posture.get(actor, CombatEnums.Posture.DEFENSIVA), action)
+
+## Probabilidad de que reader adivine la próxima jugada de target (Estrategia, Lectura del Rival...).
+func read_chance(reader: Character, target: Character) -> float:
+	var chance: float = READ_BASE + (reader.strategy - target.strategy) * READ_PER_POINT \
+		+ SkillEffects.fx(reader, "read") - SkillEffects.fx(target, "read_resist")
+	return clampf(chance, 0.0, READ_MAX)
+
+## Texto del aviso al leer la intención del rival: «Parece que va a desarmarte (postura Ofensiva)».
+static func intent_text(intent: Dictionary) -> String:
+	return "Parece que %s (postura %s)." % [INTENT_TEXT.get(intent.get("action", -1), "prepara algo"),
+		CombatEnums.posture_name(intent.get("posture", CombatEnums.Posture.DEFENSIVA))]
+
+func _take_turn(actor: Character, action: int) -> void:
 	var target := opponent_of(actor)
+	# La ventaja ganada en el turno anterior se usa (o se pierde) ahora.
+	_current_adv = advantage.get(actor, "")
+	advantage[actor] = ""
+	var predictable := action == CombatEnums.ActionType.ATACAR and is_predictable(actor)
 	var history: Array = last_actions[actor]
 	history.append(action)
 	if history.size() > HISTORY_SIZE:
 		history.pop_front()
 	actor.current_stamina = clampi(actor.current_stamina + STAMINA_REGEN + roundi(SkillEffects.fx(actor, "stamina_regen")), 0, actor.max_stamina)
 	_update_statuses(actor)
+	# Sangrado (Misericordia de Toledo): la herida abierta resta vida al empezar el turno.
+	if bleeding.get(actor, 0) > 0:
+		bleeding[actor] -= 1
+		actor.take_damage(SkillEffects.BLEED_DAMAGE)
+		combat_event.emit("hit", target, actor, SkillEffects.BLEED_DAMAGE)
+		log_message.emit("%s sangra por la herida (−%d de vida)." % [actor.full_name(), SkillEffects.BLEED_DAMAGE])
+		_check_end()
+		if is_over:
+			return
 	# Las guardias duran hasta el próximo turno propio: si el rival no atacó, se pierden.
 	defending[actor] = false
 	dodging[actor] = false
@@ -132,7 +233,7 @@ func take_turn(actor: Character, action: int) -> void:
 
 	match action:
 		CombatEnums.ActionType.ATACAR:
-			action_text = _do_attack(actor, target)
+			action_text = _do_attack(actor, target, predictable)
 		CombatEnums.ActionType.DEFENDER:
 			defending[actor] = true
 			_recover(actor, RECOVER_DEFEND)
@@ -161,6 +262,8 @@ func take_turn(actor: Character, action: int) -> void:
 			return
 
 	log_message.emit("%s %s" % [prefix, action_text])
+	unbalanced[actor] = false
+	_current_adv = ""
 
 	_check_end()
 	if not is_over:
@@ -184,7 +287,10 @@ func parry_chance(attacker: Character, defender: Character) -> float:
 	return clampf(chance, 0.15, 0.85)
 
 func disarm_chance(actor: Character, target: Character) -> float:
-	return clampf(0.4 + (actor.combat - target.defense) * 0.04 + SkillEffects.fx(actor, "disarm"), 0.1, 0.85)
+	var bonus := DESEQUILIBRIO_DISARM if advantage.get(actor, "") == ADV_DESEQUILIBRIO or _current_adv == ADV_DESEQUILIBRIO else 0.0
+	if posture.get(actor) == CombatEnums.Posture.ESGRIMA:
+		bonus += ESGRIMA_DISARM_BONUS + SkillEffects.fx(actor, "esgrima_disarm")
+	return clampf(0.4 + (actor.combat - target.defense) * 0.04 + SkillEffects.fx(actor, "disarm") + bonus, 0.1, 0.9)
 
 func push_chance(actor: Character, target: Character) -> float:
 	return clampf(0.5 + (actor.combat - target.combat) * 0.03 + SkillEffects.fx(actor, "push"), 0.15, 0.9)
@@ -208,6 +314,8 @@ func _base_damage(actor: Character, target: Character) -> float:
 	var bonus := SkillEffects.fx(actor, "dmg")
 	if actor.current_health < actor.max_health * 0.3:
 		bonus += SkillEffects.fx(actor, "low_hp_dmg")
+	if posture.get(actor) == CombatEnums.Posture.DESESPERADA:
+		bonus += SkillEffects.fx(actor, "desperate_dmg")
 	dmg *= maxf(0.3, 1.0 + bonus) * maxf(0.3, 1.0 + SkillEffects.fx(target, "dmg_taken"))
 	return dmg
 
@@ -215,12 +323,18 @@ func _roll_damage(actor: Character, target: Character, guard_factor: float = 1.0
 	var dmg: float = _base_damage(actor, target) * randf_range(1.0 - DAMAGE_SPREAD, 1.0 + DAMAGE_SPREAD)
 	return maxi(1, roundi(dmg / guard_factor))   # un golpe que conecta nunca hace 0
 
-func _do_attack(actor: Character, target: Character) -> String:
+func _do_attack(actor: Character, target: Character, predictable: bool = false) -> String:
 	if CombatEnums.Status.DESARMADO in statuses[actor]:
 		combat_event.emit("unarmed", actor, actor, 0)
 		return "e intenta atacar, ¡pero está desarmado!"
 
 	_spend(actor, COST_ATTACK)
+	# Durandal: el primer ataque de cada duelo no se puede esquivar ni parar.
+	var sure: bool = SkillEffects.has_unique(actor, SkillEffects.UNIQUE_DURANDAL) and not unique_spent[actor].has(SkillEffects.UNIQUE_DURANDAL)
+	if sure:
+		unique_spent[actor][SkillEffects.UNIQUE_DURANDAL] = true
+		dodging[target] = false
+		countering[target] = false
 
 	# Esquiva preparada, o la esquiva natural de la postura de Esgrima.
 	var dodge := 0.0
@@ -229,10 +343,15 @@ func _do_attack(actor: Character, target: Character) -> String:
 		dodge = dodge_chance(actor, target)
 	elif posture[target] == CombatEnums.Posture.ESGRIMA:
 		dodge = (ESGRIMA_PASSIVE_DODGE + SkillEffects.fx(target, "dodge")) * (0.5 if is_fatigued(target) else 1.0)
-	if dodge > 0.0 and randf() < dodge:
+	if dodge > 0.0 and not sure and randf() < dodge:
 		combat_event.emit("dodge", actor, target, 0)
-		return "y ataca, ¡pero %s esquiva el golpe!" % target.full_name()
+		_grant(target, ADV_ACECHO)
+		return "y ataca, ¡pero %s esquiva el golpe y queda al acecho!" % target.full_name()
 
+	# Una contra devastadora no se puede parar.
+	var contra := _current_adv == ADV_CONTRA
+	if contra:
+		countering[target] = false
 	# Parada: si sale bien, el defensor no recibe nada y devuelve un golpe completo.
 	if countering[target]:
 		countering[target] = false
@@ -241,6 +360,7 @@ func _do_attack(actor: Character, target: Character) -> String:
 			actor.take_damage(riposte)
 			_lose_morale(actor)
 			combat_event.emit("parry", target, actor, riposte)
+			_grant(target, ADV_CONTRA)
 			return "y ataca, ¡pero %s para el golpe y responde causándole %d de daño!" % [target.full_name(), riposte]
 		var exposed := _roll_damage(actor, target)
 		target.take_damage(exposed)
@@ -251,18 +371,39 @@ func _do_attack(actor: Character, target: Character) -> String:
 	var guard := 1.0
 	if defending[target]:
 		guard = GUARD_MITIGATION + SkillEffects.fx(target, "guard")
+		if posture.get(target) == CombatEnums.Posture.MURO:
+			guard += SkillEffects.fx(target, "muro_guard")
 		defending[target] = false
 	var dmg := _roll_damage(actor, target, guard)
+	var extra := ""
+	if sure:
+		extra += " ¡Durandal no conoce parada!"
+	if contra:
+		dmg = roundi(dmg * CONTRA_DAMAGE)
+		extra += " ¡Contra devastadora!"
+	if unbalanced.get(actor, false):
+		dmg = maxi(1, roundi(dmg * UNBALANCED_DAMAGE))
+		extra += " (Golpea desequilibrado.)"
+	if predictable:
+		dmg = maxi(1, roundi(dmg * PREDICTABLE_DAMAGE))
+		extra += " (Ataque previsible: el rival lo veía venir.)"
 
 	# Golpe crítico: 10% base, más con la habilidad Golpe Certero.
-	var extra := ""
 	var is_crit := false
 	var crit_chance: float = SkillEffects.GOLPE_CERTERO_CRIT_CHANCE if SkillEffects.has(actor, SkillEffects.GOLPE_CERTERO) else CRIT_CHANCE
 	crit_chance += SkillEffects.fx(actor, "crit")
+	if _current_adv == ADV_ACECHO:
+		crit_chance += ACECHO_CRIT
 	if randf() < crit_chance:
 		dmg = roundi(dmg * (CRIT_MULTIPLIER + SkillEffects.fx(actor, "crit_mult")))
 		is_crit = true
 		extra += " ¡Golpe crítico!"
+		# Loriga de Covadonga: el primer crítico recibido en el duelo se queda en un golpe normal.
+		if SkillEffects.has_unique(target, SkillEffects.UNIQUE_CRIT_WARD) and not unique_spent[target].has(SkillEffects.UNIQUE_CRIT_WARD):
+			unique_spent[target][SkillEffects.UNIQUE_CRIT_WARD] = true
+			dmg = maxi(1, roundi(dmg / (CRIT_MULTIPLIER + SkillEffects.fx(actor, "crit_mult"))))
+			is_crit = false
+			extra += " (La loriga de %s detiene el crítico.)" % target.full_name()
 	# Piel de Hierro: el objetivo herido aguanta mejor los golpes.
 	var target_wounded: bool = target.current_health < target.max_health * 0.3
 	if target_wounded and SkillEffects.has(target, SkillEffects.PIEL_DE_HIERRO):
@@ -274,7 +415,20 @@ func _do_attack(actor: Character, target: Character) -> String:
 	target.take_damage(dmg)
 	combat_event.emit("crit" if is_crit else "hit", actor, target, dmg)
 	_lose_morale(target)
+	extra += _unique_on_hit(actor, target, dmg)
 	return "y ataca causando %d de daño.%s" % [dmg, extra]
+
+# Piezas únicas que actúan cuando un golpe conecta: sangrado del arma y reflejo del escudo.
+func _unique_on_hit(actor: Character, target: Character, dmg: int) -> String:
+	var text := ""
+	if SkillEffects.has_unique(actor, SkillEffects.UNIQUE_BLEED) and target.is_alive():
+		bleeding[target] = SkillEffects.BLEED_TURNS
+		text += " La herida sangra."
+	if SkillEffects.has_unique(target, SkillEffects.UNIQUE_REFLECT):
+		var back := maxi(1, roundi(dmg * SkillEffects.REFLECT_FACTOR))
+		actor.take_damage(back)
+		text += " (El escudo de %s le devuelve %d.)" % [target.full_name(), back]
+	return text
 
 func _do_disarm(actor: Character, target: Character) -> String:
 	if is_fatigued(actor):
@@ -308,6 +462,11 @@ func _do_push(actor: Character, target: Character) -> String:
 		target.current_stamina = maxi(0, target.current_stamina - PUSH_STAMINA_DAMAGE)
 		target.current_morale = maxi(0, target.current_morale - 6)
 		combat_event.emit("guard_break" if had_guard else "push", actor, target, 0)
+		# Yelmo de Sutton Hoo: quien lo lleva no queda desequilibrado ni da ventaja al rival.
+		if SkillEffects.has_unique(target, SkillEffects.UNIQUE_STEADY):
+			return "y empuja a %s, que se mantiene firme bajo su yelmo." % target.full_name()
+		unbalanced[target] = true
+		_grant(actor, ADV_DESEQUILIBRIO)
 		if had_guard:
 			return "y empuja a %s, ¡rompiendo su guardia!" % target.full_name()
 		return "y empuja a %s, dejándolo sin aliento." % target.full_name()

@@ -6,8 +6,15 @@ const MissionsPanel = preload("res://scripts/ui/missions_panel.gd")
 const GLOSSARY_SCENE := "res://scenes/glossary/glossary.tscn"
 
 # Opciones del menú desplegable de la barra superior.
-enum MenuItem { GUARDAR, OPCIONES, GLOSARIO, MENU_PRINCIPAL, CRONICA }
+enum MenuItem { GUARDAR, OPCIONES, GLOSARIO, MENU_PRINCIPAL, CRONICA, HAZANAS }
 const ChroniclePanel = preload("res://scripts/ui/chronicle_panel.gd")
+const AchievementsPanel = preload("res://scripts/ui/achievements_panel.gd")
+const EndingPanel = preload("res://scripts/ui/ending_panel.gd")
+const ACHIEVEMENTS_KEY := KEY_L   # «Libro de hazañas»
+const SiteMarkerScript = preload("res://scenes/map/site_marker.gd")
+const SiteCatalog = preload("res://scripts/resources/site_catalog.gd")
+const LEVEL_UP_PANEL := "res://scripts/ui/level_up_panel.gd"
+const PlayerTokenScript = preload("res://scenes/map/player_token.gd")
 
 @onready var camera: Camera2D = $Camera2D
 @onready var castles_container: Node2D = $CastlesContainer
@@ -68,14 +75,30 @@ var _pending_duel_rival: Character   # rival de un reto aceptado en un evento
 var _pending_fight: Dictionary = {}  # combate de una opción de evento ("fight"): duelo o escaramuza
 var _pending_fight_title := ""
 var _showing_notification := false   # el panel de eventos muestra ahora una noticia importante
+var _pending_duel_to_death := false  # el reto aceptado en el evento es a muerte
+var _sites_container: Node2D
+var _site_uid := ""                  # lugar que se está visitando (el panel de eventos lo muestra)
+var _btn_level: Button
+var _level_pulse: Tween
+var _player_token: Node2D
+var _btn_travel: Button
+var _showing_encounter := false   # el panel de eventos muestra un encuentro del camino
 
 func _ready() -> void:
+	# Si el personaje murió, primero se elige heredero (ver DynastyData).
+	if DynastyData.has_method("needs_succession") and DynastyData.needs_succession():
+		get_tree().change_scene_to_file.call_deferred(DynastyData.SUCCESSION_SCENE)
+		return
+	# Hazaña cumplida: fanfarria breve con la música apartada.
+	AchievementData.achievement_unlocked.connect(func(_id: String):
+		Sfx.stinger("achievement" if Sfx.variant_count("achievement") > 0 else "victory", ACHIEVEMENT_STINGER_DB, 1.0))
 	_add_player_face()
+	_add_level_button()
 	camera.setup_bounds(MapData.MAP_WIDTH, MapData.MAP_HEIGHT)
-	# Empieza mirando tu castillo, no el centro del mapa.
-	var home := MapData.get_castle_by_id(GameManager.home_castle_id)
-	if home != null:
-		camera.focus_on(home.position_on_map, true)
+	# Empieza mirando dónde estás (tu castillo al empezar), no el centro del mapa.
+	var here := TravelData.current_castle() if GameManager.is_game_active else MapData.get_castle_by_id(GameManager.home_castle_id)
+	if here != null:
+		camera.focus_on(here.position_on_map, true)
 	_style_selected_label()
 
 	visible_castle_ids = _compute_visible_castle_ids()
@@ -109,9 +132,19 @@ func _ready() -> void:
 	ArmyData.events_changed.connect(_refresh_events)
 	_spawn_armies()
 	_refresh_events()
+	_sites_container = Node2D.new()
+	_sites_container.name = "SitesContainer"
+	add_child(_sites_container)
+	move_child(_sites_container, armies_container.get_index())
+	ExplorationData.sites_changed.connect(_spawn_sites)
+	_spawn_sites()
+	_spawn_player_token()
+	_add_travel_button()
 
 	btn_event_close.pressed.connect(_on_event_close_pressed)
 	_show_pending_event()
+	if not event_overlay.visible and TravelData.has_pending_encounter():
+		_show_encounter()
 	_check_end_conditions()
 	# De vuelta de un duelo aceptado en un evento: se muestra cómo terminó.
 	if not CombatSetup.last_result_text.is_empty() and not event_overlay.visible:
@@ -135,7 +168,12 @@ func _focus_default() -> void:
 		if target == null and btn_event_close.visible:
 			target = btn_event_close
 	elif castle_details_panel.visible:
-		target = btn_enter_castle if not btn_enter_castle.disabled else btn_close_panel
+		if not btn_enter_castle.disabled:
+			target = btn_enter_castle
+		elif _btn_travel != null and _btn_travel.visible and not _btn_travel.disabled:
+			target = _btn_travel
+		else:
+			target = btn_close_panel
 	elif army_panel.visible:
 		target = btn_march_army if not btn_march_army.disabled else btn_close_army_panel
 	elif not btn_advance_turn.disabled:
@@ -161,6 +199,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		btn_missions.pressed.emit()
 	elif event.is_action_pressed("map_chronicle"):
 		ChroniclePanel.open($UILayer, visible_castle_ids)
+	elif event is InputEventKey and event.pressed and not event.echo and event.keycode == ACHIEVEMENTS_KEY:
+		AchievementsPanel.open($UILayer)
 	elif event.is_action_pressed("map_toggle_panels"):
 		_toggle_bottom_panels()
 	elif event.is_action_pressed("map_next_castle"):
@@ -196,6 +236,7 @@ func _select_next_castle(step: int) -> void:
 func _setup_menu() -> void:
 	var popup := btn_menu.get_popup()
 	popup.add_item("Crónica completa  [C]", MenuItem.CRONICA)
+	popup.add_item("Libro de hazañas  [L]", MenuItem.HAZANAS)
 	popup.add_item("Relaciones  [R] · Encargos [E] · Avanzar turno [T] · Castillos [Tab] · Paneles [H]", -1)
 	popup.set_item_disabled(popup.item_count - 1, true)
 	popup.add_item("Guardar partida", MenuItem.GUARDAR)
@@ -210,6 +251,8 @@ func _on_menu_item(id: int) -> void:
 	match id:
 		MenuItem.CRONICA:
 			ChroniclePanel.open($UILayer, visible_castle_ids)
+		MenuItem.HAZANAS:
+			AchievementsPanel.open($UILayer)
 		MenuItem.GUARDAR:
 			_on_save_game_pressed()
 		MenuItem.OPCIONES:
@@ -263,7 +306,14 @@ func _compute_visible_castle_ids() -> Array[String]:
 	if not GameManager.is_game_active or GameManager.player_character == null:
 		return MapVision._all_castle_ids()
 	var player: Character = GameManager.player_character
-	return MapVision.get_visible_castle_ids(player.role, GameManager.home_castle_id, SkillEffects.vision_bonus(player))
+	var ids := MapVision.get_visible_castle_ids(player.role, GameManager.home_castle_id, SkillEffects.vision_bonus(player))
+	# De viaje ves el castillo donde estás y los de su alrededor.
+	var here := TravelData.current_castle()
+	if here != null:
+		for id: String in [here.castle_id] + Array(here.connected_castle_ids):
+			if not id in ids:
+				ids.append(id)
+	return ids
 
 func _spawn_castles() -> void:
 	for data: Castle in MapData.castles:
@@ -278,6 +328,7 @@ func _apply_vision() -> void:
 	for id in castle_markers.keys():
 		var marker = castle_markers[id]
 		marker.set_visibility_state(id in visible_castle_ids)
+	_spawn_sites()
 
 func _draw_routes() -> void:
 	var drawn_pairs: Dictionary = {}
@@ -318,15 +369,35 @@ func _on_castle_hovered(castle: Castle, hovering: bool) -> void:
 	var label := Label.new()
 	label.add_theme_font_size_override("font_size", 15)
 	if castle.castle_id in visible_castle_ids:
-		label.text = "%s\n%s · %s\nGuarnición: %d" % [castle.castle_name, KingdomEnums.kingdom_name(castle.kingdom), castle.owner_name, castle.garrison_size]
+		var realm := KingdomEnums.kingdom_name(castle.kingdom)
+		# El castillo suele llamarse como su reino: solo se repite el reino si ha cambiado de manos.
+		var who: String = castle.owner_name if realm == castle.castle_name else "%s · %s" % [realm, castle.owner_name]
+		label.text = "%s\n%s\nGuarnición: %d" % [castle.castle_name, who, castle.garrison_size]
 	else:
 		label.text = "%s\n(fuera de tu vista)" % castle.castle_name
 	_hover_tip.add_child(label)
 	$UILayer.add_child(_hover_tip)
 	_hover_tip.position = get_viewport().get_mouse_position() + Vector2(18, 18)
 
+const MapJuice = preload("res://scenes/map/map_juice.gd")
+const CONQUEST_MARK := "cae en manos"   # texto de ArmyData para una conquista
+const ACHIEVEMENT_STINGER_DB := -6.0
+
+# Efectos del cambio de mes: fecha en grande y estallido en los castillos conquistados a la vista.
+func _turn_juice() -> void:
+	if not GameManager.is_game_active:
+		return
+	MapJuice.month_turn($UILayer, GameManager.get_date_string())
+	for e: Dictionary in ArmyData.turn_events:
+		if CONQUEST_MARK in str(e.get("text", "")) and e.get("castle_id", "") in visible_castle_ids:
+			var c := MapData.get_castle_by_id(e.castle_id)
+			if c != null:
+				MapJuice.burst(castles_container, c.position_on_map, KingdomEnums.kingdom_color(c.kingdom))
+
 func _on_castle_clicked(castle: Castle) -> void:
 	selected_castle = castle
+	if castle_markers.has(castle.castle_id):
+		castle_markers[castle.castle_id].select_pulse()
 	var is_visible: bool = castle.castle_id in visible_castle_ids
 	_show_castle_details(castle, is_visible)
 
@@ -351,8 +422,12 @@ func _show_castle_details(castle: Castle, is_visible: bool) -> void:
 		btn_enter_castle.disabled = true
 		btn_enter_castle.tooltip_text = "Inicia una partida desde el menú principal para entrar a un castillo."
 	else:
-		btn_enter_castle.disabled = (castle.castle_id != GameManager.home_castle_id)
-		btn_enter_castle.tooltip_text = "" if not btn_enter_castle.disabled else "Solo puedes entrar a tu propio castillo por ahora."
+		var enter_reason := TravelData.can_enter(castle)
+		btn_enter_castle.disabled = not enter_reason.is_empty()
+		btn_enter_castle.tooltip_text = enter_reason
+		if enter_reason.is_empty() and TravelData.is_remote(castle):
+			btn_enter_castle.tooltip_text = "Estás lejos: solo puedes gestionarlo por carta, y cada gestión cuesta %d acción más." % TravelData.REMOTE_EXTRA_ACTIONS
+	_refresh_travel_button(castle)
 
 	castle_details_panel.visible = true
 	UiAnim.fade_in(castle_details_panel, 0.15)
@@ -393,6 +468,7 @@ func _on_advance_turn_pressed() -> void:
 	_confirm_until = 0.0
 	btn_advance_turn.text = "Avanzar Turno ▸"
 	GameManager.advance_turn()
+	_turn_juice()
 	# Autoguardado mensual (si la partida terminó, se conserva el último guardado previo).
 	if GameManager.is_game_active:
 		SaveSystem.save_game()
@@ -438,17 +514,32 @@ func _refresh_turn_ui() -> void:
 	btn_advance_turn.tooltip_text = "Resuelve primero el evento de este mes." if GameManager.has_pending_event() else ""
 	btn_save_game.disabled = false
 	btn_relations.disabled = false
-	var goal := GameManager.evaluate_goal()
-	objective_label.text = "%s — %s\n%s" % [
-		VictoryRules.goal_title(GameManager.starting_role),
-		VictoryRules.goal_description(GameManager.starting_role), goal.progress]
-	if GameManager.victory_achieved:
-		objective_label.text += "\n¡Objetivo cumplido!"
+	# «Tu destino»: las hazañas pendientes más cercanas (la de tu rol, primero).
+	var goal_lines: Array[String] = []
+	for a: Dictionary in AchievementData.next_achievements():
+		goal_lines.append("• %s — %s" % [a.title, AchievementData.progress_of(a).text])
+	if goal_lines.is_empty():
+		goal_lines.append("Has cumplido todas tus hazañas.")
+	objective_label.text = "Hazañas %d/%d  [L]\n%s" % [AchievementData.achieved_count(), AchievementData.visible().size(), "\n".join(goal_lines)]
+	objective_label.tooltip_text = "Abre el libro de hazañas con L o desde el menú."
 	var p: Character = GameManager.player_character
-	player_summary_label.text = "%s · %s   |   Oro %d  ·  Honor %d  ·  Fama %d" % [p.full_name(), p.role_name(), p.gold, p.honor, p.fame]
+	player_summary_label.text = "%s · %s   |   Oro %d  ·  Honor %d  ·  Fama %d" % [p.full_name(), p.role_title(), p.gold, p.honor, p.fame]
 	player_summary_label.tooltip_text = "Vida %d/%d · Duelos %d ganados / %d perdidos" % [
 		p.current_health, p.max_health, p.duels_won, p.duels_lost]
+	if CaptureData.is_captive():
+		player_summary_label.text = "%s   |   %s" % [CaptureData.captive_text(), p.full_name()]
+		player_summary_label.tooltip_text = "Estás preso: sin acciones hasta que salgas libre. Avanza el turno para esperar o intentar fugarte."
+	if p.is_mercenary():
+		# La barra superior ya va justa: el estado de la compañía se muestra en «Tu destino».
+		objective_label.text += "\nCompañía %d soldados (soldada %d/mes) · Infamia %d/%d" % [
+			MissionData.company_size(), MissionData.company_pay(), MissionData.infamy, MissionData.INFAMY_REFUSE]
+		objective_label.tooltip_text = "La soldada se paga cada mes; sin paga, deserta una cuarta parte. Con %d de infamia nadie te contrata." % MissionData.INFAMY_REFUSE
+	# Una historia que espera a que viajes a algún sitio (StoryData): aviso de una línea.
+	var story := get_node_or_null("/root/StoryData")
+	if story != null and not story.travel_target().is_empty() and story.summary_line().contains("Viaja a"):
+		objective_label.text += "\n📜 " + story.summary_line()
 	_update_advance_pulse()
+	_refresh_level_button()
 
 # Sin acciones por gastar, el botón de avanzar turno late para indicar el siguiente paso.
 func _update_advance_pulse() -> void:
@@ -676,6 +767,7 @@ func _on_event_option_pressed(index: int) -> void:
 	var target: Relationship = RelationsData.get_relation(e.get("target", e.get("speaker", "")))
 	var duel_rival: Relationship = RelationsData.get_relation(e.get("duel_with", e.get("speaker", "")))
 	var starts_duel: bool = e.options[index].get("start_duel", false)
+	_pending_duel_to_death = e.options[index].get("to_death", false)
 	_pending_fight = e.options[index].get("fight", {})
 	_pending_fight_title = e.get("title", "Combate")
 	var chosen_label: String = e.options[index].get("label", "")
@@ -694,7 +786,7 @@ func _on_event_option_pressed(index: int) -> void:
 	if _pending_duel_rival != null:
 		btn_event_close.text = "¡Al duelo!"
 	elif not _pending_fight.is_empty():
-		btn_event_close.text = "¡Al combate!" if _pending_fight.get("type", "duel") == "battle" else "¡Al duelo!"
+		btn_event_close.text = "¡Al combate!" if _pending_fight.get("type", "duel") in ["battle", "invited"] else "¡Al duelo!"
 
 func _on_event_close_pressed() -> void:
 	event_overlay.visible = false
@@ -706,8 +798,9 @@ func _on_event_close_pressed() -> void:
 	if not _pending_fight.is_empty():
 		var scene := CombatSetup.begin_event_fight(_pending_fight, _pending_fight_title)
 		_pending_fight = {}
-		get_tree().change_scene_to_file(scene)
-		return
+		if not scene.is_empty():
+			get_tree().change_scene_to_file(scene)
+			return
 	if _pending_duel_rival != null:
 		var rival := _pending_duel_rival
 		_pending_duel_rival = null
@@ -715,6 +808,8 @@ func _on_event_close_pressed() -> void:
 		rival.current_stamina = rival.max_stamina
 		rival.current_morale = rival.max_morale
 		CombatSetup.start_campaign_duel(GameManager.player_character, rival)
+		if "duel_to_death" in CombatSetup:
+			CombatSetup.duel_to_death = _pending_duel_to_death
 		CombatSetup.return_scene = "res://scenes/map/map.tscn"
 		get_tree().change_scene_to_file("res://scenes/combat/combat.tscn")
 		return
@@ -728,7 +823,259 @@ func _on_event_close_pressed() -> void:
 	_spawn_armies()
 	_refresh_events()
 	_refresh_turn_ui()
+	# Una decisión puede traer otra (p. ej. el rescate de los tuyos que esperaba hueco).
+	if GameManager.has_pending_event():
+		_show_pending_event()
+		return
 	_show_next_notification()
+
+# --- Nivel del personaje ---
+# Botón «Nivel N» arriba: late cuando hay puntos o habilidades por repartir y abre el panel de nivel.
+
+func _add_level_button() -> void:
+	if GameManager.player_character == null:
+		return
+	_btn_level = Button.new()
+	_btn_level.name = "BtnLevel"
+	_btn_level.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_btn_level.pressed.connect(func():
+		if ResourceLoader.exists(LEVEL_UP_PANEL):
+			var panel = load(LEVEL_UP_PANEL).open($UILayer)
+			if panel is Node:
+				panel.tree_exited.connect(func():
+					if is_inside_tree():
+						_refresh_turn_ui()))
+	var bar: HBoxContainer = $UILayer/TopBar/TopHBox
+	bar.add_child(_btn_level)
+	bar.move_child(_btn_level, mini(1, bar.get_child_count() - 1))
+	_refresh_level_button()
+
+func _refresh_level_button() -> void:
+	var p: Character = GameManager.player_character
+	if _btn_level == null or p == null:
+		return
+	var pending: bool = p.unspent_points > 0 or p.pending_skill_choices > 0
+	_btn_level.text = "Nivel %d%s" % [p.level, " ●" if pending else ""]
+	_btn_level.tooltip_text = "Experiencia %d/%d.%s" % [p.xp, p.xp_to_next(),
+		"\n¡Tienes %d puntos y %d habilidades por elegir!" % [p.unspent_points, p.pending_skill_choices] if pending else ""]
+	_btn_level.theme_type_variation = &"PrimaryButton" if pending else &""
+	if pending and _level_pulse == null:
+		_level_pulse = UiAnim.pulse(_btn_level)
+	elif not pending and _level_pulse != null:
+		_level_pulse.kill()
+		_level_pulse = null
+		_btn_level.modulate = Color.WHITE
+
+# --- Lugares para explorar (ExplorationData) ---
+# Aparecen junto a castillos que ves; visitarlos gasta una acción y abre su decisión en el panel de eventos.
+
+func _spawn_sites() -> void:
+	if _sites_container == null:
+		return
+	for child in _sites_container.get_children():
+		child.queue_free()
+	if not GameManager.is_game_active:
+		return
+	for site: Dictionary in ExplorationData.sites:
+		if not site.castle_id in visible_castle_ids:
+			continue
+		var marker := SiteMarkerScript.new()
+		_sites_container.add_child(marker)
+		marker.setup(site, ExplorationData.site_name(site), Color(SiteCatalog.site_def(site.type).get("color", "ffffff")))
+		marker.site_clicked.connect(_show_site)
+
+func _show_site(uid: String) -> void:
+	var site := ExplorationData.find(uid)
+	if site.is_empty() or event_overlay.visible:
+		return
+	_site_uid = uid
+	var event := SiteCatalog.as_event(site.type)
+	var player: Character = GameManager.player_character
+	var home := MapData.get_castle_by_id(GameManager.home_castle_id)
+	var near := MapData.get_castle_by_id(site.castle_id)
+	event_title.text = event.title
+	event_text.text = "%s\n\nCerca de %s · desaparecerá en %d %s. Explorarlo gasta una acción (te quedan %d)." % [
+		event.text, near.castle_name if near != null else "?", int(site.months_left),
+		"mes" if int(site.months_left) == 1 else "meses", GameManager.actions_remaining]
+	event_speaker.visible = false
+	event_result.visible = false
+	btn_event_close.visible = false
+	for child in event_options.get_children():
+		child.queue_free()
+	var options: Array = event.options
+	for i in range(options.size()):
+		var option: Dictionary = options[i]
+		var btn := Button.new()
+		btn.text = option.label
+		if option.has("chance"):
+			btn.text += " (%d%% de éxito)" % roundi(EventCatalog.success_chance(option, player) * 100)
+		if not EventCatalog.can_choose(option, player, home):
+			btn.disabled = true
+			btn.tooltip_text = EventCatalog.requirement_text(option)
+		elif not GameManager.has_actions_remaining():
+			btn.disabled = true
+			btn.tooltip_text = "No te quedan acciones este mes."
+		btn.pressed.connect(_on_site_option_pressed.bind(i))
+		event_options.add_child(btn)
+	var leave := Button.new()
+	leave.text = "Marcharse (sin gastar acción)"
+	leave.theme_type_variation = &"FlatButton"
+	leave.pressed.connect(func():
+		_site_uid = ""
+		event_overlay.visible = false
+		for child in event_options.get_children():
+			child.queue_free())
+	event_options.add_child(leave)
+	castle_details_panel.visible = false
+	event_overlay.visible = true
+	UiAnim.fade_in(event_panel, 0.25)
+	_focus_default.call_deferred()
+
+# --- Viaje (ver TravelData) ---
+# Tu ficha va de castillo en castillo por las rutas: 1 acción por tramo (2 en invierno).
+
+func _spawn_player_token() -> void:
+	if not GameManager.is_game_active or GameManager.player_character == null:
+		return
+	_player_token = PlayerTokenScript.new()
+	_player_token.name = "PlayerToken"
+	add_child(_player_token)
+	move_child(_player_token, armies_container.get_index() + 1)
+	_player_token.setup(GameManager.player_character, TravelData.current_castle_id())
+	TravelData.location_changed.connect(_on_location_changed)
+
+func _on_location_changed(castle_id: String) -> void:
+	if _player_token != null and is_instance_valid(_player_token):
+		_player_token.place_at(castle_id)
+
+func _add_travel_button() -> void:
+	_btn_travel = Button.new()
+	_btn_travel.name = "BtnTravel"
+	_btn_travel.theme_type_variation = &"PrimaryButton"
+	_btn_travel.visible = false
+	_btn_travel.pressed.connect(_on_travel_pressed)
+	btn_enter_castle.add_sibling(_btn_travel)
+
+func _refresh_travel_button(castle: Castle) -> void:
+	if _btn_travel == null:
+		return
+	_btn_travel.visible = GameManager.is_game_active and castle != null and not TravelData.is_at(castle.castle_id)
+	if not _btn_travel.visible:
+		return
+	var path := TravelData.path_to(castle.castle_id)
+	var cost := TravelData.hop_cost()
+	var cost_text := "%d %s" % [cost, "acción" if cost == 1 else "acciones"]
+	if path.size() <= 1:
+		_btn_travel.text = "Viajar aquí (%s)" % cost_text
+	else:
+		var next := MapData.get_castle_by_id(path[0])
+		_btn_travel.text = "Viajar hacia aquí: a %s (%s)" % [next.castle_name if next != null else "?", cost_text]
+	var reason := TravelData.travel_blocker(castle.castle_id)
+	_btn_travel.disabled = not reason.is_empty()
+	var tip := "Tu ficha avanza un tramo por la ruta. En el camino pueden salirte al paso salteadores, mercaderes o patrullas (probabilidad %d%%)." % roundi(
+		TravelData.encounter_chance(TravelData.current_castle_id(), path[0]) * 100) if not path.is_empty() else ""
+	if path.size() > 1:
+		tip += "\nQuedan %d tramos hasta %s." % [path.size(), castle.castle_name]
+	if SkillEffects.is_winter(GameManager.current_month) and cost > 1:
+		tip += "\nEs invierno: cada tramo cuesta %d acciones (Paso Invernal lo evita)." % cost
+	_btn_travel.tooltip_text = reason if not reason.is_empty() else tip
+
+func _on_travel_pressed() -> void:
+	if selected_castle == null:
+		return
+	var target := selected_castle
+	var r := TravelData.travel_toward(target.castle_id)
+	if not r.ok:
+		_show_message("No puedes viajar", r.text)
+		return
+	var arrived := MapData.get_castle_by_id(r.arrived_id)
+	camera.focus_on(arrived.position_on_map)
+	visible_castle_ids = _compute_visible_castle_ids()
+	_apply_vision()
+	_spawn_armies()
+	_refresh_turn_ui()
+	if not r.encounter.is_empty():
+		castle_details_panel.visible = false
+		await get_tree().create_timer(PlayerTokenScript.MOVE_TIME).timeout
+		if is_inside_tree():
+			_show_encounter()
+		return
+	# Al llegar se muestra la ficha del castillo: para entrar o seguir viaje hacia el destino.
+	_on_castle_clicked(arrived if TravelData.is_at(target.castle_id) else target)
+	selected_castle_label.text = r.text
+	# Llegar a un lugar puede disparar un suceso (p. ej. el paso de una historia que te esperaba allí).
+	if GameManager.has_pending_event():
+		_show_pending_event()
+
+func _show_encounter() -> void:
+	var event := TravelData.encounter_event()
+	if event.is_empty():
+		return
+	var player: Character = GameManager.player_character
+	var home := MapData.get_castle_by_id(GameManager.home_castle_id)
+	_showing_encounter = true
+	event_title.text = "En el camino: %s" % event.title
+	event_text.text = event.text
+	event_speaker.visible = false
+	event_result.visible = false
+	btn_event_close.visible = false
+	for child in event_options.get_children():
+		child.queue_free()
+	var options: Array = event.options
+	for i in range(options.size()):
+		var option: Dictionary = options[i]
+		var btn := Button.new()
+		btn.text = option.label
+		if option.has("chance"):
+			btn.text += " (%d%% de éxito)" % roundi(EventCatalog.success_chance(option, player) * 100)
+		if not EventCatalog.can_choose(option, player, home):
+			btn.disabled = true
+			btn.tooltip_text = EventCatalog.requirement_text(option)
+		btn.pressed.connect(_on_encounter_option_pressed.bind(i))
+		event_options.add_child(btn)
+	castle_details_panel.visible = false
+	event_overlay.visible = true
+	UiAnim.fade_in(event_panel, 0.25)
+	_focus_default.call_deferred()
+
+func _on_encounter_option_pressed(index: int) -> void:
+	var r := TravelData.resolve_encounter(index)
+	_showing_encounter = false
+	if not r.ok:
+		event_result.text = r.text
+		event_result.visible = true
+		return
+	for child in event_options.get_children():
+		child.queue_free()
+	event_result.text = r.text
+	event_result.visible = true
+	btn_event_close.visible = true
+	_pending_fight = r.fight
+	_pending_fight_title = r.title
+	if not _pending_fight.is_empty():
+		btn_event_close.text = "¡Al combate!" if _pending_fight.get("type", "duel") in ["battle", "invited"] else "¡Al duelo!"
+	_refresh_turn_ui()
+	_focus_default.call_deferred()
+
+func _on_site_option_pressed(index: int) -> void:
+	var r := ExplorationData.visit(_site_uid, index)
+	_site_uid = ""
+	if not r.ok:
+		event_result.text = r.text
+		event_result.visible = true
+		return
+	for child in event_options.get_children():
+		child.queue_free()
+	event_result.text = r.text
+	event_result.visible = true
+	btn_event_close.visible = true
+	_pending_fight = r.fight
+	_pending_fight_title = r.title
+	if not _pending_fight.is_empty():
+		btn_event_close.text = "¡Al combate!" if _pending_fight.get("type", "duel") == "battle" else (
+			"¡Duelo a muerte!" if _pending_fight.get("to_death", false) else "¡Al duelo!")
+	_refresh_turn_ui()
+	_focus_default.call_deferred()
 
 # --- Victoria y derrota ---
 # Devuelve true si se mostró un anuncio (victoria) o terminó la partida (derrota).
@@ -737,36 +1084,20 @@ func _check_end_conditions() -> bool:
 	if not GameManager.is_game_active or event_overlay.visible:
 		return false   # si hay un evento abierto, se revisa al cerrarlo
 
-	if GameManager.check_defeat():
-		_refresh_turn_ui()
-		_refresh_events()
-		return true
+	# La deshonra ya no termina la partida: cuesta rango y fama (el aviso llega como noticia).
+	if not GameManager.check_disgrace().is_empty():
+		visible_castle_ids = _compute_visible_castle_ids()
+		_apply_vision()
+		_show_next_notification()
 
-	if not GameManager.victory_achieved and GameManager.evaluate_goal().done:
-		GameManager.victory_achieved = true
-		_show_victory()
-		_refresh_turn_ui()
+	# Hazañas (recompensas) y los dos finales con victoria.
+	AchievementData.check_all()
+	_refresh_turn_ui()
+	if not AchievementData.pending_ending.is_empty():
+		_show_ending(AchievementData.pending_ending)
+		AchievementData.pending_ending = {}
 		return true
 	return false
 
-func _show_victory() -> void:
-	var role := GameManager.starting_role
-	event_title.text = "¡Victoria! — %s" % VictoryRules.goal_title(role)
-	event_text.text = "%s\n\nHas cumplido tu destino en %s. Tu nombre quedará en las crónicas del reino." % [
-		VictoryRules.goal_description(role), GameManager.get_date_string()]
-	event_result.visible = false
-	btn_event_close.visible = false
-	for child in event_options.get_children():
-		child.queue_free()
-
-	var btn_continue := Button.new()
-	btn_continue.text = "Seguir jugando"
-	btn_continue.theme_type_variation = &"PrimaryButton"
-	btn_continue.pressed.connect(func(): event_overlay.visible = false)
-	event_options.add_child(btn_continue)
-
-	var btn_menu := Button.new()
-	btn_menu.text = "Volver al Menú Principal"
-	btn_menu.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/main_menu/main_menu.tscn"))
-	event_options.add_child(btn_menu)
-	event_overlay.visible = true
+func _show_ending(ending: Dictionary) -> void:
+	EndingPanel.open($UILayer, ending)

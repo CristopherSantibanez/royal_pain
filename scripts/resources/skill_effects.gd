@@ -88,6 +88,44 @@ static func _fx_table() -> Dictionary:
 				_fx_by_name[e.name] = e.get("fx", {})
 	return _fx_by_name
 
+# --- Piezas únicas (ContentCatalog, nivel 4): cada una tiene una habilidad propia por id ---
+const UNIQUE_DURANDAL := "durandal"          # primer ataque de cada duelo imparable
+const UNIQUE_BLEED := "sangrado"             # cada golpe hace sangrar al rival
+const UNIQUE_CRIT_WARD := "anticritico"      # el primer crítico recibido en cada duelo se anula
+const UNIQUE_REFLECT := "reflejo"            # devuelve parte del daño recibido
+const UNIQUE_STEADY := "firmeza"             # inmune al desequilibrio
+const UNIQUE_ORIFLAMMA := "oriflama"         # batalla: +10 de moral y el primer pelotón que huiría resiste
+const UNIQUE_OLIFANT := "olifante"           # batalla: una habilidad de mando más
+const UNIQUE_BABIECA := "babieca"            # viajar en invierno sin coste extra
+const UNIQUE_ELOQUENCE := "elocuencia"       # +15% de éxito al conversar
+const UNIQUE_SAFE_ROADS := "camino_seguro"   # la mitad de encuentros en el camino
+const UNIQUE_RELIC := "reliquia"             # cura las heridas graves cada mes
+const UNIQUE_SEAL := "sello"                 # cartas sin acción extra
+
+const BLEED_DAMAGE := 4
+const BLEED_TURNS := 2
+const REFLECT_FACTOR := 0.25
+const ELOQUENCE_BONUS := 0.15
+const SAFE_ROADS_FACTOR := 0.5
+
+static var _unique_by_name := {}
+
+## ¿Lleva el personaje equipada la pieza única con ese id?
+static func has_unique(character: Character, unique_id: String) -> bool:
+	if character == null:
+		return false
+	if _unique_by_name.is_empty():
+		for e: Dictionary in ContentCatalog.EQUIPMENT:
+			if e.has("unique"):
+				_unique_by_name[e.name] = e.unique
+	for e: Equipment in character.equipment:
+		if e != null and _unique_by_name.get(e.equipment_name, "") == unique_id:
+			return true
+	return false
+
+static func is_unique_item(item: Equipment) -> bool:
+	return item != null and item.tier >= ContentCatalog.UNIQUE_TIER
+
 ## Suma de un efecto entre todo lo que tiene el personaje (0 si nada lo aporta).
 static func fx(character: Character, key: String) -> float:
 	if character == null:

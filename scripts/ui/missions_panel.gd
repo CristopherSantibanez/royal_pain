@@ -46,6 +46,17 @@ func _ready() -> void:
 	stats.text = "Cumplidos: %d · Fallidos: %d · Activos: %d de %d" % [
 		MissionData.completed_count, MissionData.failed_count, MissionData.active.size(), MissionData.MAX_ACTIVE]
 	box.add_child(stats)
+	# Historias encadenadas (StoryData): la que está en marcha, o la última terminada.
+	var story := get_node_or_null("/root/StoryData")
+	var story_line: String = story.summary_line() if story != null else ""
+	if not story_line.is_empty():
+		var story_label := Label.new()
+		story_label.text = "📜 " + story_line
+		story_label.theme_type_variation = &"BodyBoldLabel"
+		story_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		story_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		story_label.tooltip_text = story_line
+		box.add_child(story_label)
 	box.add_child(HSeparator.new())
 
 	var scroll := ScrollContainer.new()

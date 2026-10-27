@@ -1,14 +1,32 @@
 class_name Character
 extends Resource
 
-## ROLES SOCIALES
+## ROLES SOCIALES (los nuevos se añaden SIEMPRE al final: las partidas guardan el número).
+## El orden del enum NO es el rango: para comparar rangos usa rank() / Character.rank_of().
 enum Role {
 	CAMPESINO,
 	SOLDADO,
 	CABALLERO,
 	NOBLEZA_BAJA,
 	NOBLEZA_ALTA,
-	REGENTE
+	REGENTE,
+	DUQUE,         # entre Nobleza Alta y Regente
+	MERCENARIO,    # camino mercenario: espada a sueldo, sin señor fijo
+	CAPITAN,       # capitán de una compañía mercenaria
+	CONDOTIERO,    # señor de la guerra mercenario: puede tomar castillos
+}
+
+# Rango social de cada rol (0 = más bajo). Los mercenarios se equiparan a su par de la escalera noble.
+const RANK_BY_ROLE := {
+	Role.CAMPESINO: 0, Role.SOLDADO: 1, Role.CABALLERO: 2, Role.NOBLEZA_BAJA: 3,
+	Role.NOBLEZA_ALTA: 4, Role.DUQUE: 5, Role.REGENTE: 6,
+	Role.MERCENARIO: 1, Role.CAPITAN: 2, Role.CONDOTIERO: 3,
+}
+const MERCENARY_ROLES := [Role.MERCENARIO, Role.CAPITAN, Role.CONDOTIERO]
+# Rol de la escalera noble al que equivale cada uno (para eventos y contenidos pensados por rango).
+const LADDER_EQUIVALENT := {
+	Role.DUQUE: Role.NOBLEZA_ALTA, Role.MERCENARIO: Role.SOLDADO,
+	Role.CAPITAN: Role.CABALLERO, Role.CONDOTIERO: Role.NOBLEZA_BAJA,
 }
 
 ## PERSONALIDADES (las nuevas se añaden SIEMPRE al final: las partidas guardan el número)
@@ -53,6 +71,11 @@ enum Personality {
 @export var max_morale: int = 100
 @export var current_morale: int = 100
 @export var honor: int = 50
+@export_range(1, 20) var level: int = 1         # nivel de experiencia (ver gain_xp)
+@export var xp: int = 0                          # experiencia acumulada hacia el siguiente nivel
+@export var unspent_points: int = 0              # puntos de atributo por repartir al subir de nivel
+@export var pending_skill_choices: int = 0       # habilidades por elegir (una cada SKILL_EVERY_LEVELS niveles)
+@export var age: int = 20                        # años; cada enero se cumple uno más (ver DynastyData)
 @export_range(0, 100) var fame: int = 0   # reconocimiento: duelos, torneos y hazañas; atrae eventos y seguidores
 @export var wound_months: int = 0   # meses que faltan para curar una herida grave (no puede batirse)
 
@@ -62,7 +85,13 @@ enum Personality {
 @export var duels_lost: int = 0
 @export var rent: int = 0                    # oro que le rinden cada mes las tierras mejoradas
 @export var last_training_month: int = -1    # mes (GameManager.months_elapsed) del último entrenamiento
+@export var training_sessions_month: int = 0  # sesiones de entrenamiento hechas ese mes (tope: XpRules.TRAINING_PER_MONTH)
 @export var last_command_month: int = -1     # último mes en que una batalla ganada le dio Liderazgo
+
+@export_group("Comandancia")
+@export var mastery_xp: Dictionary = {}      # familia de tropa (BattleEnums.Family) -> experiencia de mando acumulada
+@export var assigned_family: int = -1        # tropa que le asignó el Consejo de guerra (-1: la decide el general)
+@export var troop_drill_log: Dictionary = {} # "entrenar"/"estudiar" -> [mes (months_elapsed), veces ese mes]
 
 @export_group("Habilidades")
 @export var general_skills: Array[Skill] = []
@@ -135,6 +164,9 @@ func get_face() -> Texture2D:
 
 func _role_file_name() -> String:
 	match role:
+		Role.DUQUE: return "nobleza_alta"
+		Role.MERCENARIO: return "soldado"
+		Role.CAPITAN, Role.CONDOTIERO: return "caballero"
 		Role.CAMPESINO: return "campesino"
 		Role.SOLDADO: return "soldado"
 		Role.CABALLERO: return "caballero"
@@ -154,7 +186,44 @@ static func role_name_for(r: int) -> String:
 		Role.NOBLEZA_BAJA: return "Nobleza Baja"
 		Role.NOBLEZA_ALTA: return "Nobleza Alta"
 		Role.REGENTE: return "Regente"
+		Role.DUQUE: return "Duque"
+		Role.MERCENARIO: return "Mercenario"
+		Role.CAPITAN: return "Capitán de compañía"
+		Role.CONDOTIERO: return "Condotiero"
 	return "Desconocido"
+
+## Título con el género del personaje (Duquesa, Mercenaria, Capitana, Condotiera...).
+static func role_title_for(r: int, gender: int) -> String:
+	if gender != CharacterEnums.Gender.FEMENINO:
+		return Character.role_name_for(r)
+	match r:
+		Role.CAMPESINO: return "Campesina"
+		Role.DUQUE: return "Duquesa"
+		Role.MERCENARIO: return "Mercenaria"
+		Role.CAPITAN: return "Capitana de compañía"
+		Role.CONDOTIERO: return "Condotiera"
+	return Character.role_name_for(r)
+
+func role_title() -> String:
+	return Character.role_title_for(role, gender)
+
+static func ladder_role_of(r: int) -> int:
+	return LADDER_EQUIVALENT.get(r, r)
+
+func ladder_role() -> int:
+	return Character.ladder_role_of(role)
+
+static func rank_of(r: int) -> int:
+	return RANK_BY_ROLE.get(r, 0)
+
+func rank() -> int:
+	return Character.rank_of(role)
+
+static func is_mercenary_role(r: int) -> bool:
+	return r in MERCENARY_ROLES
+
+func is_mercenary() -> bool:
+	return Character.is_mercenary_role(role)
 
 # --- Modificadores de traits + equipamiento ---
 # Suma los bonos de ventajas, desventajas y equipo por ENCIMA de las stats base
@@ -297,6 +366,8 @@ func monthly_recovery() -> void:
 	current_morale = max_morale
 	if wound_months > 0:
 		wound_months -= 1
+		if SkillEffects.has_unique(self, SkillEffects.UNIQUE_RELIC):   # Relicario de Aquisgrán
+			wound_months = 0
 
 func health_text() -> String:
 	var text := "Vida %d/%d" % [current_health, max_health]
@@ -305,6 +376,39 @@ func health_text() -> String:
 	return text
 
 # --- Progresión social ---
+
+# --- Experiencia y niveles ---
+const MAX_LEVEL := 20
+const XP_BASE := 100            # experiencia para pasar del nivel N al N+1: XP_BASE * N
+const POINTS_PER_LEVEL := 2
+const SKILL_EVERY_LEVELS := 3
+const XpRulesRef = preload("res://scripts/resources/xp_rules.gd")
+
+func xp_to_next() -> int:
+	return XP_BASE * level
+
+var last_xp_gained := 0        # experiencia realmente sumada en la última llamada (ya con multiplicador)
+
+## Suma experiencia. Devuelve cuántos niveles se subieron (0 si ninguno).
+## source (ver XpRules.SOURCE_*): el tipo de luchador multiplica lo que se aprende de cada fuente.
+func gain_xp(amount: int, source: String = "") -> int:
+	last_xp_gained = 0
+	if amount <= 0 or level >= MAX_LEVEL:
+		return 0
+	amount = maxi(1, roundi(amount * XpRulesRef.multiplier(fighter_type, source) * (1.0 + SkillEffects.fx(self, "xp_" + source)))) if not source.is_empty() else amount
+	last_xp_gained = amount
+	xp += amount
+	var gained := 0
+	while level < MAX_LEVEL and xp >= xp_to_next():
+		xp -= xp_to_next()
+		level += 1
+		gained += 1
+		unspent_points += POINTS_PER_LEVEL
+		if level % SKILL_EVERY_LEVELS == 0:
+			pending_skill_choices += 1
+	if level >= MAX_LEVEL:
+		xp = 0
+	return gained
 
 ## Suma (o resta) fama: duelos, torneos, batallas y encargos cumplidos. 0..100.
 func add_fame(amount: int) -> void:
@@ -326,3 +430,45 @@ func register_duel_win(honor_gain: int = 10) -> void:
 func register_duel_loss() -> void:
 	duels_lost += 1
 	honor = clamp(honor - 5, 0, 100)
+
+# --- Comandancia: maestría por familia de tropa (1–10) ---
+# Cada nivel pide MASTERY_XP_STEP × nivel de experiencia; da más soldados y moral al pelotón que dirige
+# y, desde MASTERY_ADVANCED, la versión avanzada de esa tropa.
+const MASTERY_MAX := 10
+const MASTERY_XP_STEP := 40
+const MASTERY_ADVANCED := 5
+
+## Nivel de mando (1..10) en una familia de tropa (BattleEnums.Family).
+func mastery(family: int) -> int:
+	var xp_left: int = int(mastery_xp.get(str(family), 0))
+	var lvl := 1
+	while lvl < MASTERY_MAX and xp_left >= MASTERY_XP_STEP * lvl:
+		xp_left -= MASTERY_XP_STEP * lvl
+		lvl += 1
+	return lvl
+
+## Experiencia que falta para el siguiente nivel de mando ([actual, necesaria]).
+func mastery_progress(family: int) -> Array:
+	var xp_left: int = int(mastery_xp.get(str(family), 0))
+	var lvl := 1
+	while lvl < MASTERY_MAX and xp_left >= MASTERY_XP_STEP * lvl:
+		xp_left -= MASTERY_XP_STEP * lvl
+		lvl += 1
+	return [xp_left, MASTERY_XP_STEP * lvl] if lvl < MASTERY_MAX else [0, 0]
+
+## Suma experiencia de mando (con los bonus de rasgos y equipo). Devuelve los niveles ganados.
+func add_mastery_xp(family: int, amount: int) -> int:
+	if amount <= 0:
+		return 0
+	var before := mastery(family)
+	var gain := roundi(amount * maxf(0.0, 1.0 + SkillEffects.fx(self, "mastery_xp")))
+	mastery_xp[str(family)] = int(mastery_xp.get(str(family), 0)) + gain
+	return mastery(family) - before
+
+## Familia en la que más manda (empate: la primera).
+func best_family() -> int:
+	var best := 0
+	for f in 4:
+		if mastery(f) > mastery(best):
+			best = f
+	return best

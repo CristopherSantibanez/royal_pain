@@ -20,6 +20,30 @@ const SIEGE_UPKEEP_PER_SOLDIERS := 10   # el jugador paga 1 de oro al mes por ca
 const SIEGE_UNPAID_DESERTION := 0.05    # sin paga, desertan sitiadores
 const COMMAND_LEADERSHIP_GAIN := 1      # Liderazgo por batalla ganada al mando (máx. una vez al mes)
 const MAX_STAT := 20
+const BuildingCatalog = preload("res://scripts/resources/building_catalog.gd")
+const InvitationCatalog = preload("res://scripts/resources/invitation_catalog.gd")
+
+# --- Llamadas a filas: te invitan a unirte a un ejército de la IA ---
+const INVITE_MIN_AFFINITY := 20         # un señor que te aprecia así te llama...
+const INVITE_MIN_INTIMACY := 40         # ...o alguien de su corte con quien tienes esta intimidad...
+const INVITE_MIN_FAME := 25             # ...o el señor de la zona donde estás, si tu fama te precede
+const INVITE_CHANCE := 0.85             # no todos los que pueden llamarte lo hacen (tu señor, siempre)
+const FIELD_INVITE_CHANCE := 0.4        # cada mes, con una guerra en tu zona: batalla campal
+const INVITE_WIN_GOLD_PER_SOLDIER := 2  # tu anfitrión paga a tu gente si vencéis
+const INVITE_WIN_GOLD_MIN := 20
+const INVITE_WIN_FAME := 4
+const INVITE_WIN_RELATION := 6
+# --- Lazos de batalla: quien lucha a tu lado te aprecia más ---
+const BATTLE_BOND_WIN := 5
+const BATTLE_BOND_LOSS := 2
+const LIEGE_BATTLE_AFFINITY := 3        # tu señor agradece cada victoria por su reino
+# --- Traición en plena batalla ---
+const BETRAYAL_RELATION := -40          # afinidad e intimidad de quienes la vieron desde el bando traicionado
+const BETRAYAL_GRUDGE := 40             # ...y su rencor (pueden volverse rivales)
+const BETRAYAL_NEW_SIDE := 10           # el bando al que te pasas te recibe con cierta gratitud
+const BETRAYAL_HONOR := 25
+const BETRAYAL_FAME := 5
+const BETRAYAL_INFAMY := 30             # los mercenarios que traicionan, además, cargan infamia
 
 var armies: Array[Army] = []
 var _next_id: int = 1
@@ -128,6 +152,11 @@ func set_destination(army: Army, destination_castle_id: String) -> bool:
 	var origin: Castle = MapData.get_castle_by_id(army.current_castle_id)
 	if origin == null:
 		return false
+	# Un campesino no lleva ejércitos contra nadie (solo lucha si lo llaman a filas).
+	var target_castle: Castle = MapData.get_castle_by_id(destination_castle_id)
+	if is_player_army(army) and target_castle != null and target_castle.kingdom != army.kingdom \
+			and not CombatSetup.battle_blocker(GameManager.player_character).is_empty():
+		return false
 	# Habilidades del comandante: Viajero permite marchar a 2 saltos; Paso Invernal evita
 	# que el invierno (diciembre a febrero) duplique la duración de la marcha.
 	var commander := army_commander(army)
@@ -197,6 +226,7 @@ func _on_turn_advanced(_month: int, _year: int) -> void:
 	var player: Character = GameManager.player_character
 	if player != null and player.rent > 0:
 		player.gold += player.rent
+	_buildings_month(own_castles)
 	var edict_note := EdictCatalog.apply_monthly(GameManager.active_edict, GameManager.player_character,
 		MapData.castles, GameManager.player_kingdom, RelationsData.relations)
 	if not edict_note.is_empty():
@@ -212,9 +242,34 @@ func _on_turn_advanced(_month: int, _year: int) -> void:
 				WorldEvents.notify("Declaración de guerra", news.text)
 		_check_rebellions()
 		_run_kingdom_ai()
+		_maybe_field_invitation()
 
 	armies_changed.emit()
 	events_changed.emit()
+
+# Obras en curso de todos los castillos, efectos de la Capilla del castillo del jugador y obras de la IA.
+func _buildings_month(own_castles: Array[String]) -> void:
+	for c: Castle in MapData.castles:
+		var done := c.advance_construction()
+		if done.is_empty():
+			continue
+		var text := "Terminan las obras en %s: %s (nivel %d)." % [c.castle_name, BuildingCatalog.building_name(done), c.building_level(done)]
+		if c.castle_id in own_castles:
+			_add_event(text, c.castle_id)
+			WorldEvents.notify("Obras terminadas", text)
+		elif MapVision.get_visible_castle_ids(GameManager.player_character.role if GameManager.player_character != null else 0,
+				GameManager.home_castle_id).has(c.castle_id):
+			_add_event(text, c.castle_id)
+	var player: Character = GameManager.player_character
+	var home: Castle = MapData.get_castle_by_id(GameManager.home_castle_id)
+	if player != null and home != null:
+		# Los caballeros y soldados también disfrutan de los edificios del castillo de su señor.
+		player.current_health = mini(player.max_health, player.current_health + int(home.building_value("capilla", "heal")))
+		var honor := int(home.building_value("capilla", "honor"))
+		if honor > 0:
+			player.gain_honor(honor)
+	if GameManager.is_game_active:
+		KingdomAI.plan_constructions(MapData.castles, own_castles)
 
 func _run_kingdom_ai() -> void:
 	var player_name: String = GameManager.player_character.full_name() if GameManager.player_character != null else ""
@@ -271,12 +326,20 @@ func _resolve_arrival(army: Army) -> void:
 	army.pending_battle = true
 	if is_player_army(army):
 		battle_pending.emit(army)
-	elif is_player_defended(destination):
+	elif is_player_defended(destination) and CombatSetup.battle_blocker(GameManager.player_character).is_empty():
 		_add_event("¡%s asedia %s con %d soldados! Defiéndelo antes de avanzar el turno." % [
 			army.owner_name, destination.castle_name, army.size], destination.castle_id)
 		battle_pending.emit(army)
-	else:
+	elif not offer_invitation(army):
 		_auto_resolve_battle(army)
+
+const AUTO_MASTERY_PER_LEVEL := 0.03   # +3% de fuerza por nivel de mando (mejor familia) del general
+
+func _command_factor(owner_name: String) -> float:
+	var c: Character = RelationsData.character_of(owner_name)
+	if c == null:
+		return 1.0
+	return 1.0 + AUTO_MASTERY_PER_LEVEL * (c.mastery(c.best_family()) - 1)
 
 func _auto_resolve_battle(army: Army) -> void:
 	var castle: Castle = MapData.get_castle_by_id(army.current_castle_id)
@@ -284,9 +347,18 @@ func _auto_resolve_battle(army: Army) -> void:
 		disband_army(army)
 		return
 	var defending := is_player_defended(castle)
+	# Las murallas del castillo (ver Castle.wall_bonus) refuerzan la defensa.
+	# El mando de cada general (su mejor familia de tropa) también pesa al resolverse sola.
 	var r := KingdomAI.auto_resolve(army.size, castle.garrison_size,
-		KingdomAI.PLAYER_SIDE_UNPLAYED_FACTOR if defending else 1.0)
+		(KingdomAI.PLAYER_SIDE_UNPLAYED_FACTOR if defending else 1.0) * (1.0 + castle.wall_bonus()) * _command_factor(castle.owner_name),
+		_command_factor(army.owner_name))
+	var attacker_name := army.owner_name
+	var defender_name := castle.owner_name
 	var summary := resolve_battle(army, r.attacker_won, r.attacker_survivors, r.defender_survivors, defending)
+	# Entre señores de la IA, el vencido puede caer preso del vencedor (ver CaptureData).
+	if not defending:
+		CaptureData.after_auto_battle(attacker_name if r.attacker_won else defender_name,
+			defender_name if r.attacker_won else attacker_name)
 	var prefix := "Sin tu mando, la defensa se libra sola: " if defending else ""
 	_add_event(prefix + summary.replace("\n", " "), castle.castle_id)
 
@@ -421,9 +493,34 @@ func _handle_home_castle_lost(lost: Castle, lines: Array[String]) -> void:
 			GameManager.current_castle = c
 			lines.append("Pierdes tu hogar, pero te refugias en %s." % c.castle_name)
 			return
-	var reason := "%s ha caído y no te queda ningún castillo donde refugiarte." % lost.castle_name
-	lines.append(reason + " Fin de la partida.")
-	GameManager.end_game(reason)
+	# Sin castillo propio sobrevives vendiendo tu espada: pasas al camino mercenario.
+	var refuge := _landless_refuge(lost)
+	if refuge == null:
+		var reason := "%s ha caído y no te queda ningún castillo donde refugiarte." % lost.castle_name
+		lines.append(reason + " Fin de la partida.")
+		GameManager.end_game(reason)
+		return
+	var old_title := player.role_title()
+	player.role = RoleProgression.landless_role(player)
+	MissionData.leave_liege()
+	GameManager.home_castle_id = refuge.castle_id
+	GameManager.current_castle = refuge
+	GameManager.refresh_actions_for_role_change()
+	lines.append("%s ha caído y no te queda tierra propia. Huyes a %s: ya no eres %s, sino %s que vende su espada." % [
+		lost.castle_name, refuge.castle_name, old_title, player.role_title()])
+
+# Castillo donde se refugia quien lo pierde todo: uno de su reino, o el más cercano que no lo odie.
+func _landless_refuge(lost: Castle) -> Castle:
+	var best: Castle = null
+	var best_d := INF
+	for c: Castle in MapData.castles:
+		if c == lost:
+			continue
+		var d := c.position_on_map.distance_to(lost.position_on_map) - (10000.0 if c.kingdom == GameManager.player_kingdom else 0.0)
+		if d < best_d:
+			best_d = d
+			best = c
+	return best
 
 # --- Rebeliones en castillos conquistados por el jugador ---
 
@@ -448,3 +545,241 @@ func _rebel(c: Castle) -> void:
 	_add_event("¡Rebelión en %s! El pueblo se alza y devuelve el castillo a %s (%s)." % [
 		c.castle_name, c.original_owner, KingdomEnums.kingdom_name(c.original_kingdom)], c.castle_id)
 	armies_changed.emit()
+
+# --- Llamadas a filas (ver InvitationCatalog y CombatSetup.invited) ---
+
+## Una batalla no espera: la llamada a filas ocupa el sitio de un suceso corriente del mes (no de
+## otros asuntos, como los de tu familia o tu señor).
+func _event_slot_free() -> bool:
+	var e: Dictionary = GameManager.pending_event
+	if e.is_empty():
+		return true
+	var id: String = e.get("id", "")
+	return EventCatalog.EVENTS.any(func(ev: Dictionary) -> bool: return ev.id == id)
+
+func find_army(army_id: String) -> Army:
+	for a: Army in armies:
+		if a.army_id == army_id:
+			return a
+	return null
+
+## Si estás en el castillo asediado, en el de partida o al lado, alguien de un bando puede llamarte a filas.
+## Devuelve true si dejó la llamada como evento pendiente (el asedio espera a tu respuesta).
+func offer_invitation(army: Army) -> bool:
+	var player: Character = GameManager.player_character
+	var castle: Castle = MapData.get_castle_by_id(army.current_castle_id)
+	if player == null or castle == null or not GameManager.is_game_active or not _event_slot_free():
+		return false
+	if not _player_near(castle, army.origin_castle_id):
+		return false
+	var best := {}
+	for side: int in [BattleEnums.Side.ATACANTE, BattleEnums.Side.DEFENSOR]:
+		var lord: String = army.owner_name if side == BattleEnums.Side.ATACANTE else castle.owner_name
+		var lord_kingdom: int = army.kingdom if side == BattleEnums.Side.ATACANTE else castle.kingdom
+		var enemy_kingdom: int = castle.kingdom if side == BattleEnums.Side.ATACANTE else army.kingdom
+		var pick := _inviter_for(lord, lord_kingdom, enemy_kingdom)
+		if not pick.is_empty() and (best.is_empty() or pick.score > best.score):
+			pick["side"] = side
+			best = pick
+	if best.is_empty() or (not best.liege and randf() >= INVITE_CHANCE):
+		return false
+	GameManager.pending_event = InvitationCatalog.army_event(army, castle, best.side, best.lord, best.inviter, best.liege)
+	_add_event("%s te llama a filas: %s está en juego." % [best.inviter, castle.castle_name], castle.castle_id)
+	return true
+
+## Quién de ese bando te llamaría (y con cuántas ganas). {} si nadie.
+func _inviter_for(lord: String, lord_kingdom: int, enemy_kingdom: int) -> Dictionary:
+	var player: Character = GameManager.player_character
+	var r := RelationsData.get_relation(lord)
+	if r == null or lord == player.full_name() or r.at_war or r.is_hostile():
+		return {}
+	# Nadie te pide luchar contra tu propio reino (salvo que vendas tu espada).
+	if enemy_kingdom == GameManager.player_kingdom and not player.is_mercenary():
+		return {}
+	var liege := lord == RelationsData.liege_name
+	var score := -1.0
+	var inviter := lord
+	if liege:
+		score = 200.0
+	elif lord_kingdom == GameManager.player_kingdom:
+		score = 100.0 + r.affinity
+	elif r.affinity >= INVITE_MIN_AFFINITY or r.affection >= INVITE_MIN_INTIMACY:
+		score = 50.0 + r.affinity
+	elif lord_kingdom == _zone_kingdom() and player.fame >= INVITE_MIN_FAME:
+		score = 10.0 + player.fame
+	# Alguien de su corte que te conoce bien puede hablar por ti.
+	for c: Relationship in RelationsData.courtiers(lord_kingdom):
+		if c.affection >= INVITE_MIN_INTIMACY and 30.0 + c.affection > score:
+			score = 30.0 + c.affection
+			inviter = c.person_name
+	if score < 0.0:
+		return {}
+	return {"lord": lord, "inviter": inviter, "score": score, "liege": liege}
+
+func _player_near(castle: Castle, origin_id: String = "") -> bool:
+	var travel := get_node_or_null("/root/TravelData")
+	var here: String = travel.current_castle_id() if travel != null else GameManager.home_castle_id
+	return here == castle.castle_id or here == origin_id or here in castle.connected_castle_ids
+
+func _zone_kingdom() -> int:
+	var travel := get_node_or_null("/root/TravelData")
+	return travel.zone_kingdom() if travel != null else GameManager.player_kingdom
+
+## Declinas una llamada a filas: el asedio se libra sin ti ahora mismo.
+func decline_invitation(army_id: String) -> void:
+	var army := find_army(army_id)
+	if army != null and army.pending_battle and not is_player_army(army):
+		_auto_resolve_battle(army)
+		armies_changed.emit()
+		events_changed.emit()
+
+# Con una guerra en tu zona, un señor puede llamarte a una batalla campal contra un castillo vecino.
+func _maybe_field_invitation() -> void:
+	var player: Character = GameManager.player_character
+	if player == null or not _event_slot_free() or randf() >= FIELD_INVITE_CHANCE:
+		return
+	var travel := get_node_or_null("/root/TravelData")
+	var here: Castle = travel.current_castle() if travel != null else MapData.get_castle_by_id(GameManager.home_castle_id)
+	if here == null:
+		return
+	var options: Array = []
+	for ally: Castle in [here] + here.connected_castle_ids.map(func(id: String): return MapData.get_castle_by_id(id)):
+		if ally == null or ally.owner_name == player.full_name():
+			continue
+		for enemy_id: String in ally.connected_castle_ids:
+			var enemy: Castle = MapData.get_castle_by_id(enemy_id)
+			if enemy == null or enemy.kingdom == ally.kingdom or not KingdomDiplomacy.at_war(RelationsData.kingdom_wars, ally.kingdom, enemy.kingdom):
+				continue
+			if enemy.owner_name == player.full_name() or is_player_defended(enemy):
+				continue
+			var pick := _inviter_for(ally.owner_name, ally.kingdom, enemy.kingdom)
+			if not pick.is_empty():
+				options.append([pick, ally, enemy])
+	if options.is_empty():
+		return
+	options.sort_custom(func(a: Array, b: Array) -> bool: return a[0].score > b[0].score)
+	var best: Array = options[0]
+	GameManager.pending_event = InvitationCatalog.field_event(best[1], best[2], best[0].lord, best[0].inviter, best[0].liege)
+
+## Soldados que salen a una batalla campal desde un castillo.
+func field_battle_soldiers(castle: Castle) -> int:
+	if castle == null:
+		return CombatSetup.FIELD_BATTLE_MIN
+	return maxi(CombatSetup.FIELD_BATTLE_MIN, roundi(castle.garrison_size * CombatSetup.FIELD_BATTLE_SHARE))
+
+## Recompensa de tu anfitrión al terminar una batalla ajena.
+func invitation_reward(inviter_name: String, lord_name: String, player_soldiers: int, won: bool) -> String:
+	var player: Character = GameManager.player_character
+	if player == null:
+		return ""
+	var lord := RelationsData.get_relation(lord_name)
+	if not won:
+		return "%s agradece que acudieras a su llamada." % lord_name
+	var gold := maxi(INVITE_WIN_GOLD_MIN, player_soldiers * INVITE_WIN_GOLD_PER_SOLDIER)
+	player.gold += gold
+	player.add_fame(INVITE_WIN_FAME)
+	if lord != null:
+		lord.adjust(INVITE_WIN_RELATION)
+		lord.adjust_affection(INVITE_WIN_RELATION)
+	var inviter := RelationsData.get_relation(inviter_name)
+	if inviter != null and inviter != lord:
+		inviter.adjust_affection(INVITE_WIN_RELATION)
+	return "%s te recompensa: %d de oro para tu gente, fama +%d y su afecto (+%d)." % [lord_name, gold, INVITE_WIN_FAME, INVITE_WIN_RELATION]
+
+## Quienes lucharon a tu lado (compañeros, jefes aliados, tu anfitrión) te aprecian más. Devuelve el texto.
+func battle_bonds(allies: Array[Character], won: bool, for_liege: bool) -> String:
+	var amount := BATTLE_BOND_WIN if won else BATTLE_BOND_LOSS
+	var names: Array[String] = []
+	for c: Character in allies:
+		var r := RelationsData.get_relation(c.full_name())
+		if r == null:
+			continue
+		r.adjust_affection(amount)
+		if r.kind == Relationship.Kind.SENOR:
+			r.adjust(amount)
+		names.append(r.person_name)
+	var liege := RelationsData.get_relation(RelationsData.liege_name)
+	if for_liege and won and liege != null:
+		liege.adjust(LIEGE_BATTLE_AFFINITY)
+	if names.is_empty():
+		return ""
+	return "Luchar codo con codo os une: %s (intimidad +%d)." % [", ".join(names), amount]
+
+## Consecuencias inmediatas de pasarte al enemigo en plena batalla. Devuelve el texto.
+func apply_betrayal(witnesses: Array[Character], new_commander: Character) -> String:
+	var player: Character = GameManager.player_character
+	if player == null:
+		return ""
+	var names: Array[String] = []
+	for c: Character in witnesses:
+		var r := RelationsData.get_relation(c.full_name())
+		if r == null:
+			continue
+		r.adjust(BETRAYAL_RELATION)
+		r.adjust_affection(BETRAYAL_RELATION)
+		r.adjust_grudge(BETRAYAL_GRUDGE)
+		r.allied = false
+		names.append(r.person_name)
+	if new_commander != null:
+		var welcome := RelationsData.get_relation(new_commander.full_name())
+		if welcome != null:
+			welcome.adjust(BETRAYAL_NEW_SIDE)
+			welcome.adjust_affection(BETRAYAL_NEW_SIDE)
+	player.honor = clampi(player.honor - BETRAYAL_HONOR, 0, 100)
+	player.add_fame(-BETRAYAL_FAME)
+	var text := "Traicionas a tu bando: honor −%d, fama −%d." % [BETRAYAL_HONOR, BETRAYAL_FAME]
+	if player.is_mercenary():
+		MissionData.infamy += BETRAYAL_INFAMY
+		text += " Infamia +%d." % BETRAYAL_INFAMY
+	if not names.is_empty():
+		text += " %s no lo %s." % [", ".join(names), "olvidarán" if names.size() > 1 else "olvidará"]
+	RelationsData.relations_changed.emit()
+	return text
+
+## Tras la batalla, el traidor jura lealtad al señor del bando al que se pasó (si tiene tierras);
+## si nadie lo acoge, vende su espada. Devuelve el texto.
+func defect_to(lord_name: String) -> String:
+	var player: Character = GameManager.player_character
+	if player == null:
+		return ""
+	if player.is_mercenary():
+		return "Cobras de tu nuevo patrón; de lealtades no se habla."
+	var lord := RelationsData.get_relation(lord_name)
+	var lands := RelationsData.castles_of(lord_name)
+	if lord == null or lands.is_empty() or lord_name == player.full_name():
+		var old_title := player.role_title()
+		player.role = RoleProgression.landless_role(player)
+		MissionData.leave_liege()
+		GameManager.refresh_actions_for_role_change()
+		return "Nadie te acoge tras la traición: de %s pasas a %s que vende su espada." % [old_title, player.role_title()]
+	var castle: Castle = lands[0]
+	var old_liege := RelationsData.get_relation(RelationsData.liege_name)
+	if old_liege != null and old_liege != lord:
+		old_liege.adjust(BETRAYAL_RELATION)
+		old_liege.allied = false
+	for c: Castle in RelationsData.castles_of(player.full_name()):
+		c.kingdom = castle.kingdom
+	for a: Army in armies:
+		if is_player_army(a):
+			a.kingdom = castle.kingdom
+	for m: Dictionary in MissionData.active.duplicate():
+		if not RelationsData.liege_name.is_empty() and str(m.get("giver", "")) == RelationsData.liege_name:
+			MissionData.abandon(str(m.uid))
+	var old_kingdom := GameManager.player_kingdom
+	GameManager.player_kingdom = castle.kingdom
+	GameManager.home_castle_id = castle.castle_id
+	RelationsData.liege_name = lord_name
+	var travel := get_node_or_null("/root/TravelData")
+	if travel != null and "last_fealty_month" in travel:
+		travel.last_fealty_month = GameManager.months_elapsed()
+	var text := "Juras lealtad a %s: %s es tu nuevo hogar." % [lord_name, castle.castle_name]
+	var rp: Script = RoleProgression
+	if rp.has_method("on_fealty_sworn"):
+		var extra = rp.call("on_fealty_sworn", player, castle)
+		if extra is String and not extra.is_empty():
+			text += " " + extra
+	GameManager.refresh_actions_for_role_change()
+	WorldEvents.record("%s traiciona a los suyos en plena batalla y pasa de %s a %s." % [player.full_name(),
+		KingdomEnums.kingdom_name(old_kingdom) if old_kingdom >= 0 else "ningún reino", KingdomEnums.kingdom_name(castle.kingdom)], castle.castle_id, true)
+	RelationsData.relations_changed.emit()
+	return text

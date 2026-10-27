@@ -138,6 +138,7 @@ func get_portrait() -> Texture2D:
 	return null
 
 const FaceRects = preload("res://scripts/resources/face_rects.gd")
+const FaceDetector = preload("res://scripts/resources/face_detector.gd")
 static var _face_cache := {}   # ruta del retrato -> AtlasTexture con la cara
 
 ## Solo la cara del retrato (recorte calculado por tools/build_face_rects.py).
@@ -152,10 +153,12 @@ func get_face() -> Texture2D:
 	var atlas := AtlasTexture.new()
 	atlas.atlas = tex
 	var r: Array = FaceRects.RECTS.get(path, [])
+	if r.size() != 3:
+		r = FaceDetector.face_rect(tex)   # retrato nuevo: se calcula una vez y se guarda
 	if r.size() == 3:
 		atlas.region = Rect2(r[0], r[1], r[2], r[2])
 	else:
-		# Retrato sin recorte calculado: franja superior centrada.
+		# No se pudo calcular (imagen sin transparencia, por ejemplo): franja superior centrada.
 		var side := tex.get_width() * 0.4
 		atlas.region = Rect2(tex.get_width() * 0.3, tex.get_height() * 0.03, side, side)
 	if not path.is_empty():

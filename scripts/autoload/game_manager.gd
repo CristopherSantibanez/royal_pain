@@ -23,6 +23,7 @@ const ACTIONS_BASE_BY_ROLE := {
 	Character.Role.MERCENARIO: 1,
 	Character.Role.CAPITAN: 2,
 	Character.Role.CONDOTIERO: 3,
+	Character.Role.INAFILIADO: 1,
 }
 
 var player_character: Character
@@ -121,6 +122,9 @@ func evaluate_goal() -> Dictionary:
 	# MissionData se busca por ruta (como ArmyData más arriba) para no crear un ciclo de dependencias.
 	var missions := get_node_or_null("/root/MissionData")
 	var extra := {"contracts_done": missions.contracts_done, "company_size": missions.company_size()} if missions != null else {}
+	var ach := get_node_or_null("/root/AchievementData")
+	if ach != null:
+		extra["visited_kingdoms"] = ach.visited_kingdoms.size()
 	return VictoryRules.evaluate(starting_role, player_character, MapData.castles, player_kingdom, home_castle_id, extra)
 
 # La partida solo termina al dominar el mundo, al unificar los dos últimos reinos por matrimonio

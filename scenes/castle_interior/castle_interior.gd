@@ -179,6 +179,9 @@ func _refresh_ui() -> void:
 	if check.next_role == -1 and character.role == Character.Role.CONDOTIERO:
 		progression_label.text = "La cima del camino mercenario. Para ennoblecerte, jura lealtad a un señor en audiencia (pasarás a Nobleza Baja) o toma castillos a tu nombre."
 		btn_ascend.disabled = true
+	elif check.next_role == -1 and character.role == Character.Role.INAFILIADO:
+		progression_label.text = "Sin señor no hay ascenso: alístate como soldado o asiéntate como campesino en un castillo."
+		btn_ascend.disabled = true
 	elif check.next_role == -1:
 		progression_label.text = "No hay ascenso disponible desde este rol todavía."
 		btn_ascend.disabled = true
@@ -298,6 +301,8 @@ func _make_action_handler(callback: Callable, cost: int = 1) -> Callable:
 ## Castillo ajeno: ni es tu castillo de origen ni es tuyo.
 func _is_foreign() -> bool:
 	var player: Character = GameManager.player_character
+	if castle != null and player != null and player.role == Character.Role.INAFILIADO:
+		return castle.owner_name != player.full_name()
 	return castle != null and player != null and castle.castle_id != GameManager.home_castle_id \
 		and castle.owner_name != player.full_name()
 
@@ -354,12 +359,13 @@ func _foreign_actions() -> Array[Dictionary]:
 		audience_reason = "No te quedan acciones este mes."
 	result.append({"label": "Pedir Audiencia", "tooltip": "%s te recibe en su salón: presentar respetos, pedir noticias o un encargo, o jurarle lealtad. Gasta 1 acción." % castle.owner_name,
 		"unavailable": audience_reason, "locked": false, "no_cost": true, "callback": _action_audiencia})
-	if character.role == Character.Role.CAMPESINO:
+	if character.role in [Character.Role.CAMPESINO, Character.Role.INAFILIADO]:
 		var settle_reason := TravelData.fealty_blocker(castle)
 		if settle_reason.is_empty() and not GameManager.has_actions_remaining():
 			settle_reason = "No te quedan acciones este mes."
-		result.append({"label": "Establecerte Aquí", "tooltip": "Migras a %s: %s será tu nuevo señor y este castillo tu hogar. Gasta 1 acción." % [
-			KingdomEnums.kingdom_name(castle.kingdom), castle.owner_name],
+		result.append({"label": "Asentarte Aquí" if character.role == Character.Role.INAFILIADO else "Establecerte Aquí",
+			"tooltip": "%s será tu señor y este castillo tu hogar%s. Gasta 1 acción." % [
+			castle.owner_name, ": pasas a ser %s" % Character.role_title_for(Character.Role.CAMPESINO, character.gender) if character.role == Character.Role.INAFILIADO else ""],
 			"unavailable": settle_reason, "locked": false, "no_cost": true, "callback": _action_jurar_lealtad})
 	if character.can_fight_duels():
 		result.append({"label": "Torneo de %s (%d oro)" % [castle.castle_name, CombatSetup.TOURNAMENT_ENTRY_FEE],
@@ -422,9 +428,13 @@ func _get_actions_for_role(role: int) -> Array[Dictionary]:
 				{"label": "Cazar Furtivo", "tooltip": "%d%% de cazar en el bosque del señor y vender la pieza por %d de oro; si te pillan, pierdes %d de honor." % [
 					roundi(_caza_chance() * 100), CAZA_GOLD, CAZA_HONOR_PENALTY],
 					"locked": false, "callback": _action_cazar},
+				{"label": "Abandonar tus Tierras", "tooltip": "Dejas tu tierra y a tu señor: quedas como %s, libre de ir donde quieras." % Character.role_title_for(Character.Role.INAFILIADO, character.gender),
+					"locked": false, "callback": _action_abandon_land},
 				{"label": "Migrar a Otro Reino", "tooltip": "Te mudas a otro reino en busca de mejor fortuna: viaja desde el mapa a un castillo de otro reino y, allí, elige «Establecerte Aquí».",
 					"locked": false, "no_cost": true, "callback": _action_migrar},
 			]
+		Character.Role.INAFILIADO:
+			return [_enlist_action(), _volunteer_action()]
 		Character.Role.SOLDADO:
 			return [
 				{"label": "Retar a Duelo", "tooltip": DUEL_TOOLTIP, "unavailable": _duel_unavailable_reason(),
@@ -898,8 +908,91 @@ func _common_actions() -> Array[Dictionary]:
 		result.append({"label": "Visitar al Médico (%d oro)" % MEDICO_COST,
 			"tooltip": "Recuperas %d de vida y tu herida grave sana un mes antes. %s" % [MEDICO_HEAL, character.health_text()],
 			"unavailable": reason, "locked": false, "anywhere": true, "callback": _action_medico})
+	if DayJobs.eligible(character, not RelationsData.liege_name.is_empty(), MissionData.active.any(func(m): return m.get("contract", false))):
+		result.append(_day_job_action())
 	result.append_array(_command_actions())
 	return result
+
+# --- Sin tierra ni señor: jornales, alistarse, voluntario ---
+const DayJobs = preload("res://scripts/resources/day_jobs.gd")
+
+func _day_job_action() -> Dictionary:
+	var reason := ""
+	if _drills_done("jornal") >= DayJobs.PER_MONTH:
+		reason = "Ya trabajaste %d jornales este mes." % DayJobs.PER_MONTH
+	elif not GameManager.has_actions_remaining():
+		reason = "No te quedan acciones este mes."
+	return {"label": "Trabajo a Jornal", "tooltip": "Un día de trabajo por oro: cargador, jornalero, guardia o escolta. Hasta %d al mes. Gasta 1 acción." % DayJobs.PER_MONTH,
+		"unavailable": reason, "locked": false, "no_cost": true, "anywhere": true, "callback": _action_day_job}
+
+func _action_day_job() -> void:
+	var labels: Array = DayJobs.JOBS.map(func(j: Dictionary) -> String: return "%s (%d oro)" % [j.name, DayJobs.pay(j, character, castle)])
+	_choose_option("¿Qué trabajo buscas?", labels, func(i: int): _do_day_job(DayJobs.JOBS[i]))
+
+## Hace el jornal (gasta la acción). Devuelve el oro ganado; público para las pruebas.
+func _do_day_job(job: Dictionary) -> int:
+	if _drills_done("jornal") >= DayJobs.PER_MONTH or not GameManager.consume_action():
+		_show_feedback("Hoy no hay más trabajo para ti.")
+		return 0
+	_note_drill("jornal")
+	var gold := DayJobs.pay(job, character, castle)
+	var text := "Trabajas de %s y cobras %d de oro." % [job.name.to_lower(), gold]
+	if randf() < float(job.risk):
+		character.take_damage(DayJobs.INCIDENT_DAMAGE)
+		text += " Hubo pelea por el camino: −%d de vida." % DayJobs.INCIDENT_DAMAGE
+	character.gold += gold
+	_show_feedback(text)
+	_refresh_ui()
+	_build_role_actions()
+	return gold
+
+func _enlist_action() -> Dictionary:
+	var reason := TravelData.fealty_blocker(castle)
+	if reason.is_empty():
+		reason = RoleProgression.enlist_blocker(character)
+	if reason.is_empty() and not GameManager.has_actions_remaining():
+		reason = "No te quedan acciones este mes."
+	var price := "" if character.combat >= RoleProgression.ALISTARSE_MIN_COMBAT else " (%d oro)" % RoleProgression.ALISTARSE_GOLD
+	return {"label": "Alistarte%s" % price,
+		"tooltip": "Entras al servicio de %s como soldado. Pide %d de oro para las armas o Combate %d. Gasta 1 acción." % [
+			castle.owner_name if castle != null else "este señor", RoleProgression.ALISTARSE_GOLD, RoleProgression.ALISTARSE_MIN_COMBAT],
+		"unavailable": reason, "locked": false, "no_cost": true, "anywhere": true, "callback": _action_enlist}
+
+func _action_enlist() -> void:
+	if not RoleProgression.enlist_blocker(character).is_empty() or not GameManager.consume_action():
+		_show_feedback("No puedes alistarte ahora.")
+		return
+	var r := TravelData.swear_fealty(castle)
+	if not r.ok:
+		_show_feedback(r.text)
+		return
+	var paid := RoleProgression.pay_enlist(character)
+	character.role = Character.Role.SOLDADO
+	GameManager.refresh_actions_for_role_change()
+	_show_feedback("Te alistas al servicio de %s: ahora eres soldado%s." % [castle.owner_name, " (armas: −%d de oro)" % paid if paid > 0 else ""])
+	_refresh_ui()
+	_build_role_actions()
+
+func _volunteer_action() -> Dictionary:
+	var reason := "" if not ArmyData.volunteer_event(castle).is_empty() else "%s no está en guerra con sus vecinos." % (castle.owner_name if castle != null else "Este señor")
+	return {"label": "Ofrecerte Voluntario", "tooltip": "Te ofreces a luchar en la guerra de este señor, aunque no sea la tuya.",
+		"unavailable": reason, "locked": false, "no_cost": true, "anywhere": true, "callback": _action_volunteer}
+
+func _action_volunteer() -> void:
+	var e := ArmyData.volunteer_event(castle)
+	if e.is_empty():
+		_show_feedback("Ahora no hay batalla a la que sumarte.")
+		return
+	GameManager.queue_event(e, true)
+	_show_feedback("%s acepta tu espada: vuelve al mapa para unirte a la batalla." % castle.owner_name)
+
+func _action_abandon_land() -> void:
+	character.role = Character.Role.INAFILIADO
+	MissionData.leave_liege()
+	GameManager.refresh_actions_for_role_change()
+	_show_feedback("Dejas atrás tu tierra y a tu señor: ahora eres %s." % character.role_title())
+	_refresh_ui()
+	_build_role_actions()
 
 # --- Comandancia: entrenar con la tropa, estudiar táctica y Consejo de guerra ---
 const WarCouncilPanel = preload("res://scripts/ui/war_council_panel.gd")
@@ -979,6 +1072,12 @@ func _action_study() -> void:
 
 ## Ventana para elegir una familia de tropa (infantería, arquería, caballería o piqueros).
 func _choose_family(title: String, picked: Callable) -> void:
+	var labels: Array = []
+	for f in 4:
+		labels.append("%s (mando %d)" % [BattleEnums.family_name(f), character.mastery(f)])
+	_choose_option(title, labels, picked)
+
+func _choose_option(title: String, labels: Array, picked: Callable) -> void:
 	var overlay := ColorRect.new()
 	overlay.color = Color(0, 0, 0, 0.55)
 	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -1000,9 +1099,9 @@ func _choose_family(title: String, picked: Callable) -> void:
 	row.add_theme_constant_override("separation", 8)
 	box.add_child(row)
 	var first: Button = null
-	for f in 4:
+	for f in labels.size():
 		var b := Button.new()
-		b.text = "%s (mando %d)" % [BattleEnums.family_name(f), character.mastery(f)]
+		b.text = labels[f]
 		b.pressed.connect(func():
 			overlay.queue_free()
 			picked.call(f))

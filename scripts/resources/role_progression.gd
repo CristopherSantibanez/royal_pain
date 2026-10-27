@@ -1,11 +1,11 @@
 class_name RoleProgression
 
 # --- Umbrales de ascenso (ajustables sin tocar el resto del sistema) ---
-# Campesino -> Soldado ("alistarse"): pagar las armas, o demostrar que ya sabes pelear.
-const ALISTARSE_GOLD := 60
-const ALISTARSE_MIN_COMBAT := 9
+# Campesino (o no afiliado) -> Soldado ("alistarse"): pagar las armas, o demostrar que ya sabes pelear.
+const ALISTARSE_GOLD := 150        # antes 60: ya no se asciende nada más empezar
+const ALISTARSE_MIN_COMBAT := 12   # antes 9
 
-const SOLDADO_MIN_DUELS_WON := 3
+const SOLDADO_MIN_DUELS_WON := 4   # antes 3
 const SOLDADO_MIN_HONOR := 60
 
 const NOBLEZA_BAJA_MIN_HONOR := 75
@@ -45,7 +45,7 @@ static func next_role(role: int) -> int:
 		Character.Role.DUQUE: return Character.Role.REGENTE
 		Character.Role.MERCENARIO: return Character.Role.CAPITAN
 		Character.Role.CAPITAN: return Character.Role.CONDOTIERO
-		_: return -1   # Regente es la cima; el Condotiero se ennoblece jurando lealtad a un señor
+		_: return -1   # el no afiliado no asciende aquí: se alista o se asienta en un castillo   # Regente es la cima; el Condotiero se ennoblece jurando lealtad a un señor
 
 static func check_ascension(character: Character, succession: Dictionary = {}) -> Dictionary:
 	# Devuelve {can_ascend: bool, next_role: int, reason: String}
@@ -211,7 +211,22 @@ const FEALTY_ROLE := {
 	Character.Role.MERCENARIO: Character.Role.SOLDADO,
 	Character.Role.CAPITAN: Character.Role.CABALLERO,
 	Character.Role.CONDOTIERO: Character.Role.NOBLEZA_BAJA,
+	Character.Role.INAFILIADO: Character.Role.CAMPESINO,   # jurar lealtad sin más es asentarse
 }
+
+## Motivo por el que no puedes alistarte como soldado ("" si puedes): el mismo requisito que el Campesino.
+static func enlist_blocker(character: Character) -> String:
+	if character.gold < ALISTARSE_GOLD and character.combat < ALISTARSE_MIN_COMBAT:
+		return "Necesitas %d de oro para las armas (tienes %d) o Combate %d (tienes %d)." % [
+			ALISTARSE_GOLD, character.gold, ALISTARSE_MIN_COMBAT, character.combat]
+	return ""
+
+## Quien se alista sin saber pelear paga sus armas.
+static func pay_enlist(character: Character) -> int:
+	if character.combat >= ALISTARSE_MIN_COMBAT:
+		return 0
+	character.gold -= ALISTARSE_GOLD
+	return ALISTARSE_GOLD
 
 ## Devuelve el texto del cambio de rango ("" si no cambia). lord_castle: el castillo del nuevo señor.
 static func on_fealty_sworn(character: Character, lord_castle) -> String:

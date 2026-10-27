@@ -46,6 +46,7 @@ const ACTIONS := [
 	[CombatEnums.ActionType.CONTRAATACAR, "Contraatacar", KEY_4, "Adoptas guardia de contraataque: si el enemigo te ataca, le devuelves parte del daño."],
 	[CombatEnums.ActionType.DESARMAR, "Desarmar", KEY_5, "Intentas desarmar al oponente, dejándolo incapaz de atacar por un par de turnos."],
 	[CombatEnums.ActionType.EMPUJAR, "Empujar", KEY_6, "Empujas al oponente, reduciendo su resistencia y moral si tienes éxito."],
+	[CombatEnums.ActionType.FINTA, "Finta", KEY_9, "Amagas un golpe. Si espera para contraatacar, pierde su parada y te deja la guardia abierta; si no, es un golpe flojo."],
 	[CombatEnums.ActionType.RENDIRSE, "Rendirse", KEY_7, "Terminas el duelo inmediatamente. El oponente gana."],
 	[CombatEnums.ActionType.RETIRARSE, "Retirarse", KEY_8, "Intentas huir del combate. Puede fallar si el oponente te lo impide."],
 ]
@@ -447,6 +448,8 @@ func _order_hint(order_name: String) -> String:
 				extra += " ★ Contra: +50%, imparable."
 			elif my_adv == DuelManager.ADV_ACECHO:
 				extra += " ★ Acecho: +25% crítico."
+			elif my_adv == DuelManager.ADV_ABIERTO:
+				extra += " ★ Guardia abierta: +25%, imparable."
 			if duel.is_predictable(me):
 				extra += " Tercer golpe seguido: −15%."
 			if duel.unbalanced.get(me, false):
@@ -467,6 +470,13 @@ func _order_hint(order_name: String) -> String:
 			extra = "Éxito: %d%%. Rompe su guardia." % roundi(duel.push_chance(me, foe) * 100) if not duel.is_fatigued(me) else "Sin aliento."
 		"Retirarse":
 			extra = "Éxito: %d%% (cuesta honor)." % roundi(duel.retreat_chance(me, foe) * 100)
+		"Finta":
+			if duel.is_fatigued(me):
+				extra = "Sin aliento."
+			elif duel.countering[foe]:
+				extra = "¡Espera para parar! Su parada se pierde y tu próximo golpe es imparable (+25%)."
+			else:
+				extra = "Si está en contraataque: su parada se pierde y tu próximo golpe es imparable (+25%). Si no, golpe flojo (−50%)."
 	for entry in ACTIONS:
 		if entry[1] == order_name and not duel.can_act(me, entry[0]):
 			extra = "✖ " + CombatEnums.block_reason(duel.posture[me], entry[0])
@@ -641,7 +651,7 @@ func _impact(c: Character, strength: float, spark_amount: int) -> void:
 	CombatFx.sparks(self, _portrait_center(c) - global_position, Color(1.0, 0.85, 0.4), spark_amount)
 	CombatFx.shake(screen_margin, strength, 0.25)
 
-const ADVANTAGE_FLOATS := {"contra": "¡Contra lista!", "acecho": "¡Al acecho!", "desequilibrio": "¡Desequilibrado!"}
+const ADVANTAGE_FLOATS := {"contra": "¡Contra lista!", "acecho": "¡Al acecho!", "desequilibrio": "¡Desequilibrado!", "abierto": "¡Guardia abierta!"}
 
 # El que ataca embiste hacia su rival (los retratos están enfrentados: izquierda contra derecha).
 func _lunge(actor: Character) -> void:
@@ -683,6 +693,11 @@ func _on_combat_event(kind: String, actor: Character, target: Character, amount:
 			Sfx.play("hit")
 			_tiered_hit(actor, target, amount)
 			_float(target, "Parada fallida -%d" % amount, CombatFx.DAMAGE_COLOR, 28)
+		"feint":
+			Sfx.play("whoosh", -3.0)
+			_lunge(actor)
+			CombatFx.flash(_portrait_of(target), Color(1.6, 1.4, 0.7), 0.3)
+			_float(target, "¡Parada en falso!", CombatFx.MISS_COLOR, 28)
 		"guard_break":
 			Sfx.play("push")
 			Sfx.play("guard", -4.0)

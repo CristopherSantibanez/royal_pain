@@ -29,7 +29,7 @@ const STYLE := {
 const ROLE_INSIGHT := {
 	Character.Role.CAMPESINO: 0.6, Character.Role.SOLDADO: 0.85, Character.Role.CABALLERO: 1.0,
 	Character.Role.NOBLEZA_BAJA: 1.15, Character.Role.NOBLEZA_ALTA: 1.3, Character.Role.REGENTE: 1.4,
-	Character.Role.DUQUE: 1.35, Character.Role.MERCENARIO: 0.95, Character.Role.CAPITAN: 1.1, Character.Role.CONDOTIERO: 1.2,
+	Character.Role.DUQUE: 1.35, Character.Role.MERCENARIO: 0.95, Character.Role.CAPITAN: 1.1, Character.Role.CONDOTIERO: 1.2, Character.Role.INAFILIADO: 0.85,
 }
 const CHAMPION_INSIGHT := 0.25
 const READ_INSIGHT := 0.5          # leer al rival (Estrategia) afina un poco sus decisiones
@@ -37,6 +37,10 @@ const READ_INSIGHT := 0.5          # leer al rival (Estrategia) afina un poco su
 # quiere hacer, cambia a la que mejor encaje (con algo de apego a la suya).
 const POSTURE_SWITCH_RATIO := 0.5
 const POSTURE_ALT_FACTOR := 0.8
+
+const FEINT_BASE := 0.1          # casi nunca finta a ciegas
+const FEINT_VS_COUNTER := 1.3    # el rival espera para parar: la finta es la respuesta
+const FEINT_VS_HABIT := 1.4      # el rival suele contraatacar
 
 static func insight(me: Character) -> float:
 	var value: float = ROLE_INSIGHT.get(me.role, 1.0)
@@ -62,7 +66,11 @@ static func choose(d: DuelManager, me: Character, foe: Character) -> Dictionary:
 		return {"posture": P.MURO, "action": A.RETIRARSE if randf() < 0.6 else A.RENDIRSE}
 	var sharp := insight(me) + READ_INSIGHT * d.read_chance(me, foe)
 
-	var w := {A.ATACAR: 2.0, A.DEFENDER: 0.3, A.ESQUIVAR: 0.2, A.CONTRAATACAR: 0.45, A.DESARMAR: 0.2, A.EMPUJAR: 0.2}
+	var w := {A.ATACAR: 2.0, A.DEFENDER: 0.3, A.ESQUIVAR: 0.2, A.CONTRAATACAR: 0.45, A.DESARMAR: 0.2, A.EMPUJAR: 0.2, A.FINTA: FEINT_BASE}
+	# Finta: la respuesta al que espera para parar (el que suele contraatacar lo volverá a hacer).
+	if d.countering[foe]:
+		w[A.FINTA] += FEINT_VS_COUNTER * sharp
+	w[A.FINTA] += _counter_rate(d, foe) * FEINT_VS_HABIT * sharp
 	if foe_guarding:
 		w[A.EMPUJAR] += 2.0 * sharp       # romper la guardia es la respuesta natural
 		w[A.ATACAR] *= 0.5
@@ -75,6 +83,7 @@ static func choose(d: DuelManager, me: Character, foe: Character) -> Dictionary:
 		w[A.ATACAR] *= 0.5
 		w[A.DESARMAR] = 0.0
 		w[A.EMPUJAR] = 0.0
+		w[A.FINTA] = 0.0
 	if my_hp < 0.35:
 		w[A.DEFENDER] += 0.4
 		w[A.CONTRAATACAR] += 0.3
@@ -83,7 +92,7 @@ static func choose(d: DuelManager, me: Character, foe: Character) -> Dictionary:
 	# Combos: aprovechar la ventaja propia y no regalarle golpes a la del rival.
 	var my_adv: String = d.advantage.get(me, "")
 	var foe_adv: String = d.advantage.get(foe, "")
-	if my_adv == d.ADV_CONTRA or my_adv == d.ADV_ACECHO:
+	if my_adv == d.ADV_CONTRA or my_adv == d.ADV_ACECHO or my_adv == d.ADV_ABIERTO:
 		w[A.ATACAR] *= 1.0 + 2.0 * sharp
 	elif my_adv == d.ADV_DESEQUILIBRIO:
 		w[A.DESARMAR] += 1.5 * sharp
@@ -97,6 +106,7 @@ static func choose(d: DuelManager, me: Character, foe: Character) -> Dictionary:
 	if disarmed:
 		w[A.ATACAR] = 0.0
 		w[A.DESARMAR] = 0.0
+		w[A.FINTA] = 0.0
 	var style: Dictionary = STYLE.get(personality, {})
 	for action in w:
 		# Más destreza = elige lo mejor con más constancia (los pesos se acentúan).
@@ -109,6 +119,13 @@ static func choose(d: DuelManager, me: Character, foe: Character) -> Dictionary:
 	if _sum(w) <= 0.0:
 		return {"posture": P.DEFENSIVA, "action": A.DEFENDER}
 	return {"posture": posture, "action": _weighted_pick(w)}
+
+## Proporción de contraataques entre las últimas acciones del rival (0..1).
+static func _counter_rate(d: DuelManager, c: Character) -> float:
+	var history: Array = d.last_actions.get(c, [])
+	if history.is_empty():
+		return 0.0
+	return float(history.count(A.CONTRAATACAR)) / history.size()
 
 static func _sum(weights: Dictionary) -> float:
 	var total := 0.0

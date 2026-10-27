@@ -159,7 +159,7 @@ func progress_of(a: Dictionary, ctx: Dictionary = {}) -> Dictionary:
 	if a.has("goal_role"):
 		var goal := VictoryRules.evaluate(a.goal_role, GameManager.player_character, MapData.castles,
 			GameManager.player_kingdom, GameManager.home_castle_id,
-			{"contracts_done": MissionData.contracts_done, "company_size": MissionData.company_size()})
+			{"contracts_done": MissionData.contracts_done, "company_size": MissionData.company_size(), "visited_kingdoms": visited_kingdoms.size()})
 		return {"done": goal.done, "current": 0, "target": 1, "ratio": 0.5, "text": goal.progress}
 	var target: int = a.target
 	var current: int = int(ctx.get(a.stat, 0))

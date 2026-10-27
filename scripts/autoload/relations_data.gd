@@ -102,14 +102,14 @@ const FAME_FLED := -2
 const RETINUE_SIZE := {
 	Character.Role.CAMPESINO: 0, Character.Role.SOLDADO: 1, Character.Role.CABALLERO: 2,
 	Character.Role.NOBLEZA_BAJA: 3, Character.Role.NOBLEZA_ALTA: 4, Character.Role.REGENTE: 5,
-	Character.Role.DUQUE: 5, Character.Role.MERCENARIO: 1, Character.Role.CAPITAN: 3, Character.Role.CONDOTIERO: 4,
+	Character.Role.DUQUE: 5, Character.Role.MERCENARIO: 1, Character.Role.CAPITAN: 3, Character.Role.CONDOTIERO: 4, Character.Role.INAFILIADO: 0,
 }
 const RETINUE_MIN_AFFECTION := 50
 # Lo que exige cada rango para seguirte: [fama mínima, honor mínimo].
 const RETINUE_REQUIREMENTS := {
 	Character.Role.CAMPESINO: [0, 0], Character.Role.SOLDADO: [0, 20], Character.Role.CABALLERO: [15, 40],
 	Character.Role.NOBLEZA_BAJA: [35, 60], Character.Role.NOBLEZA_ALTA: [60, 75], Character.Role.REGENTE: [90, 90],
-	Character.Role.DUQUE: [75, 80], Character.Role.MERCENARIO: [5, 0], Character.Role.CAPITAN: [20, 10], Character.Role.CONDOTIERO: [40, 20],
+	Character.Role.DUQUE: [75, 80], Character.Role.MERCENARIO: [5, 0], Character.Role.CAPITAN: [20, 10], Character.Role.CONDOTIERO: [40, 20], Character.Role.INAFILIADO: [0, 0],
 }
 const RETINUE_UPKEEP := 5                 # oro al mes por cada miembro del séquito
 const RETINUE_UNPAID_AFFECTION := -10
@@ -319,7 +319,7 @@ func _kingdoms_where(predicate: Callable) -> Array[int]:
 # Campesinos y soldados no pueden dirigirse a ningún señor (ni al suyo): solo responden si él les llama.
 # A un señor de otra tierra solo se le trata por carta (✉): diplomacia, presentes y noticias, con una
 # acción más (el Sello del Emperador la ahorra). Conversar, cortejar o retar exige estar allí.
-const LORD_FORBIDDEN_ROLES := [Character.Role.CAMPESINO, Character.Role.SOLDADO]
+const LORD_FORBIDDEN_ROLES := [Character.Role.CAMPESINO, Character.Role.SOLDADO, Character.Role.INAFILIADO]
 const COURIER_GIFT_COST := 10          # el mensajero que lleva los presentes a un señor lejano
 
 ## Por qué no puedes dirigirte a ningún señor por tu rango ("" si puedes).

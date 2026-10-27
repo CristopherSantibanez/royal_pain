@@ -29,6 +29,7 @@ const DYNAMIC := ["Personalidades", "Habilidades", "Rasgos y desventajas", "Equi
 
 const ENTRIES := {
 	"Duelo": [
+		["Finta", "Amagas un golpe (10 de aliento). Si el rival espera para contraatacar, su parada se pierde y tu próximo ataque no se puede parar y hace +25%. Si no, es un golpe flojo (−50%)."],
 		["Posturas que comprometen", "Cada postura cierra alguna acción: Ofensiva no deja Defender ni Esquivar; Defensiva y Esgrima no dejan Empujar; Muro no deja Esquivar ni Desarmar; Desesperada solo deja Atacar y Empujar. Rendirse y Retirarse siempre se pueden. En Esgrima desarmas un 10% mejor."],
 		["Leer al rival", "Al empezar tu turno, tu Estrategia frente a la suya te da una probabilidad (15% a la par, +4% por punto de ventaja, hasta 60%) de adivinar su próxima jugada: 👁 «Parece que va a desarmarte». Si la adivinas, la mantendrá. Lectura del Rival y Mente Analítica ayudan; Rostro de Piedra te hace ilegible; Previsible te delata."],
 		["Experiencia en duelos", "Todo duelo enseña: de campaña, de torneo, de evento, a muerte o el duelo singular en mitad de una batalla (30 si vences, 10 si pierdes)."],
@@ -80,8 +81,11 @@ const ENTRIES := {
 	],
 	"Personaje y roles": [
 		["Roles", "Campesino → Soldado → Caballero → Nobleza Baja → Nobleza Alta → Duque → Regente, o el camino mercenario (Mercenario → Capitán de compañía → Condotiero). Cada rol tiene sus propias acciones en el castillo y más acciones por mes."],
-		["Alistarse (Soldado)", "Pagar 60 de oro por las armas, o demostrar Combate 9."],
-		["Caballero", "Requiere 3 duelos ganados y 60 de honor."],
+		["Alistarse (Soldado)", "Campesino o no afiliado: 150 de oro para las armas, o Combate 12 (entonces no pagas)."],
+		["No afiliado", "Sin tierra ni señor: va donde quiere, vive de jornales y puede ofrecerse en guerras ajenas. No trabaja la tierra. Puede asentarse en un castillo (pasa a campesino) o alistarse (soldado)."],
+		["Abandonar tus tierras", "El campesino puede dejar su tierra y a su señor para quedar como no afiliado. El soldado que abandona a su señor también."],
+		["Trabajo a jornal", "Cargador, jornalero, guardia de caravana o escolta: un día de trabajo por oro según tu Defensa, Carisma o Combate y el mercado del castillo. Hasta 2 al mes; la guardia y la escolta pueden acabar en pelea."],
+		["Caballero", "Requiere 4 duelos ganados y 60 de honor."],
 		["Nobleza Baja", "Requiere 75 de honor y 500 de oro."],
 		["Nobleza Alta", "Requiere Liderazgo 12 y 2000 de oro. «Ejercer el Mando» y ganar batallas al mando suben el Liderazgo."],
 		["Duque", "Entre la Nobleza Alta y el Regente. Necesitas gobernar 2 castillos de tu reino, 70 de honor y 14 de liderazgo. Tienes 4 acciones, 5 plazas de séquito, «Gobernar el Ducado» (recaudas en todos tus castillos) y puedes ordenar las grandes obras de nivel 3."],
@@ -258,7 +262,7 @@ const ENTRIES := {
 		["Seguir jugando", "Tras una victoria (conquista del mundo o unificación por matrimonio) puedes seguir jugando la misma partida."],
 	],
 	"Interfaz y atajos": [
-		["Duelo", "Teclas 1–8: acciones. Q, W, E, R, T: posturas. Pasa el ratón sobre una orden para ver su efecto y sus probabilidades. Con mando: cruceta y A."],
+		["Duelo", "Teclas 1–9: acciones. Q, W, E, R, T: posturas. Pasa el ratón sobre una orden para ver su efecto y sus probabilidades. Con mando: cruceta y A."],
 		["Mapa", "Rueda del ratón (hacia el cursor), +/− o L1/R1: zoom; alejándote ves el mapa entero. Botón derecho, WASD o stick izquierdo: mover la cámara, hasta los bordes del mapa. H: ocultar o mostrar los paneles inferiores. Pasa el ratón por un castillo para ver su reino, señor y guarnición. Si te quedan acciones, «Avanzar Turno» pide confirmación. Tab o clic del stick derecho: recorrer castillos. T o Y: avanzar turno. R o X: relaciones. E: encargos. C: crónica. Esc, M o Start: menú."],
 		["Batalla", "Con el tablero enfocado, flechas o cruceta mueven un cursor (con la previsión de bajas) e Intro o A actúa en la casilla. T o Y: terminar turno."],
 		["Teclado y mando", "Todas las pantallas abren con un botón enfocado: flechas o cruceta para moverse, Intro o A para aceptar, Esc o B para volver."],

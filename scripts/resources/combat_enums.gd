@@ -1,16 +1,17 @@
 class_name CombatEnums
 
 enum Posture { OFENSIVA, DEFENSIVA, ESGRIMA, MURO, DESESPERADA }
-enum ActionType { ATACAR, DEFENDER, ESQUIVAR, CONTRAATACAR, DESARMAR, EMPUJAR, RENDIRSE, RETIRARSE }
+enum ActionType { ATACAR, DEFENDER, ESQUIVAR, CONTRAATACAR, DESARMAR, EMPUJAR, RENDIRSE, RETIRARSE, FINTA }   # las nuevas, siempre al final
 enum Status { HERIDO, FATIGADO, DESARMADO, DESMORALIZADO, INSPIRADO }
 
 # Cada postura compromete: cierra las acciones que no le cuadran. Rendirse y Retirarse siempre se pueden.
+# La Finta pide soltura: Muro (inmóvil) y Desesperada (sin cabeza para engaños) no la permiten.
 const BLOCKED_ACTIONS := {
 	Posture.OFENSIVA: [ActionType.DEFENDER, ActionType.ESQUIVAR],
 	Posture.DEFENSIVA: [ActionType.EMPUJAR],
 	Posture.ESGRIMA: [ActionType.EMPUJAR],
-	Posture.MURO: [ActionType.ESQUIVAR, ActionType.DESARMAR],
-	Posture.DESESPERADA: [ActionType.DEFENDER, ActionType.ESQUIVAR, ActionType.DESARMAR, ActionType.CONTRAATACAR],
+	Posture.MURO: [ActionType.ESQUIVAR, ActionType.DESARMAR, ActionType.FINTA],
+	Posture.DESESPERADA: [ActionType.DEFENDER, ActionType.ESQUIVAR, ActionType.DESARMAR, ActionType.CONTRAATACAR, ActionType.FINTA],
 }
 
 static func is_blocked(p: int, a: int) -> bool:
@@ -57,4 +58,5 @@ static func action_name(a: int) -> String:
 		ActionType.EMPUJAR: return "Empujar"
 		ActionType.RENDIRSE: return "Rendirse"
 		ActionType.RETIRARSE: return "Retirarse"
+		ActionType.FINTA: return "Finta"
 	return "?"

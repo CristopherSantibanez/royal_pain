@@ -25,6 +25,7 @@ const COST_ATTACK := 15
 const COST_DISARM := 15
 const COST_PUSH := 12
 const COST_PARRY_STANCE := 5
+const COST_FEINT := 10                 # amagar cansa menos que un golpe de verdad
 const RECOVER_DEFEND := 25
 const RECOVER_DODGE := 10
 const FATIGUE_RATIO := 0.2            # por debajo de este aliento: Fatigado
@@ -53,6 +54,7 @@ const INTENT_TEXT := {
 	CombatEnums.ActionType.EMPUJAR: "va a empujarte",
 	CombatEnums.ActionType.RENDIRSE: "está a punto de rendirse",
 	CombatEnums.ActionType.RETIRARSE: "busca la forma de huir",
+	CombatEnums.ActionType.FINTA: "va a fintar",
 }
 
 # --- Consecuencias de abandonar ---
@@ -61,10 +63,14 @@ const INTENT_TEXT := {
 # acecho: tras esquivar, el siguiente ataque tiene +25% de crítico.
 # desequilibrio: tras empujar con éxito, el siguiente desarme tiene +25%; el rival queda
 #   desequilibrado y su próximo golpe hace −20%.
+# abierto: tras una finta contra quien esperaba para parar, el siguiente ataque no se puede parar y hace +25%.
 # Atacar tres veces seguidas es previsible: −15% de daño (salvo en Ofensiva o Desesperada).
 const ADV_CONTRA := "contra"
 const ADV_ACECHO := "acecho"
 const ADV_DESEQUILIBRIO := "desequilibrio"
+const ADV_ABIERTO := "abierto"
+const ABIERTO_DAMAGE := 1.25
+const FEINT_WEAK_DAMAGE := 0.5        # finta contra quien no esperaba para parar: un golpe flojo
 const CONTRA_DAMAGE := 1.5
 const ACECHO_CRIT := 0.25
 const DESEQUILIBRIO_DISARM := 0.25
@@ -75,6 +81,7 @@ const ADVANTAGE_TEXT := {
 	"contra": "Contra devastadora: su próximo ataque hace +50% y no se puede parar",
 	"acecho": "Al acecho: su próximo ataque tiene +25% de crítico",
 	"desequilibrio": "Rival desequilibrado: su próximo desarme tiene +25%",
+	"abierto": "Guardia abierta: su próximo ataque hace +25% y no se puede parar",
 }
 
 const RETREAT_HONOR_COST := 3
@@ -253,6 +260,8 @@ func _take_turn(actor: Character, action: int) -> void:
 			action_text = _do_disarm(actor, target)
 		CombatEnums.ActionType.EMPUJAR:
 			action_text = _do_push(actor, target)
+		CombatEnums.ActionType.FINTA:
+			action_text = _do_feint(actor, target)
 		CombatEnums.ActionType.RENDIRSE:
 			log_message.emit("%s, %s." % [prefix, "se rinde"])
 			_end_duel(target, "%s se rinde." % actor.full_name(), true)
@@ -323,12 +332,13 @@ func _roll_damage(actor: Character, target: Character, guard_factor: float = 1.0
 	var dmg: float = _base_damage(actor, target) * randf_range(1.0 - DAMAGE_SPREAD, 1.0 + DAMAGE_SPREAD)
 	return maxi(1, roundi(dmg / guard_factor))   # un golpe que conecta nunca hace 0
 
-func _do_attack(actor: Character, target: Character, predictable: bool = false) -> String:
+func _do_attack(actor: Character, target: Character, predictable: bool = false, weak: bool = false) -> String:
 	if CombatEnums.Status.DESARMADO in statuses[actor]:
 		combat_event.emit("unarmed", actor, actor, 0)
 		return "e intenta atacar, ¡pero está desarmado!"
 
-	_spend(actor, COST_ATTACK)
+	if not weak:   # la finta ya pagó su aliento
+		_spend(actor, COST_ATTACK)
 	# Durandal: el primer ataque de cada duelo no se puede esquivar ni parar.
 	var sure: bool = SkillEffects.has_unique(actor, SkillEffects.UNIQUE_DURANDAL) and not unique_spent[actor].has(SkillEffects.UNIQUE_DURANDAL)
 	if sure:
@@ -350,7 +360,8 @@ func _do_attack(actor: Character, target: Character, predictable: bool = false) 
 
 	# Una contra devastadora no se puede parar.
 	var contra := _current_adv == ADV_CONTRA
-	if contra:
+	var opened := _current_adv == ADV_ABIERTO
+	if contra or opened:
 		countering[target] = false
 	# Parada: si sale bien, el defensor no recibe nada y devuelve un golpe completo.
 	if countering[target]:
@@ -381,6 +392,11 @@ func _do_attack(actor: Character, target: Character, predictable: bool = false) 
 	if contra:
 		dmg = roundi(dmg * CONTRA_DAMAGE)
 		extra += " ¡Contra devastadora!"
+	if opened:
+		dmg = roundi(dmg * ABIERTO_DAMAGE)
+		extra += " ¡Entra por la guardia abierta!"
+	if weak:
+		dmg = maxi(1, roundi(dmg * FEINT_WEAK_DAMAGE))
 	if unbalanced.get(actor, false):
 		dmg = maxi(1, roundi(dmg * UNBALANCED_DAMAGE))
 		extra += " (Golpea desequilibrado.)"
@@ -429,6 +445,23 @@ func _unique_on_hit(actor: Character, target: Character, dmg: int) -> String:
 		actor.take_damage(back)
 		text += " (El escudo de %s le devuelve %d.)" % [target.full_name(), back]
 	return text
+
+# Finta: contra quien espera para parar, su parada se pierde en el vacío y te deja su guardia abierta.
+# Si no estaba esperando, el amago se queda en un golpe flojo.
+func _do_feint(actor: Character, target: Character) -> String:
+	if CombatEnums.Status.DESARMADO in statuses[actor]:
+		combat_event.emit("unarmed", actor, actor, 0)
+		return "e intenta fintar, ¡pero está desarmado!"
+	if is_fatigued(actor):
+		combat_event.emit("winded", actor, actor, 0)
+		return "e intenta fintar, pero le falta el aliento."
+	_spend(actor, COST_FEINT)
+	if countering[target]:
+		countering[target] = false
+		combat_event.emit("feint", actor, target, 0)
+		_grant(actor, ADV_ABIERTO)
+		return "y finta: %s para un golpe que nunca llega y deja la guardia abierta." % target.full_name()
+	return "y amaga sin engañar a nadie: " + _do_attack(actor, target, false, true).trim_prefix("y ")
 
 func _do_disarm(actor: Character, target: Character) -> String:
 	if is_fatigued(actor):

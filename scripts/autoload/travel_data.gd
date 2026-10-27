@@ -233,13 +233,17 @@ func resolve_encounter(option_index: int) -> Dictionary:
 
 ## Estás gestionando tu castillo sin estar en él.
 func is_remote(castle: Castle) -> bool:
-	return castle != null and castle.castle_id == GameManager.home_castle_id and not is_at_home()
+	return castle != null and castle.castle_id == GameManager.home_castle_id and not is_at_home() \
+		and GameManager.player_character != null and GameManager.player_character.role != Character.Role.INAFILIADO
 
 ## Puedes entrar a un castillo si estás en él, o al tuyo desde lejos (con límites).
 func can_enter(castle: Castle) -> String:
 	if castle == null or not GameManager.is_game_active:
 		return "No disponible."
-	if is_at(castle.castle_id) or castle.castle_id == GameManager.home_castle_id:
+	if is_at(castle.castle_id):
+		return ""
+	# Sin tierra no hay castillo que gobernar desde lejos.
+	if castle.castle_id == GameManager.home_castle_id and GameManager.player_character.role != Character.Role.INAFILIADO:
 		return ""
 	return "Tienes que viajar hasta %s para entrar." % castle.castle_name
 
@@ -352,7 +356,7 @@ func fealty_blocker(castle: Castle) -> String:
 		return "No puedes jurarte lealtad a ti mismo."
 	if not is_at(castle.castle_id):
 		return "El juramento se hace en persona: viaja a %s." % castle.castle_name
-	if castle.kingdom == GameManager.player_kingdom and not player.is_mercenary():
+	if castle.kingdom == GameManager.player_kingdom and not player.is_mercenary() and player.role != Character.Role.INAFILIADO:
 		return "Ya sirves a %s." % KingdomEnums.kingdom_name(castle.kingdom)
 	if GameManager.months_elapsed() - last_fealty_month < FEALTY_COOLDOWN_MONTHS:
 		return "Cambiaste de señor hace poco: nadie confiaría en otro juramento tuyo tan pronto."
@@ -360,7 +364,7 @@ func fealty_blocker(castle: Castle) -> String:
 		return "No puedes cambiar de bando en mitad de un asedio."
 	if lord.at_war:
 		return "Estás en guerra con %s." % lord.person_name
-	if player.role != Character.Role.CAMPESINO and lord.affinity < FEALTY_MIN_AFFINITY and player.fame < FEALTY_MIN_FAME:
+	if not player.role in [Character.Role.CAMPESINO, Character.Role.INAFILIADO] and lord.affinity < FEALTY_MIN_AFFINITY and player.fame < FEALTY_MIN_FAME:
 		return "%s no se fía de ti: necesitas %d de afinidad (tienes %d) o %d de fama." % [
 			lord.person_name, FEALTY_MIN_AFFINITY, lord.affinity, FEALTY_MIN_FAME]
 	return ""
@@ -368,7 +372,7 @@ func fealty_blocker(castle: Castle) -> String:
 ## Honor que te costaría el juramento ahora (0 si no rompes ninguno).
 func fealty_honor_cost(castle: Castle) -> int:
 	var player: Character = GameManager.player_character
-	if player == null or player.role == Character.Role.CAMPESINO or player.is_mercenary() or RelationsData.liege_name.is_empty():
+	if player == null or player.role in [Character.Role.CAMPESINO, Character.Role.INAFILIADO] or player.is_mercenary() or RelationsData.liege_name.is_empty():
 		return 0
 	var cost := FEALTY_HONOR_COST
 	var old_liege := RelationsData.get_relation(RelationsData.liege_name)

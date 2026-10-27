@@ -4,7 +4,7 @@ class_name MapVision
 const ROLE_HOPS := {
 	Character.Role.CAMPESINO: 0, Character.Role.SOLDADO: 1, Character.Role.CABALLERO: 2,
 	Character.Role.NOBLEZA_BAJA: 2, Character.Role.NOBLEZA_ALTA: 3, Character.Role.DUQUE: 3,
-	Character.Role.MERCENARIO: 2, Character.Role.CAPITAN: 2, Character.Role.CONDOTIERO: 3,
+	Character.Role.MERCENARIO: 2, Character.Role.CAPITAN: 2, Character.Role.CONDOTIERO: 3, Character.Role.INAFILIADO: 2,
 }
 
 ## bonus: saltos de visión extra (rasgos y habilidades, ver SkillEffects.vision_bonus).
@@ -39,6 +39,8 @@ static func _role_visible_castle_ids(role: int, home_castle_id: String) -> Array
 			ids = _bfs_within_hops(home_castle_id, 2)
 		Character.Role.CONDOTIERO:
 			ids = _bfs_within_hops(home_castle_id, 3)
+		Character.Role.INAFILIADO:   # va de camino en camino: ve lo que tiene cerca
+			ids = _bfs_within_hops(home_castle_id, 2)
 		_:
 			ids = [home_castle_id]
 	return _union(ids, _player_owned_castles())

@@ -144,7 +144,9 @@ func is_player_defended(castle: Castle) -> bool:
 	var player: Character = GameManager.player_character
 	if castle == null or player == null:
 		return false
-	return castle.castle_id == GameManager.home_castle_id or castle.owner_name == player.full_name()
+	# El no afiliado no tiene hogar que defender: solo cuenta lo que sea suyo.
+	var home := castle.castle_id == GameManager.home_castle_id and player.role != Character.Role.INAFILIADO
+	return home or castle.owner_name == player.full_name()
 
 func set_destination(army: Army, destination_castle_id: String) -> bool:
 	if not army.is_idle():
@@ -594,7 +596,7 @@ func _inviter_for(lord: String, lord_kingdom: int, enemy_kingdom: int) -> Dictio
 	if r == null or lord == player.full_name() or r.at_war or r.is_hostile():
 		return {}
 	# Nadie te pide luchar contra tu propio reino (salvo que vendas tu espada).
-	if enemy_kingdom == GameManager.player_kingdom and not player.is_mercenary():
+	if enemy_kingdom == GameManager.player_kingdom and not player.is_mercenary() and player.role != Character.Role.INAFILIADO:
 		return {}
 	var liege := lord == RelationsData.liege_name
 	var score := -1.0
@@ -605,7 +607,7 @@ func _inviter_for(lord: String, lord_kingdom: int, enemy_kingdom: int) -> Dictio
 		score = 100.0 + r.affinity
 	elif r.affinity >= INVITE_MIN_AFFINITY or r.affection >= INVITE_MIN_INTIMACY:
 		score = 50.0 + r.affinity
-	elif lord_kingdom == _zone_kingdom() and player.fame >= INVITE_MIN_FAME:
+	elif lord_kingdom == _zone_kingdom() and (player.fame >= INVITE_MIN_FAME or player.role == Character.Role.INAFILIADO):
 		score = 10.0 + player.fame
 	# Alguien de su corte que te conoce bien puede hablar por ti.
 	for c: Relationship in RelationsData.courtiers(lord_kingdom):
@@ -660,6 +662,24 @@ func _maybe_field_invitation() -> void:
 	options.sort_custom(func(a: Array, b: Array) -> bool: return a[0].score > b[0].score)
 	var best: Array = options[0]
 	GameManager.pending_event = InvitationCatalog.field_event(best[1], best[2], best[0].lord, best[0].inviter, best[0].liege)
+
+## El jugador se ofrece voluntario en el castillo donde está: si su reino está en guerra con un vecino,
+## su señor lo manda a la batalla campal. Devuelve el evento (o {} si no hay guerra ni señor que lo acepte).
+func volunteer_event(here: Castle) -> Dictionary:
+	var player: Character = GameManager.player_character
+	if player == null or here == null or here.owner_name == player.full_name():
+		return {}
+	var lord := RelationsData.get_relation(here.owner_name)
+	if lord == null or lord.at_war or lord.is_hostile():
+		return {}
+	for enemy_id: String in here.connected_castle_ids:
+		var enemy: Castle = MapData.get_castle_by_id(enemy_id)
+		if enemy == null or enemy.kingdom == here.kingdom or not KingdomDiplomacy.at_war(RelationsData.kingdom_wars, here.kingdom, enemy.kingdom):
+			continue
+		if enemy.owner_name == player.full_name() or is_player_defended(enemy):
+			continue
+		return InvitationCatalog.field_event(here, enemy, here.owner_name, here.owner_name, false)
+	return {}
 
 ## Soldados que salen a una batalla campal desde un castillo.
 func field_battle_soldiers(castle: Castle) -> int:

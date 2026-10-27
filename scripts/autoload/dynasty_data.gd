@@ -13,7 +13,7 @@ const SUCCESSION_SCENE := "res://scenes/succession/succession.tscn"
 const START_AGE_BY_ROLE := {
 	Character.Role.CAMPESINO: 17, Character.Role.SOLDADO: 19, Character.Role.CABALLERO: 23,
 	Character.Role.NOBLEZA_BAJA: 27, Character.Role.NOBLEZA_ALTA: 32, Character.Role.REGENTE: 38,
-	Character.Role.DUQUE: 35, Character.Role.MERCENARIO: 20, Character.Role.CAPITAN: 26, Character.Role.CONDOTIERO: 30,
+	Character.Role.DUQUE: 35, Character.Role.MERCENARIO: 20, Character.Role.CAPITAN: 26, Character.Role.CONDOTIERO: 30, Character.Role.INAFILIADO: 19,
 }
 const ADULT_AGE := 16
 const OLD_AGE := 55                 # desde esta edad, cada enero puede llegar la muerte

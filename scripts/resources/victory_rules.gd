@@ -17,6 +17,8 @@ const ESPADA_CONTRACTS := 5                          # contratos cumplidos...
 const ESPADA_RANK := Character.Role.CAPITAN           # ...y tu propia compañía
 const COMPANIA_SOLDIERS := 100                       # una gran compañía...
 const COMPANIA_RANK := Character.Role.CONDOTIERO      # ...y el rango de condotiero
+const TROTAMUNDOS_KINGDOMS := 6                     # reinos visitados por el no afiliado...
+const TROTAMUNDOS_GOLD := 300                       # ...y oro reunido
 const SENORIO_CASTLES := 2                           # castillos conquistados a tu nombre, o bien uno y un título
 
 static func goal_title(starting_role: int) -> String:
@@ -29,6 +31,7 @@ static func goal_title(starting_role: int) -> String:
 		Character.Role.MERCENARIO: return "Espada de alquiler"
 		Character.Role.CAPITAN: return "La Compañía Libre"
 		Character.Role.CONDOTIERO: return "Un señorío propio"
+		Character.Role.INAFILIADO: return "Trotamundos"
 	return "Sin objetivo"
 
 ## Duración aproximada de cada meta para un jugador que la persigue (orientativa).
@@ -42,6 +45,7 @@ static func goal_estimate(starting_role: int) -> String:
 		Character.Role.MERCENARIO: return "unos 2 años"
 		Character.Role.CAPITAN: return "entre 2 y 3 años"
 		Character.Role.CONDOTIERO: return "entre 1 y 2 años"
+		Character.Role.INAFILIADO: return "unos 2 años"
 	return "?"
 
 static func goal_description(starting_role: int) -> String:
@@ -63,6 +67,8 @@ static func goal_description(starting_role: int) -> String:
 			return "Llega a %s con una compañía de %d soldados." % [Character.role_name_for(COMPANIA_RANK), COMPANIA_SOLDIERS]
 		Character.Role.CONDOTIERO:
 			return "Funda tu señorío: conquista %d castillos a tu nombre, o uno y jura lealtad a un señor que te ennoblezca." % SENORIO_CASTLES
+		Character.Role.INAFILIADO:
+			return "Recorre %d reinos y reúne %d de oro de jornal en jornal." % [TROTAMUNDOS_KINGDOMS, TROTAMUNDOS_GOLD]
 	return ""
 
 # Devuelve {done: bool, progress: String}
@@ -118,6 +124,10 @@ static func evaluate(starting_role: int, character: Character, castles: Array[Ca
 			return {"done": conquered >= SENORIO_CASTLES or (conquered >= 1 and titled),
 				"progress": "Castillos conquistados %d/%d · %s" % [conquered, SENORIO_CASTLES,
 					"Ennoblecido ✓" if titled else "Sin título (jura lealtad para tenerlo)"]}
+		Character.Role.INAFILIADO:
+			var kingdoms: int = extra.get("visited_kingdoms", 0)
+			return {"done": kingdoms >= TROTAMUNDOS_KINGDOMS and character.gold >= TROTAMUNDOS_GOLD,
+				"progress": "Reinos %d/%d · Oro %d/%d" % [mini(kingdoms, TROTAMUNDOS_KINGDOMS), TROTAMUNDOS_KINGDOMS, mini(character.gold, TROTAMUNDOS_GOLD), TROTAMUNDOS_GOLD]}
 	return {"done": false, "progress": ""}
 
 static func _rank_progress(character: Character, rank: int) -> String:

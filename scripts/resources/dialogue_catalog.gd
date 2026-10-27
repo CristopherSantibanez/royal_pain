@@ -824,6 +824,7 @@ static func rank_address(c: Character) -> String:
 		Character.Role.MERCENARIO: return "espada de alquiler"
 		Character.Role.CAPITAN: return "capitana" if female else "capitán"
 		Character.Role.CONDOTIERO: return "mi señora" if female else "mi señor"
+		Character.Role.INAFILIADO: return "forastera" if female else "forastero"
 	return "señor"
 
 ## Gusto de una personalidad por un tipo de interacción ("friendly", "intimate", "gift").

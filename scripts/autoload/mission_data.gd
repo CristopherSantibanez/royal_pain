@@ -71,6 +71,9 @@ func reset() -> void:
 
 func _raise_starting_company() -> void:
 	var player: Character = GameManager.player_character
+	if player != null and player.role == Character.Role.INAFILIADO:
+		leave_liege()   # sin señor desde el primer día
+		return
 	if player == null or not player.is_mercenary():
 		return
 	leave_liege()
@@ -591,10 +594,10 @@ func desert_liege(player: Character) -> String:
 	if liege != null:
 		liege.adjust(DESERT_LIEGE_AFFINITY)
 	player.honor = clampi(player.honor + DESERT_LIEGE_HONOR, 0, 100)
-	player.role = Character.Role.MERCENARIO
+	player.role = Character.Role.INAFILIADO if player.role == Character.Role.SOLDADO else Character.Role.MERCENARIO
 	leave_liege()   # los encargos de tu antiguo señor ya no te atan
 	GameManager.refresh_actions_for_role_change()
-	return "Rompes tu juramento con %s y vendes tu espada al mejor postor. Ahora eres %s (honor %d)." % [
+	return "Rompes tu juramento con %s y te vas por los caminos. Ahora eres %s (honor %d)." % [
 		old_liege if not old_liege.is_empty() else "tu señor", player.role_title(), DESERT_LIEGE_HONOR]
 
 ## Un mercenario no tiene señor fijo: se olvida el vasallaje (y los encargos que no son contratos).

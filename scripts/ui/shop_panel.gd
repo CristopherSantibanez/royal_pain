@@ -9,7 +9,7 @@ const CHARISMA_DISCOUNT := 0.02          # 2% de rebaja (o recargo) por punto de
 const MAX_TIER_BY_ROLE := {
 	Character.Role.CAMPESINO: 1, Character.Role.SOLDADO: 1, Character.Role.CABALLERO: 2,
 	Character.Role.NOBLEZA_BAJA: 3, Character.Role.NOBLEZA_ALTA: 3, Character.Role.REGENTE: 3,
-	Character.Role.DUQUE: 3, Character.Role.MERCENARIO: 1, Character.Role.CAPITAN: 2, Character.Role.CONDOTIERO: 3,
+	Character.Role.DUQUE: 3, Character.Role.MERCENARIO: 1, Character.Role.CAPITAN: 2, Character.Role.CONDOTIERO: 3, Character.Role.INAFILIADO: 1,
 }
 
 # Forja: una herrería de nivel 3 puede forjar cada mes una pieza única, a precio de rey.

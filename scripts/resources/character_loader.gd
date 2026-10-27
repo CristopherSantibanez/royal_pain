@@ -54,19 +54,19 @@ const ContentCatalog = preload("res://scripts/resources/content_catalog.gd")
 const NPC_FREE_POINTS := {
 	Character.Role.CAMPESINO: 4, Character.Role.SOLDADO: 8, Character.Role.CABALLERO: 10,
 	Character.Role.NOBLEZA_BAJA: 12, Character.Role.NOBLEZA_ALTA: 14, Character.Role.REGENTE: 15,
-	Character.Role.DUQUE: 15, Character.Role.MERCENARIO: 8, Character.Role.CAPITAN: 10, Character.Role.CONDOTIERO: 12,
+	Character.Role.DUQUE: 15, Character.Role.MERCENARIO: 8, Character.Role.CAPITAN: 10, Character.Role.CONDOTIERO: 12, Character.Role.INAFILIADO: 6,
 }
 const NPC_SKILLS := {   # [generales, combate, batalla]
 	Character.Role.CAMPESINO: [1, 0, 0], Character.Role.SOLDADO: [0, 1, 1], Character.Role.CABALLERO: [1, 1, 1],
 	Character.Role.NOBLEZA_BAJA: [1, 1, 2], Character.Role.NOBLEZA_ALTA: [2, 2, 2], Character.Role.REGENTE: [2, 2, 3],
-	Character.Role.DUQUE: [2, 2, 3], Character.Role.MERCENARIO: [0, 1, 1], Character.Role.CAPITAN: [0, 1, 2], Character.Role.CONDOTIERO: [1, 2, 2],
+	Character.Role.DUQUE: [2, 2, 3], Character.Role.MERCENARIO: [0, 1, 1], Character.Role.CAPITAN: [0, 1, 2], Character.Role.CONDOTIERO: [1, 2, 2], Character.Role.INAFILIADO: [1, 0, 0],
 }
 
 # Oro inicial aproximado según el rango (solo ambientación de los PNJ).
 const GOLD_BY_ROLE := {
 	Character.Role.CAMPESINO: 30, Character.Role.SOLDADO: 80, Character.Role.CABALLERO: 200,
 	Character.Role.NOBLEZA_BAJA: 500, Character.Role.NOBLEZA_ALTA: 1500, Character.Role.REGENTE: 3000,
-	Character.Role.DUQUE: 2200, Character.Role.MERCENARIO: 60, Character.Role.CAPITAN: 250, Character.Role.CONDOTIERO: 700,
+	Character.Role.DUQUE: 2200, Character.Role.MERCENARIO: 60, Character.Role.CAPITAN: 250, Character.Role.CONDOTIERO: 700, Character.Role.INAFILIADO: 30,
 }
 
 ## Nombre de pila al azar de una cultura (-1 = la del lugar donde está el jugador).
@@ -155,7 +155,7 @@ static func make_random_character(role: int, gender: int, portrait_path: String 
 const AGE_BY_ROLE := {
 	Character.Role.CAMPESINO: [16, 50], Character.Role.SOLDADO: [17, 45], Character.Role.CABALLERO: [19, 45],
 	Character.Role.NOBLEZA_BAJA: [22, 50], Character.Role.NOBLEZA_ALTA: [30, 60], Character.Role.REGENTE: [32, 62],
-	Character.Role.DUQUE: [32, 62], Character.Role.MERCENARIO: [18, 45], Character.Role.CAPITAN: [24, 50], Character.Role.CONDOTIERO: [28, 55],
+	Character.Role.DUQUE: [32, 62], Character.Role.MERCENARIO: [18, 45], Character.Role.CAPITAN: [24, 50], Character.Role.CONDOTIERO: [28, 55], Character.Role.INAFILIADO: [16, 40],
 }
 const CHILD_STAT_SPREAD := 2
 const CHILD_INHERITED_ADVANTAGES := [1, 2]

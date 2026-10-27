@@ -20,7 +20,10 @@ const STARTING_ROLES: Array[int] = [
 	Character.Role.CAMPESINO, Character.Role.SOLDADO, Character.Role.CABALLERO,
 	Character.Role.NOBLEZA_BAJA, Character.Role.NOBLEZA_ALTA,
 	Character.Role.MERCENARIO, Character.Role.CAPITAN, Character.Role.CONDOTIERO,
+	Character.Role.INAFILIADO,
 ]
+# Oro máximo con el que empiezan los más pobres (si no, se alistarían el primer mes).
+const START_GOLD_CAP := {Character.Role.CAMPESINO: 60, Character.Role.INAFILIADO: 40}
 
 var available_paths: Array[String] = []
 var preview_characters: Array[Character] = []
@@ -88,6 +91,8 @@ func _populate_roles() -> void:
 	for r in STARTING_ROLES:
 		if r == Character.Role.MERCENARIO:
 			role_option.add_separator("Camino mercenario")
+		elif r == Character.Role.INAFILIADO:
+			role_option.add_separator("Sin tierra ni señor")
 		role_option.add_item(Character.role_name_for(r), r)
 	_on_character_selected()
 
@@ -179,6 +184,8 @@ func _on_comenzar_pressed() -> void:
 		info_label.text = "Error al cargar el personaje."
 		return
 	character.role = role_option.get_selected_id()
+	if START_GOLD_CAP.has(character.role):
+		character.gold = mini(character.gold, START_GOLD_CAP[character.role])
 	character.current_health = character.max_health
 	character.current_stamina = character.max_stamina
 	character.current_morale = character.max_morale

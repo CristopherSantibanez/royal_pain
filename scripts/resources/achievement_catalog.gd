@@ -28,6 +28,8 @@ const ACHIEVEMENTS := [
 		"reward": {"points": 2, "fame": 10, "gold": 300}},
 	{"id": "goal_condotiero", "cat": "Destino", "goal_role": Character.Role.CONDOTIERO, "title": "Un señorío propio",
 		"reward": {"points": 3, "fame": 10, "gold": 300}},
+	{"id": "goal_inafiliado", "cat": "Destino", "goal_role": Character.Role.INAFILIADO, "title": "Trotamundos",
+		"reward": {"points": 2, "fame": 8, "gold": 150}},
 
 	# --- Armas ---
 	{"id": "primera_sangre", "cat": "Armas", "stat": "duels_won", "target": 1, "title": "Primera sangre",
@@ -105,6 +107,7 @@ const ROLE_GOAL_IDS := {
 	Character.Role.CABALLERO: "goal_caballero", Character.Role.NOBLEZA_BAJA: "goal_nobleza_baja",
 	Character.Role.NOBLEZA_ALTA: "goal_nobleza_alta", Character.Role.MERCENARIO: "goal_mercenario",
 	Character.Role.CAPITAN: "goal_capitan", Character.Role.CONDOTIERO: "goal_condotiero",
+	Character.Role.INAFILIADO: "goal_inafiliado",
 }
 
 static func find(id: String) -> Dictionary:

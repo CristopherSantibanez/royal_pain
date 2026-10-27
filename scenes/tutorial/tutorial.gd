@@ -87,13 +87,13 @@ func _build_lessons() -> Array:
 			"steps": [
 				{"text": "Elige la postura Ofensiva (+4 ataque, −1 defensa) y ataca. Antes de actuar, mira el daño previsto.",
 					"posture": P.OFENSIVA, "action": A.ATACAR, "enemy": [P.DEFENSIVA, A.ATACAR]},
-				{"text": "Ahora prueba Muro (−2 ataque, +6 defensa) y ataca: harás menos daño, pero su golpe te dolerá mucho menos.",
-					"posture": P.MURO, "action": A.ATACAR, "enemy": [P.OFENSIVA, A.ATACAR]},
+				{"text": "Ahora prueba Defensiva (−1 ataque, +4 defensa) y ataca: harás menos daño, pero su golpe te dolerá menos.",
+					"posture": P.DEFENSIVA, "action": A.ATACAR, "enemy": [P.OFENSIVA, A.ATACAR]},
 				{"text": "Desesperada (+6 ataque, −3 defensa): el máximo daño… y la máxima exposición.",
 					"posture": P.DESESPERADA, "action": A.ATACAR, "enemy": [P.OFENSIVA, A.ATACAR]},
 			]},
-		{"title": "Defender y el aliento", "kind": "duel",
-			"intro": "Atacar gasta 15 de aliento y recuperas 5 por turno. Defender recupera 25 y reduce a la mitad el próximo golpe.",
+		{"title": "La Guardia y el aliento", "kind": "duel",
+			"intro": "Atacar gasta 15 de aliento y recuperas 5 por turno. La Guardia recupera 25 y reduce a la mitad el próximo golpe.",
 			"player": [8, 6], "enemy": [8, 6, Character.Personality.AMBICIOSO], "player_stamina": 25,
 			"steps": [
 				{"text": "Te queda poco aliento. Si sigues atacando quedarás Fatigado. Defiéndete.",
@@ -102,7 +102,7 @@ func _build_lessons() -> Array:
 					"posture": P.OFENSIVA, "action": A.ATACAR, "enemy": [P.DEFENSIVA, A.ATACAR]},
 			]},
 		{"title": "Empujar rompe la guardia", "kind": "duel",
-			"intro": "Defender, Esquivar y la parada son guardias: duran hasta el próximo turno de quien las prepara. Empujar las rompe.",
+			"intro": "La Guardia y la parada duran hasta el próximo turno de quien las prepara. Empujar las rompe.",
 			"player": [8, 6], "enemy": [8, 6, Character.Personality.PRUDENTE],
 			"steps": [
 				{"enemy_first": [P.DEFENSIVA, A.CONTRAATACAR],
@@ -122,14 +122,14 @@ func _build_lessons() -> Array:
 				{"text": "Pero cuidado: si el rival empuja en vez de atacar, tu parada no sirve de nada.",
 					"posture": P.DEFENSIVA, "action": A.CONTRAATACAR, "enemy": [P.OFENSIVA, A.EMPUJAR]},
 			]},
-		{"title": "Esquivar y Esgrima", "kind": "duel",
-			"intro": "Esquivar recupera 10 de aliento y puede evitar el próximo golpe por completo. La postura de Esgrima esquiva sola un 15%.",
+		{"title": "Guardia y Esgrima", "kind": "duel",
+			"intro": "La Guardia, además de reducir el golpe, a veces lo evita del todo: un 15% en Defensiva y un 40% en Esgrima (más si superas al rival en Combate).",
 			"player": [9, 5], "enemy": [8, 6, Character.Personality.AMBICIOSO],
 			"steps": [
-				{"text": "Prepárate para esquivar su ataque.",
-					"posture": P.DEFENSIVA, "action": A.ESQUIVAR, "enemy": [P.OFENSIVA, A.ATACAR]},
-				{"text": "Ahora adopta Esgrima y ataca: cada golpe del rival tiene un 15% de fallar sin que hagas nada.",
-					"posture": P.ESGRIMA, "action": A.ATACAR, "enemy": [P.OFENSIVA, A.ATACAR]},
+				{"text": "Adopta Esgrima y ponte en Guardia: es la postura que más esquiva.",
+					"posture": P.ESGRIMA, "action": A.DEFENDER, "enemy": [P.OFENSIVA, A.ATACAR]},
+				{"text": "Ahora la Guardia en Defensiva: esquiva menos, pero el golpe que entra duele menos.",
+					"posture": P.DEFENSIVA, "action": A.DEFENDER, "enemy": [P.OFENSIVA, A.ATACAR]},
 			]},
 		{"title": "Desarmar", "kind": "duel",
 			"intro": "Desarmar deja al rival sin poder atacar 2 turnos. La probabilidad depende de tu Combate frente a su Defensa.",
@@ -152,11 +152,11 @@ func _build_lessons() -> Array:
 					"posture": P.DEFENSIVA, "action": A.DEFENDER, "enemy": [P.OFENSIVA, A.ATACAR]},
 			]},
 		{"title": "Posturas que comprometen", "kind": "duel",
-			"intro": "Cada postura cierra alguna acción: Ofensiva no deja Defender ni Esquivar; Defensiva y Esgrima no dejan Empujar; Muro no deja Esquivar ni Desarmar; Desesperada solo deja Atacar y Empujar. Rendirse y Retirarse siempre se pueden.",
+			"intro": "Cada postura cierra alguna acción: Ofensiva no deja la Guardia; Defensiva y Esgrima no dejan Empujar; Desesperada solo deja Atacar y Empujar. Abandonar siempre se puede.",
 			"player": [8, 6], "enemy": [8, 6, Character.Personality.ARROGANTE],
 			"steps": [
-				{"text": "Elige Muro: fíjate en que Esquivar y Desarmar se apagan. Desde el muro, espera su golpe con una parada.",
-					"posture": P.MURO, "action": A.CONTRAATACAR, "enemy": [P.OFENSIVA, A.ATACAR]},
+				{"text": "Elige Defensiva: fíjate en que Empujar se apaga. Espera su golpe con una parada.",
+					"posture": P.DEFENSIVA, "action": A.CONTRAATACAR, "enemy": [P.OFENSIVA, A.ATACAR]},
 				{"text": "Ahora Esgrima: no puedes empujar, pero desarmas mejor (+10%). Intenta desarmarlo.",
 					"posture": P.ESGRIMA, "action": A.DESARMAR, "enemy": [P.OFENSIVA, A.ATACAR]},
 				{"text": "Desesperada lo apuesta todo: solo Atacar o Empujar. Ataca con todo.",
@@ -324,7 +324,7 @@ func _build_duel_arena() -> void:
 	center.add_child(postures)
 	var group := ButtonGroup.new()
 	_posture_buttons.clear()
-	for p in [P.OFENSIVA, P.DEFENSIVA, P.ESGRIMA, P.MURO, P.DESESPERADA]:
+	for p in CombatEnums.POSTURES_SHOWN:
 		var b := _small_button(CombatEnums.posture_name(p))
 		b.toggle_mode = true
 		b.button_group = group
@@ -343,7 +343,7 @@ func _build_duel_arena() -> void:
 	actions.add_theme_constant_override("v_separation", 4)
 	center.add_child(actions)
 	_action_buttons.clear()
-	for a in [A.ATACAR, A.DEFENDER, A.ESQUIVAR, A.CONTRAATACAR, A.DESARMAR, A.EMPUJAR, A.RENDIRSE, A.RETIRARSE]:
+	for a in CombatEnums.ACTIONS_SHOWN:
 		var b := _small_button(CombatEnums.action_name(a))
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.pressed.connect(_on_player_action.bind(a))
@@ -431,8 +431,8 @@ func _forecast(action: int) -> String:
 	match action:
 		A.CONTRAATACAR:
 			lines.append("Probabilidad de parar su golpe: %d%%." % roundi(duel.parry_chance(enemy, player) * 100))
-		A.ESQUIVAR:
-			lines.append("Probabilidad de esquivar: %d%%." % roundi(duel.dodge_chance(enemy, player) * 100))
+		A.DEFENDER:
+			lines.append("Tu Guardia evita su golpe entero un %d%%; si no, lo reduce a la mitad." % roundi(duel.guard_dodge_chance(enemy, player) * 100))
 		A.DESARMAR:
 			lines.append("Probabilidad de desarmar: %d%%." % roundi(duel.disarm_chance(player, enemy) * 100))
 		A.EMPUJAR:
@@ -492,7 +492,7 @@ func _explain(action: int, before: Dictionary, middle: Dictionary, after: Dictio
 	lines.append("Daño causado: %d · Daño recibido: %d · Tu aliento: %d → %d" % [dealt, taken, before.pst, after.pst])
 	match action:
 		A.DEFENDER:
-			lines.append("Defender te devolvió aliento y, si el rival te golpeó, su golpe se dividió entre 2.")
+			lines.append("La Guardia te devolvió aliento y, si el rival te golpeó, su golpe se dividió entre 2 (o lo evitaste).")
 		A.CONTRAATACAR:
 			lines.append("La parada solo funciona si el rival ataca. Con un 55% de base, a veces falla: entonces recibes el golpe normal.")
 		A.EMPUJAR:

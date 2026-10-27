@@ -30,19 +30,22 @@ const DYNAMIC := ["Personalidades", "Habilidades", "Rasgos y desventajas", "Equi
 const ENTRIES := {
 	"Duelo": [
 		["Finta", "Amagas un golpe (10 de aliento). Si el rival espera para contraatacar, su parada se pierde y tu próximo ataque no se puede parar y hace +25%. Si no, es un golpe flojo (−50%)."],
-		["Posturas que comprometen", "Cada postura cierra alguna acción: Ofensiva no deja Defender ni Esquivar; Defensiva y Esgrima no dejan Empujar; Muro no deja Esquivar ni Desarmar; Desesperada solo deja Atacar y Empujar. Rendirse y Retirarse siempre se pueden. En Esgrima desarmas un 10% mejor."],
+		["Posturas que comprometen", "Cada postura cierra alguna acción: Ofensiva no deja Guardia; Defensiva y Esgrima no dejan Empujar; Desesperada solo deja Atacar, Empujar y Abandonar. En Esgrima desarmas un 10% mejor."],
 		["Leer al rival", "Al empezar tu turno, tu Estrategia frente a la suya te da una probabilidad (15% a la par, +4% por punto de ventaja, hasta 60%) de adivinar su próxima jugada: 👁 «Parece que va a desarmarte». Si la adivinas, la mantendrá. Lectura del Rival y Mente Analítica ayudan; Rostro de Piedra te hace ilegible; Previsible te delata."],
 		["Experiencia en duelos", "Todo duelo enseña: de campaña, de torneo, de evento, a muerte o el duelo singular en mitad de una batalla (30 si vences, 10 si pierdes)."],
 		["Combos del duelo", "Encadenar bien da ventaja. Si paras un golpe, tu siguiente ataque es una contra devastadora: +50% de daño y no se puede parar. Si esquivas, quedas al acecho: +25% de crítico. Si empujas con éxito, el rival queda desequilibrado: tu próximo desarme tiene +25% y su próximo golpe hace −20%. Atacar tres veces seguidas es previsible (−15%), salvo en Ofensiva o Desesperada."],
 		["Duelo a muerte", "Se avisa antes de empezar y se marca «☠ A MUERTE». Quien cae con la vida a 0 muere. Si eres tú, tu heredero toma el relevo; si lucha un campeón, es su vida la que arriesga. Rendirse o retirarse salva la vida, a costa del honor."],
 		["Cómo funciona un turno", "Cada turno eliges una postura (opcional, se mantiene) y una acción. Luego actúa tu rival. Quién empieza se decide al azar, con ventaja para quien tiene más Combate."],
 		["Daño", "Un golpe hace 24 × A / (A + D), con ±20% de azar. A es tu Combate más la bonificación ofensiva de tu postura (×1,5) y D la Defensa del rival más su bonificación defensiva (×1,5). Con atributos iguales cada golpe quita unos 12 puntos de vida."],
-		["Posturas", "Ofensiva: +4 ataque, −1 defensa.\nDefensiva: −1 ataque, +3 defensa.\nEsgrima: +1 ataque y un 15% de esquivar sola cada golpe.\nMuro: −2 ataque, +6 defensa (pero cuesta parar).\nDesesperada: +6 ataque, −3 defensa."],
+		["Posturas", "Ofensiva: más daño, sin Guardia.
+Defensiva: recibes menos daño y tu Guardia es más firme; sin Empujar.
+Esgrima: tu Guardia esquiva más y desarmas mejor; sin Empujar.
+Desesperada: gran daño, defensa por los suelos; solo Atacar y Empujar."],
 		["Atacar", "Golpea al rival y gasta 15 de aliento. Puede ser esquivado, parado o amortiguado por la guardia del rival. Un 10% de los golpes son críticos (×1,75)."],
-		["Defender", "Recuperas 25 de aliento y el próximo golpe que recibas se reduce a la mitad. Es la forma de recobrar el aliento sin quedar indefenso."],
-		["Esquivar", "Recuperas 10 de aliento y tienes un 35% (± diferencia de Combate) de evitar por completo el próximo golpe. Si estás fatigado, la mitad."],
+		["Guardia", "Reduce a la mitad el próximo golpe y a veces lo evita entero (5% en Defensiva, 40% en Esgrima, más si superas en Combate al rival). Recupera aliento. Si esquivas del todo, quedas al acecho. Empujar la rompe."],
+		["Abandonar", "Rendirte (derrota segura, sin herida) o intentar retirarte (puede fallar y cuesta honor)."],
 		["Contraatacar (parada)", "Esperas el golpe para pararlo: 55% (± diferencia de Combate) de no recibir nada y devolver un golpe ×1,25. Si falla, recibes el golpe normal. Es la respuesta a un rival que solo ataca."],
-		["Empujar", "Rompe la guardia del rival (anula su Defender, Esquivar o parada) y le quita 20 de aliento y algo de moral. Gasta 12 de aliento. Es la respuesta a un rival que se esconde."],
+		["Empujar", "Rompe la guardia del rival (anula su Guardia o su parada) y le quita 20 de aliento y algo de moral. Gasta 12 de aliento. Es la respuesta a un rival que se esconde."],
 		["Desarmar", "Gasta 15 de aliento. Si sale bien, el rival no puede atacar durante 2 turnos. La probabilidad depende de tu Combate frente a su Defensa."],
 		["Aliento y fatiga", "Recuperas 5 de aliento al comienzo de cada turno. Por debajo del 20% estás Fatigado: tu daño baja un 30%, esquivas la mitad y no puedes desarmar ni empujar."],
 		["Moral y estados", "Herido (menos del 30% de vida), Fatigado, Desmoralizado (moral baja: −20% daño), Inspirado (moral alta: +20% daño) y Desarmado. Cada golpe recibido baja la moral."],
@@ -262,7 +265,7 @@ const ENTRIES := {
 		["Seguir jugando", "Tras una victoria (conquista del mundo o unificación por matrimonio) puedes seguir jugando la misma partida."],
 	],
 	"Interfaz y atajos": [
-		["Duelo", "Teclas 1–9: acciones. Q, W, E, R, T: posturas. Pasa el ratón sobre una orden para ver su efecto y sus probabilidades. Con mando: cruceta y A."],
+		["Duelo", "Teclas 1–7: acciones. Q, W, E, R: posturas. Pasa el ratón sobre una orden para ver su efecto y sus probabilidades. Con mando: cruceta y A."],
 		["Mapa", "Rueda del ratón (hacia el cursor), +/− o L1/R1: zoom; alejándote ves el mapa entero. Botón derecho, WASD o stick izquierdo: mover la cámara, hasta los bordes del mapa. H: ocultar o mostrar los paneles inferiores. Pasa el ratón por un castillo para ver su reino, señor y guarnición. Si te quedan acciones, «Avanzar Turno» pide confirmación. Tab o clic del stick derecho: recorrer castillos. T o Y: avanzar turno. R o X: relaciones. E: encargos. C: crónica. Esc, M o Start: menú."],
 		["Batalla", "Con el tablero enfocado, flechas o cruceta mueven un cursor (con la previsión de bajas) e Intro o A actúa en la casilla. T o Y: terminar turno."],
 		["Teclado y mando", "Todas las pantallas abren con un botón enfocado: flechas o cruceta para moverse, Intro o A para aceptar, Esc o B para volver."],

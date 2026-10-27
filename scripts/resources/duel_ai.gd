@@ -59,11 +59,11 @@ static func choose(d: DuelManager, me: Character, foe: Character) -> Dictionary:
 	# Rendirse o huir: solo algunos caracteres, y solo cuando la pelea está perdida.
 	if my_hp < 0.15 and foe_hp > 0.5:
 		if personality == Character.Personality.PRUDENTE and randf() < 0.5:
-			return {"posture": P.MURO, "action": A.RENDIRSE}
+			return {"posture": P.DEFENSIVA, "action": A.RENDIRSE}
 		if personality == Character.Personality.AMBICIOSO and randf() < 0.3:
 			return {"posture": P.DEFENSIVA, "action": A.RETIRARSE}
 	if personality == Character.Personality.COBARDE and my_hp < 0.3 and foe_hp > my_hp and randf() < 0.45:
-		return {"posture": P.MURO, "action": A.RETIRARSE if randf() < 0.6 else A.RENDIRSE}
+		return {"posture": P.DEFENSIVA, "action": A.RETIRARSE if randf() < 0.6 else A.RENDIRSE}
 	var sharp := insight(me) + READ_INSIGHT * d.read_chance(me, foe)
 
 	var w := {A.ATACAR: 2.0, A.DEFENDER: 0.3, A.ESQUIVAR: 0.2, A.CONTRAATACAR: 0.45, A.DESARMAR: 0.2, A.EMPUJAR: 0.2, A.FINTA: FEINT_BASE}
@@ -112,7 +112,9 @@ static func choose(d: DuelManager, me: Character, foe: Character) -> Dictionary:
 		# Más destreza = elige lo mejor con más constancia (los pesos se acentúan).
 		w[action] = pow(w[action] * style.get(action, 1.0), sharp)
 
-	var posture := _coherent_posture(_pick_posture(personality, my_hp, foe_hp, tired), w)
+	w[A.DEFENDER] = w.get(A.DEFENDER, 0.0) + w.get(A.ESQUIVAR, 0.0)
+	w.erase(A.ESQUIVAR)
+	var posture := CombatEnums.canon_posture(_coherent_posture(_pick_posture(personality, my_hp, foe_hp, tired), w))
 	for action in w.keys():
 		if CombatEnums.is_blocked(posture, action):
 			w[action] = 0.0
@@ -161,7 +163,7 @@ static func _pick_posture(personality: int, my_hp: float, foe_hp: float, tired: 
 		Character.Personality.ARROGANTE:
 			return P.DESESPERADA if foe_hp < 0.4 or my_hp < 0.25 else P.OFENSIVA
 		Character.Personality.PRUDENTE:
-			return P.MURO if my_hp < 0.4 else P.DEFENSIVA
+			return P.DEFENSIVA
 		Character.Personality.ASTUTO:
 			return P.ESGRIMA
 		Character.Personality.AMBICIOSO:
@@ -175,7 +177,7 @@ static func _pick_posture(personality: int, my_hp: float, foe_hp: float, tired: 
 		Character.Personality.CRUEL:
 			return P.DESESPERADA if foe_hp < 0.25 else (P.DEFENSIVA if my_hp < 0.5 else P.OFENSIVA)
 		Character.Personality.COBARDE:
-			return P.MURO if my_hp < 0.6 else P.DEFENSIVA
+			return P.DEFENSIVA
 		Character.Personality.ROMANTICO:
 			return P.DESESPERADA if my_hp < 0.25 else P.ESGRIMA
 		Character.Personality.HONORABLE:

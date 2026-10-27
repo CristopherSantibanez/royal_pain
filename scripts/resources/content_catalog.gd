@@ -65,7 +65,7 @@ const COMBAT_SKILLS := [
 	{"name": "Lectura del Rival", "desc": "+15% de probabilidad de adivinar la próxima jugada de tu rival.", "fx": {"read": 0.15}},
 	{"name": "Rostro de Piedra", "desc": "Nadie sabe lo que vas a hacer: tus rivales te leen un 20% menos.", "fx": {"read_resist": 0.2}},
 	{"name": "Maestro de Esgrima", "desc": "En postura de Esgrima desarmas un 15% mejor y esquivas un 5% más.", "fx": {"esgrima_disarm": 0.15, "dodge": 0.05}},
-	{"name": "Muro de Acero", "desc": "En postura de Muro, Defender reduce todavía más el golpe (÷2,5 en vez de ÷2).", "fx": {"muro_guard": 0.5}},
+	{"name": "Muro de Acero", "desc": "En postura Defensiva, la Guardia reduce todavía más el golpe (÷2,5 en vez de ÷2).", "fx": {"muro_guard": 0.5}},
 	{"name": "Furia Desatada", "desc": "En postura Desesperada causas un 15% más de daño.", "fx": {"desperate_dmg": 0.15}},
 ]
 
@@ -218,7 +218,7 @@ const EQUIPMENT := [
 	# Posturas, lectura del rival y entrenamiento
 	{"name": "Estoque de Duelo", "slot": SLOT_ARMA, "tier": 2, "price": 140, "desc": "Hoja fina para la esgrima: en Esgrima desarmas un 10% mejor.", "mods": {"combat": 2}, "fx": {"esgrima_disarm": 0.1}},
 	{"name": "Hacha de Berserker", "slot": SLOT_ARMA, "tier": 3, "price": 230, "desc": "Pesada y brutal: en Desesperada causas un 15% más de daño.", "mods": {"combat": 3, "defense": -1}, "fx": {"desperate_dmg": 0.15}},
-	{"name": "Pavés", "slot": SLOT_ESCUDO, "tier": 2, "price": 110, "desc": "Escudo alto: en Muro, Defender reduce aún más el golpe.", "mods": {"defense": 2}, "fx": {"muro_guard": 0.5}},
+	{"name": "Pavés", "slot": SLOT_ESCUDO, "tier": 2, "price": 110, "desc": "Escudo alto: en Defensiva, la Guardia reduce aún más el golpe.", "mods": {"defense": 2}, "fx": {"muro_guard": 0.5}},
 	{"name": "Capa Sombría", "slot": SLOT_ACCESORIO, "tier": 1, "price": 50, "desc": "Oculta tus movimientos: tus rivales te leen un 10% menos.", "fx": {"read_resist": 0.1}},
 	{"name": "Manual de Esgrima", "slot": SLOT_ACCESORIO, "tier": 2, "price": 90, "desc": "Un tratado de un maestro de armas: lees al rival un 8% mejor y entrenas un 15% mejor.", "fx": {"read": 0.08, "xp_training": 0.15}},
 	# Comandancia y familias de tropa

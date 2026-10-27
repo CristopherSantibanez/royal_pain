@@ -33,7 +33,10 @@ const FATIGUE_DAMAGE := 0.7
 
 # --- Esquiva, parada y maniobras ---
 const DODGE_BASE := 0.35
-const ESGRIMA_PASSIVE_DODGE := 0.15
+# Guardia: además de reducir el golpe, a veces lo evita del todo, según la postura.
+const GUARD_DODGE_BY_POSTURE := {CombatEnums.Posture.DEFENSIVA: 0.05, CombatEnums.Posture.ESGRIMA: 0.4}
+const GUARD_DODGE_PER_POINT := 0.02   # por punto de Combate de ventaja sobre el atacante
+const GUARD_DODGE_MAX := 0.6
 const PARRY_BASE := 0.55
 const PARRY_RIPOSTE_FACTOR := 1.25    # la respuesta a una parada llega con ventaja
 const MURO_PARRY_PENALTY := 0.2       # tras el escudo es difícil devolver el golpe
@@ -140,7 +143,7 @@ func opponent_of(c: Character) -> Character:
 	return fighter_b if c == fighter_a else fighter_a
 
 func set_posture(actor: Character, p: int) -> void:
-	posture[actor] = p
+	posture[actor] = CombatEnums.canon_posture(p)
 	# Ya no emitimos log aquí: se combina con la acción en take_turn().
 	state_updated.emit()
 
@@ -187,6 +190,7 @@ func take_turn(actor: Character, action: int) -> bool:
 	if is_over:
 		return false
 	var p: int = posture.get(actor, CombatEnums.Posture.DEFENSIVA)
+	action = CombatEnums.canon_action(action)   # «Esquivar» de partidas antiguas = Guardia
 	if CombatEnums.is_blocked(p, action):
 		log_message.emit(CombatEnums.block_reason(p, action))
 		return false
@@ -246,11 +250,6 @@ func _take_turn(actor: Character, action: int) -> void:
 			_recover(actor, RECOVER_DEFEND)
 			combat_event.emit("guard", actor, actor, 0)
 			action_text = "y se pone en guardia, recobrando el aliento."
-		CombatEnums.ActionType.ESQUIVAR:
-			dodging[actor] = true
-			_recover(actor, RECOVER_DODGE)
-			combat_event.emit("dodge_ready", actor, actor, 0)
-			action_text = "y se prepara para esquivar."
 		CombatEnums.ActionType.CONTRAATACAR:
 			countering[actor] = true
 			_spend(actor, COST_PARRY_STANCE)
@@ -284,6 +283,12 @@ func _take_turn(actor: Character, action: int) -> void:
 func preview_damage(actor: Character, target: Character) -> Vector2i:
 	var mid := _base_damage(actor, target)
 	return Vector2i(maxi(1, roundi(mid * (1.0 - DAMAGE_SPREAD))), maxi(1, roundi(mid * (1.0 + DAMAGE_SPREAD))))
+
+## Probabilidad de que la Guardia evite el golpe entero (según postura, Combate y efectos de esquiva).
+func guard_dodge_chance(attacker: Character, defender: Character) -> float:
+	var base: float = GUARD_DODGE_BY_POSTURE.get(posture.get(defender, CombatEnums.Posture.DEFENSIVA), 0.0)
+	var chance: float = clampf(base + (defender.combat - attacker.combat) * GUARD_DODGE_PER_POINT + SkillEffects.fx(defender, "dodge"), 0.0, GUARD_DODGE_MAX)
+	return chance * (0.5 if is_fatigued(defender) else 1.0)
 
 func dodge_chance(attacker: Character, defender: Character) -> float:
 	var chance: float = clampf(DODGE_BASE + (defender.combat - attacker.combat) * 0.03 + SkillEffects.fx(defender, "dodge"), 0.1, 0.8)
@@ -346,13 +351,13 @@ func _do_attack(actor: Character, target: Character, predictable: bool = false, 
 		dodging[target] = false
 		countering[target] = false
 
-	# Esquiva preparada, o la esquiva natural de la postura de Esgrima.
+	# Guardia: a veces evita el golpe entero (más en Esgrima); si no, lo reduce más abajo.
 	var dodge := 0.0
-	if dodging[target]:
+	if dodging[target]:   # estado de partidas antiguas
 		dodging[target] = false
-		dodge = dodge_chance(actor, target)
-	elif posture[target] == CombatEnums.Posture.ESGRIMA:
-		dodge = (ESGRIMA_PASSIVE_DODGE + SkillEffects.fx(target, "dodge")) * (0.5 if is_fatigued(target) else 1.0)
+		defending[target] = true
+	if defending[target]:
+		dodge = guard_dodge_chance(actor, target)
 	if dodge > 0.0 and not sure and randf() < dodge:
 		combat_event.emit("dodge", actor, target, 0)
 		_grant(target, ADV_ACECHO)
@@ -382,7 +387,7 @@ func _do_attack(actor: Character, target: Character, predictable: bool = false, 
 	var guard := 1.0
 	if defending[target]:
 		guard = GUARD_MITIGATION + SkillEffects.fx(target, "guard")
-		if posture.get(target) == CombatEnums.Posture.MURO:
+		if posture.get(target) == CombatEnums.Posture.DEFENSIVA:   # antes «Muro»: Muro de Acero, Pavés
 			guard += SkillEffects.fx(target, "muro_guard")
 		defending[target] = false
 	var dmg := _roll_damage(actor, target, guard)

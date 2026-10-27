@@ -32,23 +32,21 @@ const UniqueItems = preload("res://scripts/resources/unique_items.gd")
 
 # [postura, nombre, tecla, descripción]
 const POSTURES := [
-	[CombatEnums.Posture.OFENSIVA, "Ofensiva", KEY_Q, "Aumenta tu daño de ataque, pero te deja más vulnerable a recibir golpes. No permite Defender ni Esquivar."],
-	[CombatEnums.Posture.DEFENSIVA, "Defensiva", KEY_W, "Reduce el daño que recibes, a cambio de menor poder ofensivo. No permite Empujar."],
-	[CombatEnums.Posture.ESGRIMA, "Esgrima", KEY_E, "Prioriza la evasión y la agilidad: esquiva sola un 15% y desarma mejor (+10%). No permite Empujar."],
-	[CombatEnums.Posture.MURO, "Muro", KEY_R, "Defensa máxima. Ideal para resistir, pero casi no aporta al ataque. No permite Esquivar ni Desarmar."],
-	[CombatEnums.Posture.DESESPERADA, "Desesperada", KEY_T, "Último recurso: gran daño ofensivo, pero tu defensa cae drásticamente. Solo permite Atacar y Empujar."],
+	[CombatEnums.Posture.OFENSIVA, "Ofensiva", KEY_Q, "Más daño, menos defensa. No permite la Guardia."],
+	[CombatEnums.Posture.DEFENSIVA, "Defensiva", KEY_W, "Menos daño recibido y una Guardia más firme. No permite Empujar."],
+	[CombatEnums.Posture.ESGRIMA, "Esgrima", KEY_E, "Ágil: la Guardia esquiva más a menudo y desarmas mejor. No permite Empujar."],
+	[CombatEnums.Posture.DESESPERADA, "Desesperada", KEY_R, "Último recurso: gran daño y poca defensa. Solo Atacar y Empujar."],
 ]
+const ACTION_ABANDON := -1   # botón único que pregunta: rendirse o retirarse
 # [acción, nombre, tecla, descripción]
 const ACTIONS := [
 	[CombatEnums.ActionType.ATACAR, "Atacar", KEY_1, "Golpea al oponente. Falla si estás desarmado."],
-	[CombatEnums.ActionType.DEFENDER, "Defender", KEY_2, "Te pones en guardia, reduciendo el daño del próximo ataque que recibas."],
-	[CombatEnums.ActionType.ESQUIVAR, "Esquivar", KEY_3, "Te preparas para esquivar el próximo ataque, con posibilidad de evitarlo por completo."],
-	[CombatEnums.ActionType.CONTRAATACAR, "Contraatacar", KEY_4, "Adoptas guardia de contraataque: si el enemigo te ataca, le devuelves parte del daño."],
-	[CombatEnums.ActionType.DESARMAR, "Desarmar", KEY_5, "Intentas desarmar al oponente, dejándolo incapaz de atacar por un par de turnos."],
-	[CombatEnums.ActionType.EMPUJAR, "Empujar", KEY_6, "Empujas al oponente, reduciendo su resistencia y moral si tienes éxito."],
-	[CombatEnums.ActionType.FINTA, "Finta", KEY_9, "Amagas un golpe. Si espera para contraatacar, pierde su parada y te deja la guardia abierta; si no, es un golpe flojo."],
-	[CombatEnums.ActionType.RENDIRSE, "Rendirse", KEY_7, "Terminas el duelo inmediatamente. El oponente gana."],
-	[CombatEnums.ActionType.RETIRARSE, "Retirarse", KEY_8, "Intentas huir del combate. Puede fallar si el oponente te lo impide."],
+	[CombatEnums.ActionType.DEFENDER, "Guardia", KEY_2, "Reduces el próximo golpe y a veces lo evitas del todo (más en Esgrima)."],
+	[CombatEnums.ActionType.CONTRAATACAR, "Contraatacar", KEY_3, "Esperas su golpe para pararlo y devolverlo."],
+	[CombatEnums.ActionType.FINTA, "Finta", KEY_4, "Amagas un golpe. Si espera para contraatacar, pierde su parada y te deja la guardia abierta; si no, es un golpe flojo."],
+	[CombatEnums.ActionType.DESARMAR, "Desarmar", KEY_5, "Intentas quitarle el arma un par de turnos."],
+	[CombatEnums.ActionType.EMPUJAR, "Empujar", KEY_6, "Rompe su guardia y le quita aliento y moral."],
+	[ACTION_ABANDON, "Abandonar…", KEY_7, "Rendirte o intentar retirarte del duelo."],
 ]
 
 var duel: DuelManager
@@ -388,24 +386,24 @@ func _build_orders() -> void:
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		if a[0] == CombatEnums.ActionType.ATACAR:
 			b.theme_type_variation = &"PrimaryButton"
-		elif a[0] in [CombatEnums.ActionType.RENDIRSE, CombatEnums.ActionType.RETIRARSE]:
+		elif a[0] == ACTION_ABANDON:
 			b.theme_type_variation = &"FlatButton"
 		if b.theme_type_variation != &"":
 			for state in ["normal", "hover", "pressed", "hover_pressed", "disabled"]:
 				b.remove_theme_stylebox_override(state)
 			_compact(b)
-		b.pressed.connect(_player_action.bind(a[0]))
+		b.pressed.connect(_on_action_pressed.bind(a[0]))
 		b.set_meta("action", a[0])
 		b.set_meta("base_tooltip", b.tooltip_text)
 		_action_buttons.append(b)
-		_key_bindings[a[2]] = _player_action.bind(a[0])
+		_key_bindings[a[2]] = _on_action_pressed.bind(a[0])
 
 func _order_button(parent: Node, text: String, key: Key, description: String) -> Button:
 	var b := Button.new()
 	b.text = text
 	var key_name := OS.get_keycode_string(key)
 	b.tooltip_text = "%s  [tecla %s]" % [description, key_name]
-	b.focus_mode = Control.FOCUS_ALL    # mando y flechas; las teclas 1–8 / Q–T siguen siendo atajos
+	b.focus_mode = Control.FOCUS_ALL    # mando y flechas; las teclas 1–7 / Q–R siguen siendo atajos
 	b.add_theme_font_size_override("font_size", 14)
 	b.custom_minimum_size = Vector2(0, 34)
 	parent.add_child(b)
@@ -439,10 +437,8 @@ func _order_hint(order_name: String) -> String:
 			extra = "Daño previsto: %d–%d." % [dmg.x, dmg.y]
 			if duel.countering[foe]:
 				extra += " Prepara una parada (%d%%)." % roundi(duel.parry_chance(me, foe) * 100)
-			elif duel.dodging[foe]:
-				extra += " Puede esquivarlo (%d%%)." % roundi(duel.dodge_chance(me, foe) * 100)
-			elif duel.defending[foe]:
-				extra += " En guardia: mitad de daño."
+			elif duel.defending[foe] or duel.dodging[foe]:
+				extra += " En guardia: mitad de daño o lo evita (%d%%)." % roundi(duel.guard_dodge_chance(me, foe) * 100)
 			var my_adv: String = duel.advantage.get(me, "")
 			if my_adv == DuelManager.ADV_CONTRA:
 				extra += " ★ Contra: +50%, imparable."
@@ -458,8 +454,8 @@ func _order_hint(order_name: String) -> String:
 			extra = "Probabilidad de parar su próximo golpe: %d%%." % roundi(duel.parry_chance(foe, me) * 100)
 			if duel.advantage.get(foe, "") == duel.ADV_CONTRA:
 				extra += " Su contra no se puede parar."
-		"Esquivar":
-			extra = "Probabilidad de esquivar: %d%%." % roundi(duel.dodge_chance(foe, me) * 100)
+		"Guardia":
+			extra = "Mitad de daño; evita el golpe entero un %d%%." % roundi(duel.guard_dodge_chance(foe, me) * 100)
 		"Desarmar":
 			extra = "Éxito: %d%%." % roundi(duel.disarm_chance(me, foe) * 100) if not duel.is_fatigued(me) else "Sin aliento."
 			if duel.posture.get(me) == CombatEnums.Posture.ESGRIMA:
@@ -468,8 +464,8 @@ func _order_hint(order_name: String) -> String:
 				extra += " ★ Rival desequilibrado: +25%."
 		"Empujar":
 			extra = "Éxito: %d%%. Rompe su guardia." % roundi(duel.push_chance(me, foe) * 100) if not duel.is_fatigued(me) else "Sin aliento."
-		"Retirarse":
-			extra = "Éxito: %d%% (cuesta honor)." % roundi(duel.retreat_chance(me, foe) * 100)
+		"Abandonar…":
+			extra = "Retirarte: %d%% de éxito (cuesta honor), o rendirte." % roundi(duel.retreat_chance(me, foe) * 100)
 		"Finta":
 			if duel.is_fatigued(me):
 				extra = "Sin aliento."
@@ -482,7 +478,7 @@ func _order_hint(order_name: String) -> String:
 			extra = "✖ " + CombatEnums.block_reason(duel.posture[me], entry[0])
 	return "%s: %s" % [base, extra.strip_edges()] if not extra.is_empty() else "%s — %s" % [base, description]
 
-# Menos relleno lateral que un botón normal: caben 5 posturas y 4 acciones por fila.
+# Menos relleno lateral que un botón normal: caben 4 posturas y 4 acciones por fila.
 func _compact(b: Button) -> void:
 	for state in ["normal", "hover", "pressed", "hover_pressed", "disabled"]:
 		var sb := b.get_theme_stylebox(state).duplicate() as StyleBox
@@ -522,6 +518,29 @@ func _player_posture(p: int) -> void:
 	duel.set_posture(player_character, p)
 	_refresh_ui()
 	_update_action_blocks()
+
+func _on_action_pressed(action: int) -> void:
+	if action == ACTION_ABANDON:
+		_ask_abandon()
+	else:
+		_player_action(action)
+
+# «Abandonar…»: rendirse (seguro, cuesta honor) o intentar retirarse (puede fallar).
+func _ask_abandon() -> void:
+	if not player_turn or duel == null or duel.is_over:
+		return
+	var dlg := ConfirmationDialog.new()
+	dlg.title = "Abandonar el duelo"
+	dlg.dialog_text = "Retirarte: %d%% de éxito, cuesta honor.\nRendirte: terminas ya, pierdes el duelo." % roundi(duel.retreat_chance(player_character, enemy_character) * 100)
+	dlg.ok_button_text = "Rendirse"
+	dlg.cancel_button_text = "Seguir luchando"
+	dlg.add_button("Retirarse", true, "retreat")
+	dlg.confirmed.connect(func(): _player_action(CombatEnums.ActionType.RENDIRSE))
+	dlg.custom_action.connect(func(_a): dlg.hide(); _player_action(CombatEnums.ActionType.RETIRARSE))
+	dlg.visibility_changed.connect(func(): if not dlg.visible: dlg.queue_free())
+	add_child(dlg)
+	dlg.popup_centered()
+	dlg.get_cancel_button().grab_focus.call_deferred()
 
 func _player_action(action: int) -> void:
 	if not player_turn or duel.is_over:

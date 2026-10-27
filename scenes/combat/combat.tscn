@@ -87,7 +87,7 @@ custom_minimum_size = Vector2(200, 0)
 layout_mode = 2
 theme_type_variation = &"MutedLabel"
 theme_override_font_sizes/font_size = 14
-text = "Teclas: 1–9 acciones · Q–T posturas"
+text = "Teclas: 1–7 acciones · Q–R posturas"
 horizontal_alignment = 2
 
 [node name="ArenaHBox" type="HBoxContainer" parent="ScreenMargin/RootVBox"]
@@ -160,7 +160,7 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/h_separation = 6
 theme_override_constants/v_separation = 6
-columns = 5
+columns = 4
 
 [node name="HintLabel" type="Label" parent="ScreenMargin/RootVBox/ArenaHBox/CenterColumn/ActionPanel/ActionVBox"]
 unique_name_in_owner = true

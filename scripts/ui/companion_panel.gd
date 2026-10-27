@@ -98,8 +98,8 @@ func _rebuild() -> void:
 			first_btn = btn
 	var occ_note := _label(_body, "%s — %s" % [OccupationRules.DESCRIPTIONS[current], OccupationRules.preview(c, current)], "MutedLabel")
 	if c.is_wounded() and current != OccupationRules.DESCANSAR:
-		occ_note.text += "  (está herido: descansará hasta curarse)"
-	_label(_body, "Cada miembro cobra %d de oro al mes; al subir de nivel reparte sus puntos según su estilo de lucha." % RelationsData.RETINUE_UPKEEP if relation.person_name in RelationsData.retinue else "Tu cónyuge no cobra soldada.", "MutedLabel")
+		occ_note.text += "  (herido: descansa)"
+	_label(_body, "Soldada: %d oro/mes" % RelationsData.RETINUE_UPKEEP if relation.person_name in RelationsData.retinue else "Sin soldada", "MutedLabel")
 
 	# Campeón y práctica.
 	_body.add_child(HSeparator.new())

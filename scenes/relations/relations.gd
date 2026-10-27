@@ -71,21 +71,21 @@ func _rebuild() -> void:
 
 	var area := RelationsData.people_in_area()
 	area.sort_custom(func(a: Relationship, b: Relationship) -> bool: return a.affection > b.affection)
-	_add_note(_lists.lugar, _zone_heading() + AREA_TEXT)
+	_add_info(_lists.lugar, _zone_heading() + "Conversa, regala, invita o reta.", AREA_TEXT)
 	for r: Relationship in area:
 		_add_row(_lists.lugar, r)
 
 	var close := RelationsData.close_people()
 	close.sort_custom(func(a: Relationship, b: Relationship) -> bool: return a.affection > b.affection)
 	if close.is_empty():
-		_add_note(_lists.afectos, "Aún no tienes amistades ni amores. Conversa con la gente de tu zona.")
+		_add_note(_lists.afectos, "Aún no tienes amistades ni amores.")
 	for r: Relationship in close:
 		_add_row(_lists.afectos, r)
 
 	var members := RelationsData.retinue_members()
-	_add_note(_lists.sequito, RETINUE_TEXT)
+	_add_info(_lists.sequito, "Te acompaña a la batalla y lucha por ti.", RETINUE_TEXT)
 	var champ := " · Campeón: %s" % RelationsData.designated_champion if not RelationsData.designated_champion.is_empty() else ""
-	_add_note(_lists.sequito, "%s · plazas normales de %s%s." % [RelationsData.retinue_slots_text(), player.role_title(), champ], false)
+	_add_note(_lists.sequito, "%s%s" % [RelationsData.retinue_slots_text(), champ], false)
 	var spouse_rel := RelationsData.spouse_relation() if RelationsData.is_married() else null
 	if spouse_rel != null and spouse_rel.character != null and not spouse_rel.person_name in RelationsData.retinue:
 		_add_row(_lists.sequito, spouse_rel)
@@ -96,7 +96,7 @@ func _rebuild() -> void:
 		var names: Array[String] = []
 		for c: Character in lent:
 			names.append(c.full_name())
-		_add_note(_lists.sequito, "Compañeros de facción que te prestaría tu señor: %s." % (", ".join(names) if not names.is_empty() else "ninguno (tu señor no confía en ti)"), false)
+		_add_note(_lists.sequito, "Préstamo de tu señor: %s" % (", ".join(names) if not names.is_empty() else "nadie"), false)
 
 	var rivals := RelationsData.duel_rivals()
 	if rivals.is_empty():
@@ -106,15 +106,15 @@ func _rebuild() -> void:
 
 	var rank_block := RelationsData.lord_rank_blocker()
 	if not rank_block.is_empty():
-		_add_note(_lists.senores, rank_block, false)
+		_add_info(_lists.senores, "No puedes dirigirte a un señor.", rank_block)
 	else:
-		_add_note(_lists.senores, LETTER_TEXT)
+		_add_info(_lists.senores, "✉ por carta: +1 acción.", LETTER_TEXT)
 	var lords := RelationsData.lords()
 	lords.sort_custom(func(a: Relationship, b: Relationship) -> bool:
 		return RelationsData.lord_present(a) and not RelationsData.lord_present(b))
 	for r: Relationship in lords:
 		_add_row(_lists.senores, r)
-	_add_note(_lists.senores, RULES_TEXT)
+	_add_info(_lists.senores, "Reglas de diplomacia", RULES_TEXT)
 
 	var lines: Array[String] = []
 	for key: String in RelationsData.kingdom_wars.keys():
@@ -151,8 +151,18 @@ func _zone_heading() -> String:
 	var realm := KingdomEnums.kingdom_name(here.kingdom)
 	var heading := ("Estás en %s. " % realm) if here.castle_name == realm else "Estás en %s (%s). " % [here.castle_name, realm]
 	if here.kingdom == KingdomEnums.Kingdom.NEUTRAL:
-		heading += "En estas tierras sin señor apenas vive nadie con quien tratar. "
+		heading += "Tierra sin señor: apenas hay gente. "
 	return heading
+
+## Nota corta con «ⓘ»: la explicación completa va en el tooltip (y en el glosario).
+func _add_info(list: VBoxContainer, short: String, full: String) -> void:
+	var lbl := Label.new()
+	lbl.text = short + "  ⓘ"
+	lbl.tooltip_text = full
+	lbl.mouse_filter = Control.MOUSE_FILTER_PASS
+	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lbl.theme_type_variation = &"MutedLabel"
+	list.add_child(lbl)
 
 func _add_note(list: VBoxContainer, text: String, muted: bool = true) -> void:
 	var lbl := Label.new()

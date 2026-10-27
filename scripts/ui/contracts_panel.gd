@@ -59,7 +59,7 @@ func _ready() -> void:
 	stats.theme_type_variation = &"MutedLabel"
 	stats.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	stats.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	stats.text = "Contratos cumplidos: %d · Infamia: %d (con %d nadie te contrata) · Compañía: %d soldados" % [
+	stats.text = "Contratos %d · Infamia %d/%d · Compañía %d" % [
 		MissionData.contracts_done, MissionData.infamy, MissionData.INFAMY_REFUSE, MissionData.company_size()]
 	box.add_child(stats)
 	box.add_child(HSeparator.new())

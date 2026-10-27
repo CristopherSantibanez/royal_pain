@@ -47,7 +47,9 @@ func _ready() -> void:
 	var note := Label.new()
 	note.theme_type_variation = &"MutedLabel"
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	note.text = "Las hazañas dan recompensas pero no terminan la partida. Solo termina al dominar el mundo, al unir los dos últimos reinos por matrimonio o si tu linaje se extingue."
+	note.text = "Las hazañas dan recompensas.  ⓘ"
+	note.tooltip_text = "No terminan la partida: solo termina al dominar el mundo, al unir los dos últimos reinos por matrimonio o si tu linaje se extingue."
+	note.mouse_filter = Control.MOUSE_FILTER_PASS
 	root.add_child(note)
 
 	var scroll := ScrollContainer.new()

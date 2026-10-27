@@ -78,7 +78,9 @@ func _ready() -> void:
 	title.theme_type_variation = &"HeaderLabel"
 	root.add_child(title)
 	var note := Label.new()
-	note.text = "Asigna la tropa de cada personaje de tu facción. Con mando %d o más en una familia, lleva su versión avanzada. Quien no tenga tropa asignada la recibe del general." % Character.MASTERY_ADVANCED
+	note.text = "Tropa de cada personaje de tu facción  ⓘ"
+	note.tooltip_text = "Con mando %d o más en una familia, lleva su versión avanzada. Quien no tenga tropa asignada la recibe del general." % Character.MASTERY_ADVANCED
+	note.mouse_filter = Control.MOUSE_FILTER_PASS
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	note.theme_type_variation = &"MutedLabel"
 	root.add_child(note)

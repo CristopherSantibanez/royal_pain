@@ -109,7 +109,9 @@ func _ready() -> void:
 
 	var note := Label.new()
 	note.theme_type_variation = &"MutedLabel"
-	note.text = "El surtido cambia cada mes y mejora con tu rango. Una pieza por ranura: comprar otra de la misma ranura entrega la anterior a cuenta (%d%% de su precio). Tu Carisma regatea el precio." % roundi(SELL_FACTOR * 100)
+	note.text = "Surtido mensual · una pieza por ranura  ⓘ"
+	note.tooltip_text = "Mejora con tu rango. Comprar otra pieza de la misma ranura entrega la anterior a cuenta (%d%% de su precio). Tu Carisma regatea el precio." % roundi(SELL_FACTOR * 100)
+	note.mouse_filter = Control.MOUSE_FILTER_PASS
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	root.add_child(note)
 

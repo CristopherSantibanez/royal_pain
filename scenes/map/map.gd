@@ -620,8 +620,9 @@ func _refresh_army_panel() -> void:
 	btn_start_battle.visible = can_fight
 	btn_start_battle.text = "Iniciar Batalla" if own else "Defender Castillo"
 	if own and selected_army.pending_battle and besieged != null:
-		army_status_label.text += "\nAsedio: cada mes la guarnición cae un %d%% (pagas %d de oro). Para asaltar conviene ≈1,5× sus %d defensores." % [
+		army_status_label.text += "\nAsedio: −%d%%/mes · %d oro/mes · %d defensores" % [
 			roundi(ArmyData.SIEGE_ATTRITION * 100), ceili(selected_army.size / float(ArmyData.SIEGE_UPKEEP_PER_SOLDIERS)), besieged.garrison_size]
+		army_status_label.tooltip_text = "Cada mes de asedio la guarnición cae y pagas la soldada. Para asaltar conviene ≈1,5× sus defensores."
 	_refresh_army_extra_buttons(own)
 
 	army_destination_option.clear()
@@ -710,7 +711,7 @@ func _is_army_visible(a: Army) -> bool:
 
 func _refresh_events() -> void:
 	if not GameManager.game_over_reason.is_empty():
-		events_label.text = "FIN DE LA PARTIDA\n%s\nVuelve al menú principal para empezar de nuevo." % GameManager.game_over_reason
+		events_label.text = "FIN DE LA PARTIDA\n%s" % GameManager.game_over_reason
 		return
 	var lines: Array[String] = []
 	if not GameManager.last_annual_event.is_empty():
@@ -894,7 +895,7 @@ func _show_site(uid: String) -> void:
 	var home := MapData.get_castle_by_id(GameManager.home_castle_id)
 	var near := MapData.get_castle_by_id(site.castle_id)
 	event_title.text = event.title
-	event_text.text = "%s\n\nCerca de %s · desaparecerá en %d %s. Explorarlo gasta una acción (te quedan %d)." % [
+	event_text.text = "%s\n\nCerca de %s · %d %s · 1 acción (te quedan %d)" % [
 		event.text, near.castle_name if near != null else "?", int(site.months_left),
 		"mes" if int(site.months_left) == 1 else "meses", GameManager.actions_remaining]
 	event_speaker.visible = false

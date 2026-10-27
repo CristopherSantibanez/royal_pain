@@ -29,7 +29,7 @@ func _ready() -> void:
 	if heirs.is_empty() or not DynastyData.needs_succession():
 		_show_end()
 	else:
-		_box.add_child(_label("¿Quién toma las riendas de la casa? Hereda tu oro, tus castillos y tu séquito, el rango de su progenitor y parte de su honra y su fama.", &"", true))
+		_box.add_child(_label("¿Quién toma las riendas de la casa?", &"", true))
 		for c: Character in heirs:
 			_box.add_child(_heir_card(c))
 	UiAnim.fade_in(panel, 0.4)

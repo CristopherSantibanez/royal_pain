@@ -57,7 +57,9 @@ func _ready() -> void:
 	right.add_theme_constant_override("separation", 6)
 	body.add_child(right)
 	_label(right, c.full_name(), "HeaderLabel")
-	_label(right, "%s — %s" % [DialogueCatalog.personality_name(c.personality), RelationsData.catalog("personality_description", [c.personality], "")], "")
+	var pers := _label(right, DialogueCatalog.personality_name(c.personality) + "  ⓘ", "")
+	pers.tooltip_text = RelationsData.catalog("personality_description", [c.personality], "")
+	pers.mouse_filter = Control.MOUSE_FILTER_PASS
 	_label(right, "Alineamiento: %s · Estilo: %s" % [
 		_enum_name(CharacterEnums.Alignment, c.alignment), _enum_name(CharacterEnums.FighterType, c.fighter_type)], "MutedLabel")
 	_label(right, "Combate %d · Defensa %d · Liderazgo %d · Carisma %d · Estrategia %d · Vida %d/%d · Honor %d · Fama %d" % [

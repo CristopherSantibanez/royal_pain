@@ -22,8 +22,8 @@ const MAX_LOG_LINES := 12
 const ENEMY_COMPANIONS_BY_ROLE := {Character.Role.NOBLEZA_BAJA: 1, Character.Role.NOBLEZA_ALTA: 2, Character.Role.REGENTE: 3,
 	Character.Role.DUQUE: 3, Character.Role.CAPITAN: 1, Character.Role.CONDOTIERO: 2}
 const ENEMY_COMPANION_CHANCE := 0.7
-const DEFENDER_HINT := "Defiendes tras la muralla (+50% de defensa). Esperar no basta: usa tus arqueros desde el muro y golpea a quien se acerque."
-const IDLE_HINT := "Selecciona uno de tus pelotones (azul). Casillas claras: movimiento. Rojas: objetivos (pasa el ratón para ver las bajas esperadas)."
+const DEFENDER_HINT := "Defiendes tras la muralla (+50%)."
+const IDLE_HINT := "Elige un pelotón azul."
 const XpRules = preload("res://scripts/resources/xp_rules.gd")
 const COMPANION_XP_SHARE := 0.5       # experiencia de los compañeros que dirigieron un pelotón
 const BATTLE_DEATH_CHANCE := 0.25     # si tu ejército entero cae o huye, puedes caer con él
@@ -110,7 +110,9 @@ func _ready() -> void:
 		btn_retreat.tooltip_text = "Entregas el castillo al atacante sin seguir luchando."
 	else:
 		title_label.text = "Batalla por %s\n%s contra %s" % [castle.castle_name, army.owner_name, castle.owner_name]
-	legend_label.text = "Defensa: bosque +25% · colina +20% (arqueros +1 alcance) · aldea +30% · muralla +50% · vado −20% · río: solo por puente o vado · I/A/C/P: infantería, arqueros, caballería, piqueros (★ avanzada) · ⚑ general · Caballería > arqueros > infantería > piqueros > caballería"
+	legend_label.text = "Bosque +25% · Colina +20% · Aldea +30% · Muralla +50% · Vado −20%"
+	legend_label.tooltip_text = "Defensa por terreno. Colina: arqueros +1 alcance. Río: solo por puente o vado.\nI/A/C/P: infantería, arqueros, caballería, piqueros (★ avanzada) · ⚑ general.\nCaballería > arqueros > infantería > piqueros > caballería."
+	legend_label.mouse_filter = Control.MOUSE_FILTER_PASS
 	legend_label.add_theme_font_size_override("font_size", 12)
 	_style_forces_bar()
 
@@ -292,12 +294,14 @@ func _show_council() -> void:
 	row.add_child(head)
 	_text(head, "Consejo antes de la batalla", &"HeaderLabel", 480)
 	if battle.is_player_general():
-		_text(head, "Eres el general de tu bando: tú decides la retirada, pero si caes, tu bando pierde.", &"", 480)
+		_text(head, "Eres el general.", &"", 480)
 	elif g != null:
-		_text(head, "General: %s. Lo eligió su señor por su fama, su mando y su rango. Solo él ordena la retirada; si cae, vuestro bando pierde." % g.full_name(), &"", 480)
+		_text(head, "General: %s" % g.full_name(), &"", 480)
 	_text(box, "Tu tropa: %s (mando %d en %s). %s" % [BattleEnums.unit_type_name(me.type), player.mastery(me.family()),
 		BattleEnums.family_name(me.family()).to_lower(), BattleEnums.unit_type_trait(me.type)], &"BodyBoldLabel")
-	var status := _text(box, "Puedes pedir otra tropa una vez: cuentan tu mando en ella, tu Carisma, tu fama, tu Estrategia y tu relación con el general." if not battle.is_player_general() else "Como general, eliges tu tropa.")
+	var status := _text(box, "Pide otra tropa (una vez):" if not battle.is_player_general() else "Elige tu tropa:")
+	status.tooltip_text = "Cuentan tu mando en ella, tu Carisma, tu fama, tu Estrategia y tu relación con el general."
+	status.mouse_filter = Control.MOUSE_FILTER_PASS
 	var fams := HBoxContainer.new()
 	fams.add_theme_constant_override("separation", 8)
 	box.add_child(fams)
@@ -564,7 +568,7 @@ func _on_retreat_ordered(general: Character) -> void:
 	if general != null:
 		box.add_child(FaceIcon.make(general, 72, BattleBoard.GENERAL_COLOR))
 	_text(box, "%s ordena la retirada" % (general.full_name() if general != null else "Tu general"), &"HeaderLabel")
-	_text(box, "Puedes retirarte con el ejército o quedarte con tus hombres cubriendo la huida %d turnos. Si sobrevives, ganarás %d de honor y %d de fama." % [
+	_text(box, "Cubrir la huida %d turnos: +%d honor, +%d fama si sobrevives." % [
 		BattleManager.COVER_TURNS, BattleManager.COVER_HONOR, BattleManager.COVER_FAME])
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -655,7 +659,9 @@ func _build_abilities(box: VBoxContainer) -> void:
 	if users.is_empty():
 		var none := Label.new()
 		none.theme_type_variation = &"MutedLabel"
-		none.text = "Sin habilidades de mando (las dan habilidades de batalla)."
+		none.text = "Sin habilidades de mando."
+		none.tooltip_text = "Las dan las habilidades de batalla de tu comandante y compañeros."
+		none.mouse_filter = Control.MOUSE_FILTER_PASS
 		none.add_theme_font_size_override("font_size", COMMAND_FONT_SIZE)
 		box.add_child(none)
 		_ability_node = none
@@ -1224,8 +1230,7 @@ func _on_challenge_offered(challenger: BattleUnit, target: BattleUnit) -> void:
 	var note := Label.new()
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	note.custom_minimum_size = Vector2(560, 0)
-	note.text = "Ante los dos ejércitos: si %s pierde, se retira del campo con su pelotón; si gana, es el enemigo quien se retira. Rehusar cuesta moral a todo tu bando (−%d)." % [
-		target.leader().first_name, BattleManager.CHALLENGE_REFUSE_MORALE]
+	note.text = "Quien pierda se retira con su pelotón. Rehusar: −%d moral a tu bando." % BattleManager.CHALLENGE_REFUSE_MORALE
 	box.add_child(note)
 	var buttons := HBoxContainer.new()
 	buttons.alignment = BoxContainer.ALIGNMENT_CENTER

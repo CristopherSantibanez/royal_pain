@@ -139,7 +139,7 @@ func _rebuild_level() -> void:
 
 	var left := _points_left()
 	_level_box.add_child(_label("Puntos por repartir: %d" % left if _player.unspent_points > 0
-		else "Sin puntos por repartir. Cada nivel da %d; se ganan con duelos, batallas, torneos y encargos." % Character.POINTS_PER_LEVEL,
+		else "Sin puntos por repartir.",
 		&"BodyBoldLabel" if _player.unspent_points > 0 else &"MutedLabel"))
 	var grid := GridContainer.new()
 	grid.columns = 4
@@ -283,8 +283,7 @@ func _rebuild_family() -> void:
 		_family_box.add_child(_label("Cónyuge", &"SubheaderLabel"))
 		_family_box.add_child(_person_row(spouse.character, spouse.person_name, ""))
 	else:
-		_family_box.add_child(_label("No estás casad%s. Sin cónyuge no hay hijos, y sin hijos adultos tu linaje muere contigo." %
-			("a" if _player.gender == CharacterEnums.Gender.FEMENINO else "o"), &"MutedLabel"))
+		_family_box.add_child(_label("Sin cónyuge." , &"MutedLabel"))
 	_family_box.add_child(HSeparator.new())
 	var kids := DynastyData.children()
 	var own := kids.filter(func(c: Character) -> bool: return DynastyData.is_own_child(c)).size()
@@ -293,8 +292,7 @@ func _rebuild_family() -> void:
 		heading += " · Hermanos (%d)" % (kids.size() - own)
 	_family_box.add_child(_label(heading, &"SubheaderLabel"))
 	if kids.is_empty():
-		_family_box.add_child(_label("Aún no tienes descendencia. Cada enero, casad%s y con tu cónyuge en edad, puede nacer un hijo." %
-			("a" if _player.gender == CharacterEnums.Gender.FEMENINO else "o"), &"MutedLabel", 15))
+		_family_box.add_child(_label("Sin descendencia.", &"MutedLabel", 15))
 	for c: Character in kids:
 		var fem := c.gender == CharacterEnums.Gender.FEMENINO
 		var status := ("Adulta · puede heredar" if fem else "Adulto · puede heredar") if c.age >= DynastyData.ADULT_AGE \

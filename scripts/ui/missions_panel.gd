@@ -95,7 +95,7 @@ func _rebuild() -> void:
 		var empty := Label.new()
 		empty.theme_type_variation = &"MutedLabel"
 		empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		empty.text = "No tienes encargos. Tu señor te los ofrecerá a comienzos de mes: cuanta más fama tengas, más a menudo."
+		empty.text = "No tienes encargos."
 		_list.add_child(empty)
 	for m: Dictionary in MissionData.active:
 		_list.add_child(_row(m))

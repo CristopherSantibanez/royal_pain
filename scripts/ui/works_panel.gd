@@ -72,7 +72,9 @@ func _ready() -> void:
 
 	var note := Label.new()
 	note.theme_type_variation = &"MutedLabel"
-	note.text = "Una obra a la vez; tarda varios meses y se paga con el tesoro del castillo. Ordenarla gasta una acción. Cada edificio tiene %d niveles. Quien vive en el castillo (también los caballeros y soldados de su señor) disfruta de sus efectos." % BuildingCatalog.MAX_LEVEL
+	note.text = "Una obra a la vez · 1 acción · tesoro del castillo  ⓘ"
+	note.tooltip_text = "Tarda varios meses. Cada edificio tiene %d niveles. Quien vive en el castillo (también los caballeros y soldados de su señor) disfruta de sus efectos." % BuildingCatalog.MAX_LEVEL
+	note.mouse_filter = Control.MOUSE_FILTER_PASS
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	root.add_child(note)
 

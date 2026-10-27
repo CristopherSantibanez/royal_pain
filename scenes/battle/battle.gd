@@ -62,6 +62,15 @@ var _start_fn: Callable              # arranca la batalla con los compañeros el
 var _enemy_list: Array[Character] = []
 var _command_box: VBoxContainer
 var _ability_node: Control
+# Reparto de hombres antes de la batalla (ver CombatSetup.PLATOON_MIN / platoon_max / soldada_cost).
+var _allocation := {}                # nombre del jefe (tú o un compañero) -> hombres
+var _alloc_hired := false            # true: hombres contratados para esta batalla (se paga soldada)
+var _alloc_pool := 0                 # > 0: total de tu propia gente que puedes repartir
+var _alloc_default_mine := 0         # tu pelotón por defecto
+var _alloc_dirty := false            # cambiaste el reparto: se vuelve a formar al confirmar
+var _alloc_rows := {}                # nombre -> Label con el número
+var _alloc_cost_label: Label
+var _go_btn: Button
 
 func _ready() -> void:
 	skirmish = CombatSetup.skirmish
@@ -130,7 +139,10 @@ func _ready() -> void:
 		battle.player_side = BattleEnums.Side.ATACANTE
 		var home: Castle = MapData.get_castle_by_id(GameManager.home_castle_id)
 		battle.biome = home.kingdom if home != null else -1
+		_alloc_hired = false   # tu guarnición: ya cobra, repartirla es gratis
+		_alloc_pool = int(skirmish.player_soldiers)
 		_start_fn = func(comps: Array[Character]) -> void:
+			_use_allocation(comps)
 			battle.start_battle(skirmish.player_soldiers, skirmish.enemy_soldiers, false, player, skirmish.foe, "el campo abierto", comps, [])
 		var companions := _player_companions()
 		_start_fn.call(companions)
@@ -150,7 +162,10 @@ func _ready() -> void:
 		battle.wall_bonus = castle.wall_bonus()
 		battle.cavalry_bonus = castle.cavalry_bonus()
 	_enemy_list = theirs
+	_alloc_hired = false   # tu ejército o tu guarnición: ya cobran, repartirlos es gratis
+	_alloc_pool = castle.garrison_size if player_defending else army.size
 	_start_fn = func(comps: Array[Character]) -> void:
+		_use_allocation(comps)
 		battle.start_battle(army.size, castle.garrison_size, true, attacker_cmd, defender_cmd, castle.castle_name, comps, theirs)
 	_start_fn.call(mine)
 	_show_companions(mine, theirs)
@@ -160,15 +175,15 @@ func _ready() -> void:
 func _start_invited(player: Character) -> void:
 	var side: int = int(invited.get("side", BattleEnums.Side.ATACANTE))
 	battle.player_side = side
-	var base_levy: int = int(invited.get("player_soldiers", CombatSetup.PERSONAL_LEVY_BY_RANK[0]))
+	_alloc_default_mine = int(invited.get("player_soldiers", CombatSetup.PERSONAL_LEVY_BY_RANK[0]))
+	# Tu compañía mercenaria ya cobra cada mes: la repartes gratis. Si no, los hombres se contratan.
+	_alloc_hired = not player.is_mercenary()
+	_alloc_pool = 0 if _alloc_hired else _alloc_default_mine
 	# A una batalla ajena solo te acompaña tu séquito (tu señor no te presta a nadie para servir a otro).
 	var companions: Array[Character] = []
 	for c: Character in _player_companions():
 		if not c.has_meta("faction_companion"):
 			companions.append(c)
-	var full: int = companions.size() + _excluded.size()
-	# Cada compañero que dejas en casa se lleva sus hombres (CombatSetup.RETINUE_LEVY).
-	var levy_for := func(n: int) -> int: return maxi(1, base_levy - (full - n) * CombatSetup.RETINUE_LEVY)
 	var lord: String = invited.get("lord", "")
 	if invited.kind == "army":
 		var att_cmd: Character = RelationsData.character_of(army.owner_name)
@@ -187,7 +202,7 @@ func _start_invited(player: Character) -> void:
 			castle.owner_name if side == BattleEnums.Side.ATACANTE else army.owner_name]
 		_enemy_list = theirs
 		_start_fn = func(comps: Array[Character]) -> void:
-			var mine: int = levy_for.call(comps.size())
+			var mine: int = _use_allocation(comps)
 			var att_total: int = army.size + (mine if side == BattleEnums.Side.ATACANTE else 0)
 			var def_total: int = castle.garrison_size + (mine if side == BattleEnums.Side.DEFENSOR else 0)
 			battle.start_battle(att_total, def_total, true, att_cmd, def_cmd, castle.castle_name, comps, theirs)
@@ -210,7 +225,7 @@ func _start_invited(player: Character) -> void:
 			enemy_castle.owner_name if enemy_castle != null else "el enemigo"]
 		_enemy_list = theirs
 		_start_fn = func(comps: Array[Character]) -> void:
-			battle.start_battle(allies + levy_for.call(comps.size()), foes, false, ally_cmd, enemy_cmd, place, comps, theirs)
+			battle.start_battle(allies + _use_allocation(comps), foes, false, ally_cmd, enemy_cmd, place, comps, theirs)
 		_start_fn.call(companions)
 		_show_companions(companions, theirs)
 	if battle.is_player_general():
@@ -304,6 +319,7 @@ func _show_council() -> void:
 				other.disabled = true
 			_refresh())
 	_companion_toggles(box)
+	_allocation_rows(box)
 	var actions := HBoxContainer.new()
 	actions.add_theme_constant_override("separation", 10)
 	actions.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -319,10 +335,10 @@ func _show_council() -> void:
 	var go := Button.new()
 	go.text = "¡Al combate!"
 	go.theme_type_variation = &"PrimaryButton"
-	go.pressed.connect(func():
-		_close_council()
-		_refresh())
+	go.pressed.connect(_confirm_council)
 	actions.add_child(go)
+	_go_btn = go
+	_update_allocation_ui()
 	go.grab_focus.call_deferred()
 
 ## Miembros de tu séquito que pueden venir (aunque los hayas dejado fuera).
@@ -364,7 +380,7 @@ func _companion_toggles(box: VBoxContainer) -> void:
 		flow.add_child(t)
 
 ## Vuelve a formar las tropas con los compañeros elegidos (mismo campo y clima; nadie ha movido aún).
-func _restart_battle() -> void:
+func _restart_battle(reopen_council: bool = true) -> void:
 	if _start_fn.is_null() or battle == null or battle.is_over or battle.turn > 1:
 		return
 	battle.reuse_terrain = true
@@ -375,7 +391,162 @@ func _restart_battle() -> void:
 	_show_companions(comps, _enemy_list)
 	_rebuild_abilities()
 	_refresh()
-	_show_council()
+	if reopen_council:
+		_show_council()
+
+# --- Reparto de hombres: tu pelotón y el de cada compañero ---
+
+## Jefes de tus pelotones en esta batalla: tú y tus compañeros propios sanos.
+func _alloc_leaders(comps: Array[Character]) -> Array[Character]:
+	var result: Array[Character] = [battle.player_leader]
+	for c: Character in comps:
+		if c != null and not c.has_meta("faction_companion") and not c.is_wounded():
+			result.append(c)
+	return result
+
+## Ajusta el reparto a quienes vienen (los nuevos entran con el mínimo), lo pasa a la batalla y
+## devuelve el total de tus hombres.
+func _use_allocation(comps: Array[Character]) -> int:
+	var leaders := _alloc_leaders(comps)
+	var names: Array = leaders.map(func(c: Character) -> String: return c.full_name())
+	if _allocation.is_empty():
+		_allocation = CombatSetup.default_allocation(leaders[0], leaders.slice(1), _alloc_pool, _alloc_default_mine)
+	for who in _allocation.keys():
+		if not who in names:
+			_allocation.erase(who)
+	for c: Character in leaders:
+		if not _allocation.has(c.full_name()):
+			_allocation[c.full_name()] = CombatSetup.PLATOON_MIN
+	if _alloc_pool > 0:   # tu propia gente: no puedes repartir más de la que tienes
+		while _alloc_total() > _alloc_pool and _trim_one():
+			pass
+	battle.own_allocation = _allocation.duplicate()
+	return _alloc_total()
+
+func _alloc_total() -> int:
+	var n := 0
+	for who in _allocation:
+		n += int(_allocation[who])
+	return n
+
+## Quita hombres al pelotón más numeroso (para no pasar de tu gente). false si ya no se puede.
+func _trim_one() -> bool:
+	var biggest := ""
+	for who in _allocation:
+		if biggest == "" or int(_allocation[who]) > int(_allocation[biggest]):
+			biggest = who
+	if biggest == "" or int(_allocation[biggest]) <= 1:
+		return false
+	_allocation[biggest] = int(_allocation[biggest]) - 1
+	return true
+
+func _alloc_min() -> int:
+	if _alloc_pool <= 0:
+		return CombatSetup.PLATOON_MIN
+	return clampi(_alloc_pool / maxi(1, _allocation.size()), 1, CombatSetup.PLATOON_MIN)
+
+func _alloc_cost() -> int:
+	return CombatSetup.soldada_cost(_allocation, battle.player_leader.full_name(), _alloc_hired)
+
+## Suma (o resta) hombres al pelotón de un jefe, dentro del mínimo, su máximo y tu gente.
+func change_allocation(who: Character, delta: int) -> void:
+	var key := who.full_name()
+	if not _allocation.has(key):
+		return
+	var now := int(_allocation[key])
+	var top: int = maxi(_alloc_min(), CombatSetup.platoon_max(who))
+	var n := clampi(now + delta, _alloc_min(), top)
+	if _alloc_pool > 0:
+		n = mini(n, now + maxi(0, _alloc_pool - _alloc_total()))
+	if n == now:
+		Sfx.play("whoosh", -12.0)
+		return
+	_allocation[key] = n
+	_alloc_dirty = true
+	Sfx.play("click", -10.0)
+	_update_allocation_ui()
+
+## Una fila por pelotón: retrato, nombre, [−] hombres [+] y el máximo según su Liderazgo.
+func _allocation_rows(box: VBoxContainer) -> void:
+	_alloc_rows.clear()
+	var leaders := _alloc_leaders(_player_companions())
+	var head := _text(box, "Hombres por pelotón", &"BodyBoldLabel")
+	head.tooltip_text = "Mínimo %d por pelotón; el máximo depende del Liderazgo de quien lo manda." % CombatSetup.PLATOON_MIN
+	head.mouse_filter = Control.MOUSE_FILTER_PASS
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 18)
+	grid.add_theme_constant_override("v_separation", 4)
+	box.add_child(grid)
+	for c: Character in leaders:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 6)
+		grid.add_child(row)
+		row.add_child(FaceIcon.make(c, 26))
+		var name_l := Label.new()
+		name_l.text = "Tú" if c == battle.player_leader else c.first_name
+		name_l.custom_minimum_size = Vector2(96, 0)
+		name_l.clip_text = true
+		name_l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		name_l.tooltip_text = "%s · Liderazgo %d" % [c.full_name(), c.leadership]
+		name_l.mouse_filter = Control.MOUSE_FILTER_PASS
+		row.add_child(name_l)
+		var minus := Button.new()
+		minus.text = "−"
+		minus.custom_minimum_size = Vector2(30, 0)
+		minus.tooltip_text = "−%d hombres" % CombatSetup.PLATOON_STEP
+		minus.pressed.connect(change_allocation.bind(c, -CombatSetup.PLATOON_STEP))
+		row.add_child(minus)
+		var value := Label.new()
+		value.custom_minimum_size = Vector2(34, 0)
+		value.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		row.add_child(value)
+		var plus := Button.new()
+		plus.text = "+"
+		plus.custom_minimum_size = Vector2(30, 0)
+		plus.tooltip_text = "+%d hombres" % CombatSetup.PLATOON_STEP
+		plus.pressed.connect(change_allocation.bind(c, CombatSetup.PLATOON_STEP))
+		row.add_child(plus)
+		var top := Label.new()
+		top.theme_type_variation = &"MutedLabel"
+		top.text = "máx %d" % CombatSetup.platoon_max(c)
+		row.add_child(top)
+		_alloc_rows[c.full_name()] = value
+	_alloc_cost_label = _text(box, "", &"MutedLabel")
+
+func _update_allocation_ui() -> void:
+	for who in _alloc_rows:
+		var l: Label = _alloc_rows[who]
+		if is_instance_valid(l):
+			l.text = str(int(_allocation.get(who, 0)))
+	var gold: int = battle.player_leader.gold
+	var cost := _alloc_cost()
+	if is_instance_valid(_alloc_cost_label):
+		if _alloc_hired:
+			_alloc_cost_label.text = "Soldada: %d oro (tienes %d)" % [cost, gold]
+			_alloc_cost_label.tooltip_text = "%d de oro por hombre contratado; tus %d allegados no cobran. Si vencéis, %s paga a tu gente." % [
+				CombatSetup.SOLDADA_PER_MAN, CombatSetup.PERSONAL_RETAINERS, str(invited.get("lord", "tu anfitrión"))]
+		else:
+			_alloc_cost_label.text = "Tu gente: %d de %d (ya cobran)" % [_alloc_total(), _alloc_pool]
+			_alloc_cost_label.tooltip_text = "Repartir tu propia tropa es gratis. Lo que no asignes lo mandan tus capitanes."
+		_alloc_cost_label.mouse_filter = Control.MOUSE_FILTER_PASS
+	if is_instance_valid(_go_btn):
+		_go_btn.disabled = cost > gold
+		_go_btn.tooltip_text = "No te alcanza para la soldada: lleva menos hombres o deja a algún compañero." if cost > gold else ""
+
+## Confirma el consejo: si cambiaste el reparto se vuelven a formar las tropas y se paga la soldada.
+func _confirm_council() -> void:
+	var cost := _alloc_cost()
+	if cost > battle.player_leader.gold:
+		return
+	if _alloc_dirty:
+		_alloc_dirty = false
+		_restart_battle(false)
+	if cost > 0:
+		battle.player_leader.gold -= cost
+		_on_log_message("Pagas %d de oro de soldada a tus hombres." % cost)
+	_close_council()
+	_refresh()
 
 func _close_council() -> void:
 	if _council != null:

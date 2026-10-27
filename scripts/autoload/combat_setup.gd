@@ -37,8 +37,19 @@ const SKIRMISH_MIN_SOLDIERS := 12
 # invited: {kind ("army" asedio de un ejército de la IA | "field" batalla campal), title, inviter, lord, side,
 #   army_id, castle_id, ally_castle_id, enemy_castle_id, player_soldiers}
 var invited: Dictionary = {}
-const PERSONAL_LEVY_BY_RANK := [12, 15, 20, 30, 40, 50, 60]   # gente que llevas según tu rango (campesino: milicia)
-const RETINUE_LEVY := 8                  # hombres que aporta cada miembro de tu séquito
+const PERSONAL_LEVY_BY_RANK := [12, 15, 20, 30, 40, 50, 60]   # tu pelotón por defecto según tu rango (campesino: milicia)
+
+# --- Reparto de hombres antes de la batalla: tu pelotón y el de cada compañero ---
+# Mínimo por pelotón (uno más pequeño se rompe enseguida) y máximo según el Liderazgo de quien lo manda.
+const PLATOON_MIN := 15
+const PLATOON_BASE_MAX := 10              # máximo = PLATOON_BASE_MAX + PLATOON_PER_LEADERSHIP × Liderazgo
+const PLATOON_PER_LEADERSHIP := 2         # (Liderazgo 5 → 20, 10 → 30, 15 → 40, 20 → 50)
+const PLATOON_STEP := 5                   # lo que suma o resta cada pulsación
+# Soldada por batalla: en una batalla ajena los hombres se contratan para ella y se pagan de tu bolsa
+# (si vencéis, el anfitrión paga INVITE_WIN_GOLD_PER_SOLDIER por cada uno). Tu propia gente
+# (ejército, guarnición, compañía mercenaria) ya cobra: repartirla es gratis.
+const SOLDADA_PER_MAN := 2
+const PERSONAL_RETAINERS := PLATOON_MIN    # tus allegados: el mínimo de tu propio pelotón nunca se paga
 const MERCENARY_MIN_LEVY := 20
 const FIELD_BATTLE_SHARE := 0.4          # parte de cada guarnición que sale a la batalla campal
 const FIELD_BATTLE_MIN := 20
@@ -87,14 +98,47 @@ func battle_blocker(player: Character) -> String:
 		return "Un campesino no va a la guerra por su cuenta: solo si alguien que te conoce te llama a filas."
 	return ""
 
-## Gente que llevas a una batalla ajena: tu compañía si eres mercenario; si no, tu leva según tu rango y tu séquito.
+## Tu pelotón por defecto en una batalla ajena: tu compañía si eres mercenario; si no, según tu rango.
 func player_levy(player: Character) -> int:
 	if player == null:
 		return PERSONAL_LEVY_BY_RANK[0]
-	var retinue: int = RelationsData.battle_companions().filter(func(c: Character) -> bool: return not c.has_meta("faction_companion")).size()
 	if player.is_mercenary():
-		return maxi(MERCENARY_MIN_LEVY, MissionData.company_size()) + retinue * RETINUE_LEVY
-	return PERSONAL_LEVY_BY_RANK[clampi(player.rank(), 0, PERSONAL_LEVY_BY_RANK.size() - 1)] + retinue * RETINUE_LEVY
+		return maxi(MERCENARY_MIN_LEVY, MissionData.company_size())
+	return PERSONAL_LEVY_BY_RANK[clampi(player.rank(), 0, PERSONAL_LEVY_BY_RANK.size() - 1)]
+
+## Hombres que puede mandar alguien en un pelotón (según su Liderazgo).
+func platoon_max(c: Character) -> int:
+	return PLATOON_BASE_MAX + PLATOON_PER_LEADERSHIP * (c.leadership if c != null else 0)
+
+## Soldada de un reparto {nombre: hombres}: solo si los hombres se contratan (batalla ajena sin compañía
+## propia). Los allegados de tu propio pelotón (PERSONAL_RETAINERS) no cobran.
+func soldada_cost(allocation: Dictionary, player_name: String, hired: bool) -> int:
+	if not hired:
+		return 0
+	var men := 0
+	for who in allocation:
+		var n := int(allocation[who])
+		men += maxi(0, n - PERSONAL_RETAINERS) if who == player_name else n
+	return men * SOLDADA_PER_MAN
+
+## Reparto inicial: tu pelotón según tu rango (o tu parte del total), y el mínimo para cada compañero.
+## pool > 0 limita el total (tu propia gente); pool <= 0 = hombres contratados, sin límite de total.
+func default_allocation(player: Character, companions: Array[Character], pool: int, mine_default: int) -> Dictionary:
+	var result := {}
+	var leaders: Array[Character] = [player]
+	leaders.append_array(companions)
+	var floor_men: int = PLATOON_MIN if pool <= 0 else clampi(pool / maxi(1, leaders.size()), 1, PLATOON_MIN)
+	var left: int = pool
+	for i in range(leaders.size() - 1, -1, -1):   # primero el mínimo de los compañeros, lo demás para ti
+		var c: Character = leaders[i]
+		var n: int = floor_men if i > 0 else clampi(mine_default, floor_men, maxi(floor_men, platoon_max(c)))
+		if pool > 0:
+			if i == 0:
+				n = clampi(left, mini(floor_men, left), maxi(floor_men, platoon_max(c)))
+			n = mini(n, maxi(0, left))
+			left -= n
+		result[c.full_name()] = n
+	return result
 
 ## Prepara una batalla ajena a partir de la opción aceptada (datos planos: nombres e ids).
 func begin_invited_battle(fight: Dictionary, event_title: String) -> String:

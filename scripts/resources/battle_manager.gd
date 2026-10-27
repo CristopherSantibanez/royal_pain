@@ -19,6 +19,8 @@ const GRID_H := 8
 const MAX_TURNS := 12               # si se agota, el asedio fracasa y gana el defensor
 const SOLDIERS_PER_UNIT := 20
 const MAX_UNITS_PER_SIDE := 6
+const MAX_UNITS_WITH_ALLIES := 8      # en una batalla ajena: tus pelotones + los del anfitrión (una columna del tablero)
+const ROUT_CONTAGION := 5             # moral que pierde el bando cuando huye un pelotón completo (proporcional a su tamaño)
 const WALL_COLUMNS := 2
 const AI_ENGAGE_DISTANCE := 4       # el defensor amurallado solo sale si el enemigo está así de cerca
 const BASE_MORALE := 70
@@ -128,9 +130,24 @@ const PLAYER_MAX_UNITS := 2           # en una batalla ajena llevas como mucho 2
 const PLAYER_MAX_OWN_UNITS := 4       # ...o uno por cada compañero que te acompaña, hasta este tope
 var player_leader: Character          # tu personaje; en una batalla ajena no es el comandante del bando
 var ally_soldiers := 0                # parte de tu bando que mueve la IA aliada (fíjalo antes de start_battle)
+# Hombres que el jugador asignó a cada uno de sus pelotones antes de la batalla: nombre del jefe -> soldados
+# (tú y cada compañero; ver CombatSetup.platoon_max). Vacío = reparto automático. Fíjalo antes de start_battle.
+var own_allocation: Dictionary = {}
+const CAPTAIN_MIN_SOLDIERS := 5       # en tu propio ejército, lo que queda siempre para cada pelotón de capitán
 var reuse_terrain := false            # true: start_battle conserva el campo ya generado (cambiar compañeros antes de empezar)
 var retreating_side := -1             # bando que se retiró a tiempo (sus jefes en pie casi nunca caen presos)
 var _own_companions := 0              # compañeros propios (no prestados) del jugador en esta batalla
+
+# --- Competencia de la IA aliada (los pelotones de tu anfitrión que mueve la IA) ---
+# Un jefe aliado corriente juega algo peor que el enemigo: a veces elige mal el objetivo, duda, avanza sin
+# mirar el terreno o tarda en usar sus habilidades. Con Liderazgo + Estrategia altos juega como el enemigo.
+const ALLY_SKILL_FULL := 28           # Liderazgo + Estrategia del jefe aliado para no cometer errores
+const ALLY_SKILL_LOW := 14            # por debajo de esto, torpeza máxima
+const ALLY_MAX_BLUNDER := 0.3         # probabilidad máxima de error en cada decisión de un pelotón aliado
+const ALLY_HESITATE_SHARE := 0.5      # de los errores al moverse: la mitad dudan (no avanzan), el resto avanza sin mirar
+const ALLY_HESITATE_SHARE_SIEGE := 0.1   # en un asedio dudar sale carísimo (se acaban los turnos): casi siempre avanzan sin mirar
+var ally_competence_override := -1.0  # pruebas: 0..1 fija la competencia aliada (1 = igual que el enemigo)
+var ally_blunders := 0                # errores de la IA aliada en esta batalla (para medir)
 
 # --- Duelos singulares entre jefes (solo en campo abierto) ---
 const CHALLENGE_MIN_HONOR := 40       # honor mínimo del jefe que lanza el reto
@@ -167,6 +184,10 @@ const ASSIGN_BEST_BASE := 0.4          # el general te da tu mejor tropa con 40%
 const ASSIGN_BEST_PER_LEVEL := 0.06
 const GENERAL_POWER := 1.15            # la escolta del general: su pelotón golpea más...
 const GENERAL_DEFENSE := 1.6           # ...y lo protegen mejor
+# Escolta montada: ya tiene la movilidad y la carga de la caballería, así que su ventaja de escolta es menor
+# (con la escolta completa, un general de caballería con mando 4 ganaba el 61% frente al ~43% del resto).
+const GENERAL_MOUNTED_POWER := 1.05
+const GENERAL_MOUNTED_DEFENSE := 1.4
 const GENERAL_MORALE_LOSS := 0.4       # la escolta del general no se desmoraliza tan fácilmente
 const GENERAL_MORALE := 10
 const GENERAL_ESCORT_FAMILY := BattleEnums.Family.INFANTERIA   # escolta de un general cuya tropa es de tiro
@@ -237,6 +258,7 @@ func start_battle(attacker_size: int, defender_size: int, walls: bool, a_cmd: Ch
 	has_walls = walls
 	location_name = place_name
 	turn = 1
+	ally_blunders = 0
 	var reusing := reuse_terrain and not terrain.is_empty()
 	if not reusing:
 		max_turns = MAX_TURNS   # (con el campo reutilizado se conservan sus turnos: el río alarga el asedio)
@@ -282,6 +304,8 @@ func start_battle(attacker_size: int, defender_size: int, walls: bool, a_cmd: Ch
 		_assign_families(side)
 		_mark_general(side)
 		_share_soldiers(side)
+		if side == player_side:
+			_apply_allocation(side)
 		_place_side(side)
 	_mark_own_units()
 	_initial_soldiers = {
@@ -473,12 +497,19 @@ func _create_units(side: int, total: int) -> void:
 		return
 	# [soldados, pelotones como mucho, aliado]: en una batalla ajena tus pelotones y los de tu anfitrión van aparte.
 	var groups: Array = [[total, MAX_UNITS_PER_SIDE, false]]
+	if side == player_side and ally_soldiers <= 0 and not own_allocation.is_empty():
+		groups = [[total, MAX_UNITS_PER_SIDE, false, own_allocation.size()]]   # un pelotón por cada jefe tuyo, como poco
 	if side == player_side and ally_soldiers > 0:
 		var mine: int = maxi(0, total - ally_soldiers)
 		# Tu pelotón y uno por cada compañero que te acompaña (todos los mueves tú).
 		var wanted: int = maxi(ceili(mine / float(SOLDIERS_PER_UNIT)), 1 + _own_companions)
 		var own_units: int = clampi(wanted, 1, maxi(PLAYER_MAX_UNITS, mini(PLAYER_MAX_OWN_UNITS, 1 + _own_companions))) if mine > 0 else 0
-		groups = [[mine, own_units, false, 1 + _own_companions], [ally_soldiers, MAX_UNITS_PER_SIDE - own_units, true, 1]]
+		if not own_allocation.is_empty() and mine > 0:
+			own_units = mini(own_allocation.size(), PLAYER_MAX_OWN_UNITS)
+		# Tus pelotones no le quitan sitio al anfitrión: su ejército conserva su número natural de pelotones
+		# (si se apretara en dos pelotones de 50, apenas huiría y cada compañero valdría ~+18% de victoria).
+		var ally_units: int = clampi(ceili(ally_soldiers / float(SOLDIERS_PER_UNIT)), 1, mini(MAX_UNITS_PER_SIDE, MAX_UNITS_WITH_ALLIES - own_units))
+		groups = [[mine, own_units, false, own_units if not own_allocation.is_empty() else 1 + _own_companions], [ally_soldiers, ally_units, true, 1]]
 	var start_morale := _start_morale(side)
 
 	for g: Array in groups:
@@ -1006,7 +1037,7 @@ func _compute_casualties(attacker: BattleUnit, target: BattleUnit, dist: int, wi
 		strength *= 1.0 + (cmd.leadership + cmd.strategy) / COMMANDER_DIVISOR
 	strength *= 1.0 + MASTERY_POWER_PER_LEVEL * (_unit_mastery(attacker) - 1)
 	if attacker.general:
-		strength *= GENERAL_POWER
+		strength *= GENERAL_MOUNTED_POWER if BattleEnums.is_cavalry(attacker.type) else GENERAL_POWER
 	# Habilidades, rasgos y equipo del comandante y del compañero al mando del pelotón.
 	strength *= maxf(0.3, 1.0 + _unit_fx(attacker, "unit_power") + _unit_fx(attacker, _type_power_key(attacker.type)))
 	if attacker.companion != null:
@@ -1029,7 +1060,8 @@ func _compute_casualties(attacker: BattleUnit, target: BattleUnit, dist: int, wi
 		if BattleEnums.is_ranged(attacker.type) and target.type == BattleEnums.UnitType.INFANTERIA_PESADA:
 			defense *= ARROW_RESIST
 	if target.general:
-		defense *= GENERAL_DEFENSE * (1.0 + SkillEffects.fx(general_of(target.side), "general_def"))
+		defense *= (GENERAL_MOUNTED_DEFENSE if BattleEnums.is_cavalry(target.type) else GENERAL_DEFENSE) \
+			* (1.0 + SkillEffects.fx(general_of(target.side), "general_def"))
 	if t in [BattleEnums.Terrain.COLINA, BattleEnums.Terrain.MURALLA] and _has_skill(_commander(target.side), SKILL_TACTICA_DEFENSIVA):
 		defense *= TACTICA_DEFENSIVA_FACTOR
 	if _terrain_defense(t) > 1.0:
@@ -1111,9 +1143,10 @@ func _check_rout(u: BattleUnit) -> void:
 		_wound_companion(u, WOUND_CHANCE_ROUTED)
 	else:
 		return
-	# Ver huir a los compañeros desmoraliza al resto del bando.
+	# Ver huir a los compañeros desmoraliza al resto del bando (menos si era un puñado de hombres).
+	var contagion := roundi(ROUT_CONTAGION * minf(1.0, float(u.max_soldiers) / SOLDIERS_PER_UNIT))
 	for ally: BattleUnit in active_units(u.side):
-		ally.morale = maxi(0, ally.morale - 5)
+		ally.morale = maxi(0, ally.morale - contagion)
 
 func _rest_side(side: int) -> void:
 	_power.erase(side)
@@ -1129,6 +1162,42 @@ func _reset_side(side: int) -> void:
 			u.reset_turn()
 
 # --- IA (controla el bando que no es del jugador) ---
+
+## Jefe que manda a los aliados: el general del bando si no eres tú; si no, el señor que te invitó.
+func ally_commander() -> Character:
+	var g := general_of(player_side)
+	if g != null and g != player_leader:
+		return g
+	return _commander(player_side)
+
+## 0 = torpe, 1 = tan hábil como la IA enemiga. Depende del Liderazgo y la Estrategia de su jefe.
+func ally_competence() -> float:
+	if ally_competence_override >= 0.0:
+		return clampf(ally_competence_override, 0.0, 1.0)
+	var c := ally_commander()
+	if c == null:
+		return 0.0
+	return clampf(float(c.leadership + c.strategy - ALLY_SKILL_LOW) / float(ALLY_SKILL_FULL - ALLY_SKILL_LOW), 0.0, 1.0)
+
+## ¿Comete un error este pelotón aliado en esta decisión? (los del enemigo y los tuyos, nunca)
+func _ally_blunder(u: BattleUnit) -> bool:
+	if u == null or u.side != player_side or not u.ally:
+		return false
+	if randf() >= ALLY_MAX_BLUNDER * (1.0 - ally_competence()):
+		return false
+	ally_blunders += 1
+	return true
+
+## Movimiento sin mirar el terreno ni los peligros: la casilla alcanzable más cercana al objetivo.
+func _ai_naive_cell(u: BattleUnit, target: BattleUnit) -> Vector2i:
+	var best_cell := u.cell
+	var best_d := _path_dist(u.cell, target.cell)
+	for cell in reachable_cells(u):
+		var d := _path_dist(cell, target.cell)
+		if d < best_d:
+			best_d = d
+			best_cell = cell
+	return best_cell
 
 func _run_ai(side: int) -> void:
 	# Primero disparan los arqueros (ablandan), después carga la caballería y por último la infantería.
@@ -1166,14 +1235,19 @@ func _run_ai(side: int) -> void:
 				if not BattleEnums.is_ranged(u.type) and distance(u.cell, nearest.cell) <= effective_move_range(u) + 1:
 					u.order = BattleEnums.Order.CARGAR
 				var cell := _ai_pick_cell(u, nearest)
+				if _ally_blunder(u):
+					# Un jefe torpe duda (se queda donde está) o se lanza sin mirar el terreno.
+					var hesitate := ALLY_HESITATE_SHARE_SIEGE if has_walls else ALLY_HESITATE_SHARE
+					cell = u.cell if randf() < hesitate else _ai_naive_cell(u, nearest)
 				if cell != u.cell:
 					move_unit(u, cell)
 			targets = targets_in_range(u)
 		if not targets.is_empty():
-			attack(u, _ai_best_target(u, targets))
+			# Sin buena coordinación, a veces golpea al que tiene delante en vez de concentrar el fuego.
+			attack(u, targets.pick_random() if targets.size() > 1 and _ally_blunder(u) else _ai_best_target(u, targets))
 		# Infantería y arqueros con el enemigo encima se plantan para aguantar su turno.
 		if u.is_active() and not BattleEnums.is_cavalry(u.type) and nearest != null and nearest.is_active() \
-				and distance(u.cell, nearest.cell) <= 2:
+				and distance(u.cell, nearest.cell) <= 2 and not _ally_blunder(u):
 			u.order = BattleEnums.Order.MANTENER
 
 const AI_GENERAL_SAFE_RATIO := 1.5     # el general solo golpea si causa 1,5 veces las bajas que recibe
@@ -1254,6 +1328,9 @@ func _ai_use_ability(side: int) -> void:
 			continue
 		for id: String in abilities_of(c):
 			if _ai_wants_ability(id, side):
+				if side == player_side and randf() < ALLY_MAX_BLUNDER * (1.0 - ally_competence()):
+					ally_blunders += 1   # el jefe aliado deja pasar el momento
+					return
 				use_ability(c, id, side)
 				return
 
@@ -1481,7 +1558,7 @@ func _assign_companions(side: int, companions: Array[Character]) -> void:
 		if u.side == side and not u.ally:
 			free.append(u)
 	# En una batalla ajena el pelotón mayor lo encabezas tú: los compañeros llevan los demás.
-	if side == player_side and ally_soldiers > 0 and not free.is_empty():
+	if side == player_side and (ally_soldiers > 0 or not own_allocation.is_empty()) and not free.is_empty():
 		var biggest: BattleUnit = free[0]
 		for u: BattleUnit in free:
 			if u.soldiers > biggest.soldiers:
@@ -1672,6 +1749,56 @@ func _share_soldiers(side: int) -> void:
 			group[i].soldiers = n
 			group[i].max_soldiers = n
 			given += n
+
+## Aplica el reparto que eligió el jugador (own_allocation) a sus pelotones. En una batalla ajena el total
+## ya es la suma del reparto; en tu propio ejército lo que no asignas queda para los pelotones de capitanes.
+func _apply_allocation(side: int) -> void:
+	if own_allocation.is_empty():
+		return
+	var led: Array[BattleUnit] = []
+	var others: Array[BattleUnit] = []
+	var total := 0
+	for u: BattleUnit in units:
+		if u.side != side or u.ally:
+			continue
+		total += u.soldiers
+		var who := u.leader()
+		if who != null and own_allocation.has(who.full_name()) and (who == player_leader or u.companion == who):
+			led.append(u)
+		else:
+			others.append(u)
+	if led.is_empty():
+		return
+	var wanted := 0
+	for u: BattleUnit in led:
+		wanted += maxi(1, int(own_allocation[u.leader().full_name()]))
+	# Siempre queda algo para los pelotones de capitán: si no llega, el reparto se reduce en proporción.
+	var reserve := others.size() * CAPTAIN_MIN_SOLDIERS
+	var scale := 1.0 if wanted <= total - reserve or others.is_empty() else float(maxi(led.size(), total - reserve)) / wanted
+	var given := 0
+	for u: BattleUnit in led:
+		var n := maxi(1, int(int(own_allocation[u.leader().full_name()]) * scale))
+		u.soldiers = n
+		u.max_soldiers = n
+		given += n
+	var rest := total - given
+	if others.is_empty():
+		if rest != 0 and ally_soldiers <= 0:   # tu ejército entero: lo que sobra (o falta) va a tu pelotón
+			var mine := player_unit()
+			if mine != null:
+				mine.soldiers = maxi(1, mine.soldiers + rest)
+				mine.max_soldiers = mine.soldiers
+		return
+	var old_sum := 0
+	for u: BattleUnit in others:
+		old_sum += u.soldiers
+	var handed := 0
+	for i in others.size():
+		var u: BattleUnit = others[i]
+		var n := maxi(1, int(rest * u.soldiers / float(maxi(1, old_sum)))) if i < others.size() - 1 else maxi(1, rest - handed)
+		u.soldiers = n
+		u.max_soldiers = n
+		handed += n
 
 ## Tu pelotón (el que encabezas tú).
 func player_unit() -> BattleUnit:

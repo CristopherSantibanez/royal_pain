@@ -122,7 +122,7 @@ const INTIMATE_SLOTS := 2                 # plazas extra solo para íntimos (el 
 const OccupationRules = preload("res://scripts/resources/occupation_rules.gd")
 
 # --- Pueblo ---
-const COMMONERS_PER_CASTLE := 4
+const COMMONERS_PER_CASTLE := 6
 const COMMONER_ROLES := [Character.Role.CAMPESINO, Character.Role.CAMPESINO, Character.Role.SOLDADO]
 
 const SUITOR_CHANCE := 0.15
@@ -135,7 +135,7 @@ const SPOUSE_START_AFFECTION := 60
 
 const DUEL_POWER_WINDOW := 3             # cortesanos válidos como rival: combate+defensa a ±3 del jugador
 
-const COURTIERS_PER_CASTLE := 2
+const COURTIERS_PER_CASTLE := 3
 const COURTIER_ROLES := [Character.Role.SOLDADO, Character.Role.CABALLERO, Character.Role.NOBLEZA_BAJA]
 
 var relations: Array[Relationship] = []

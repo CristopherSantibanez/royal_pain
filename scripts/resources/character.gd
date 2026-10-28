@@ -11,20 +11,21 @@ enum Role {
 	NOBLEZA_ALTA,
 	REGENTE,
 	DUQUE,         # entre Nobleza Alta y Regente
-	MERCENARIO,    # camino mercenario: espada a sueldo, sin señor fijo
-	CAPITAN,       # capitán de una compañía mercenaria
-	CONDOTIERO,    # señor de la guerra mercenario: puede tomar castillos
+	MERCENARIO,    # LEGADO: el camino mercenario ya no existe; se conserva por las partidas guardadas
+	CAPITAN,       # LEGADO (ver RoleProgression.migrate_legacy_role)
+	CONDOTIERO,    # LEGADO
 	INAFILIADO,    # sin tierra ni señor: va donde quiere, vive de jornales y se ofrece en batallas ajenas
 }
 
-# Rango social de cada rol (0 = más bajo). Los mercenarios se equiparan a su par de la escalera noble.
+# Rango social de cada rol (0 = más bajo). Los roles de legado se equiparan a su par de la escalera noble.
 const RANK_BY_ROLE := {
 	Role.CAMPESINO: 0, Role.SOLDADO: 1, Role.CABALLERO: 2, Role.NOBLEZA_BAJA: 3,
 	Role.NOBLEZA_ALTA: 4, Role.DUQUE: 5, Role.REGENTE: 6,
 	Role.MERCENARIO: 1, Role.CAPITAN: 2, Role.CONDOTIERO: 3,
 	Role.INAFILIADO: 0,
 }
-const MERCENARY_ROLES := [Role.MERCENARIO, Role.CAPITAN, Role.CONDOTIERO]
+# Roles retirados: sólo aparecen en partidas antiguas y se migran al cargar.
+const LEGACY_ROLES := [Role.MERCENARIO, Role.CAPITAN, Role.CONDOTIERO]
 # Rol de la escalera noble al que equivale cada uno (para eventos y contenidos pensados por rango).
 const LADDER_EQUIVALENT := {
 	Role.DUQUE: Role.NOBLEZA_ALTA, Role.MERCENARIO: Role.SOLDADO,
@@ -200,7 +201,7 @@ static func role_name_for(r: int) -> String:
 		Role.INAFILIADO: return "No afiliado"
 	return "Desconocido"
 
-## Título con el género del personaje (Duquesa, Mercenaria, Capitana, Condotiera...).
+## Título con el género del personaje (Duquesa, Campesina...).
 static func role_title_for(r: int, gender: int) -> String:
 	if gender != CharacterEnums.Gender.FEMENINO:
 		return Character.role_name_for(r)
@@ -228,11 +229,8 @@ static func rank_of(r: int) -> int:
 func rank() -> int:
 	return Character.rank_of(role)
 
-static func is_mercenary_role(r: int) -> bool:
-	return r in MERCENARY_ROLES
-
-func is_mercenary() -> bool:
-	return Character.is_mercenary_role(role)
+static func is_legacy_role(r: int) -> bool:
+	return r in LEGACY_ROLES
 
 # --- Modificadores de traits + equipamiento ---
 # Suma los bonos de ventajas, desventajas y equipo por ENCIMA de las stats base

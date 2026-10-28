@@ -1,6 +1,6 @@
 extends RefCounted
 # Trabajos a jornal: el sustento de quien no cobra renta ni soldada (no afiliado, campesino,
-# soldado sin señor, mercenario sin contrato). Se hacen en el castillo donde estás.
+# soldado sin señor). Se hacen en el castillo donde estás.
 
 const PER_MONTH := 2               # jornales como máximo al mes
 const MARKET_BONUS := 3            # oro extra por nivel del mercado del castillo
@@ -19,7 +19,7 @@ const JOBS := [
 ]
 
 ## ¿Le toca ganarse el pan a jornal? (los que no tienen renta ni soldada).
-static func eligible(c: Character, has_liege: bool, has_contract: bool) -> bool:
+static func eligible(c: Character, has_liege: bool) -> bool:
 	if c == null:
 		return false
 	match c.role:
@@ -27,8 +27,6 @@ static func eligible(c: Character, has_liege: bool, has_contract: bool) -> bool:
 			return true
 		Character.Role.SOLDADO:
 			return not has_liege
-		Character.Role.MERCENARIO:
-			return not has_contract
 	return false
 
 static func pay(job: Dictionary, c: Character, castle: Castle) -> int:

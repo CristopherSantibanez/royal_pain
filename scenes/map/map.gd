@@ -40,6 +40,7 @@ const PlayerTokenScript = preload("res://scenes/map/player_token.gd")
 @onready var btn_relations: Button = %BtnRelations
 @onready var objective_label: Label = %ObjectiveLabel
 @onready var events_label: Label = %EventsLabel
+const EVENTS_HEIGHT := 120.0  # noticias del mes: alto fijo, con desplazamiento
 @onready var player_summary_label: Label = %PlayerSummaryLabel
 @onready var btn_options: Button = %BtnOptions
 @onready var btn_missions: Button = %BtnMissions
@@ -85,6 +86,7 @@ var _btn_travel: Button
 var _showing_encounter := false   # el panel de eventos muestra un encuentro del camino
 
 func _ready() -> void:
+	LogView.wrap(events_label, EVENTS_HEIGHT)
 	# Si el personaje murió, primero se elige heredero (ver DynastyData).
 	if DynastyData.has_method("needs_succession") and DynastyData.needs_succession():
 		get_tree().change_scene_to_file.call_deferred(DynastyData.SUCCESSION_SCENE)
@@ -529,11 +531,6 @@ func _refresh_turn_ui() -> void:
 	if CaptureData.is_captive():
 		player_summary_label.text = "%s   |   %s" % [CaptureData.captive_text(), p.full_name()]
 		player_summary_label.tooltip_text = "Estás preso: sin acciones hasta que salgas libre. Avanza el turno para esperar o intentar fugarte."
-	if p.is_mercenary():
-		# La barra superior ya va justa: el estado de la compañía se muestra en «Tu destino».
-		objective_label.text += "\nCompañía %d soldados (soldada %d/mes) · Infamia %d/%d" % [
-			MissionData.company_size(), MissionData.company_pay(), MissionData.infamy, MissionData.INFAMY_REFUSE]
-		objective_label.tooltip_text = "La soldada se paga cada mes; sin paga, deserta una cuarta parte. Con %d de infamia nadie te contrata." % MissionData.INFAMY_REFUSE
 	# Una historia que espera a que viajes a algún sitio (StoryData): aviso de una línea.
 	var story := get_node_or_null("/root/StoryData")
 	if story != null and not story.travel_target().is_empty() and story.summary_line().contains("Viaja a"):
@@ -722,7 +719,7 @@ func _refresh_events() -> void:
 	if lines.is_empty():
 		events_label.text = "Sin novedades a la vista este mes."
 	else:
-		events_label.text = "\n".join(lines)
+		LogView.show(events_label, "\n".join(lines))
 
 # --- Evento del mes ---
 

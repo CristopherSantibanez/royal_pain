@@ -19,15 +19,6 @@ const DUQUE_MIN_CASTLES := 2       # castillos de tu reino a tu nombre (el de or
 const DUQUE_MIN_HONOR := 70
 const DUQUE_MIN_LEADERSHIP := 14
 
-# Camino mercenario
-const CAPITAN_MIN_CONTRACTS := 2
-const CAPITAN_MIN_FAME := 20
-const CAPITAN_GOLD := 150          # lo que cuesta levantar tu propia compañía
-const CONDOTIERO_MIN_CONTRACTS := 5
-const CONDOTIERO_MIN_FAME := 45
-const CONDOTIERO_MIN_LEADERSHIP := 10
-const CONDOTIERO_MIN_COMPANY := 60
-
 # Sucesión Duque -> Regente: honor alto y uno de dos caminos
 const REGENTE_MIN_HONOR := 80
 const REGENTE_USURP_CASTLES := 4   # castillos de tu reino que debes controlar para usurpar el trono
@@ -43,15 +34,12 @@ static func next_role(role: int) -> int:
 		Character.Role.NOBLEZA_BAJA: return Character.Role.NOBLEZA_ALTA
 		Character.Role.NOBLEZA_ALTA: return Character.Role.DUQUE
 		Character.Role.DUQUE: return Character.Role.REGENTE
-		Character.Role.MERCENARIO: return Character.Role.CAPITAN
-		Character.Role.CAPITAN: return Character.Role.CONDOTIERO
-		_: return -1   # el no afiliado no asciende aquí: se alista o se asienta en un castillo   # Regente es la cima; el Condotiero se ennoblece jurando lealtad a un señor
+		_: return -1   # el no afiliado no asciende aquí: se alista o se asienta en un castillo; Regente es la cima
 
 static func check_ascension(character: Character, succession: Dictionary = {}) -> Dictionary:
 	# Devuelve {can_ascend: bool, next_role: int, reason: String}
 	# "reason" explica qué falta cuando can_ascend es false, útil para mostrar en UI.
-	# "succession" (ver MissionData.progression_context): {liege_name, married_to_liege: bool, kingdom_castles: int,
-	#   contracts_done, company_size} — los mercenarios usan los dos últimos.
+	# "succession" (ver MissionData.progression_context): {liege_name, married_to_liege: bool, kingdom_castles: int}
 	var target := next_role(character.role)
 	if target == -1:
 		return {"can_ascend": false, "next_role": -1, "reason": "No hay un ascenso disponible desde este rol todavía."}
@@ -98,30 +86,6 @@ static func check_ascension(character: Character, succession: Dictionary = {}) -
 				return {"can_ascend": false, "next_role": target, "reason": "Necesitas " + ", ".join(needs) + "."}
 			return {"can_ascend": true, "next_role": target, "reason": ""}
 
-		Character.Role.MERCENARIO:
-			var done: int = succession.get("contracts_done", 0)
-			if done < CAPITAN_MIN_CONTRACTS or character.fame < CAPITAN_MIN_FAME or character.gold < CAPITAN_GOLD:
-				return {"can_ascend": false, "next_role": target, "reason":
-					"Necesitas %d contratos cumplidos (tienes %d), %d de fama (tienes %d) y %d de oro para levantar tu compañía (tienes %d)." % [
-						CAPITAN_MIN_CONTRACTS, done, CAPITAN_MIN_FAME, character.fame, CAPITAN_GOLD, character.gold]}
-			return {"can_ascend": true, "next_role": target, "reason": ""}
-
-		Character.Role.CAPITAN:
-			var done: int = succession.get("contracts_done", 0)
-			var company: int = succession.get("company_size", 0)
-			var needs: Array[String] = []
-			if done < CONDOTIERO_MIN_CONTRACTS:
-				needs.append("%d contratos cumplidos (tienes %d)" % [CONDOTIERO_MIN_CONTRACTS, done])
-			if character.fame < CONDOTIERO_MIN_FAME:
-				needs.append("%d de fama (tienes %d)" % [CONDOTIERO_MIN_FAME, character.fame])
-			if character.leadership < CONDOTIERO_MIN_LEADERSHIP:
-				needs.append("%d de liderazgo (tienes %d)" % [CONDOTIERO_MIN_LEADERSHIP, character.leadership])
-			if company < CONDOTIERO_MIN_COMPANY:
-				needs.append("una compañía de %d soldados (tienes %d)" % [CONDOTIERO_MIN_COMPANY, company])
-			if not needs.is_empty():
-				return {"can_ascend": false, "next_role": target, "reason": "Necesitas " + ", ".join(needs) + "."}
-			return {"can_ascend": true, "next_role": target, "reason": ""}
-
 		Character.Role.DUQUE:
 			var married: bool = succession.get("married_to_liege", false)
 			var castles: int = succession.get("kingdom_castles", 0)
@@ -147,8 +111,6 @@ static func ascend(character: Character, succession: Dictionary = {}) -> bool:
 	# Quien se alista sin saber pelear paga sus propias armas.
 	if character.role == Character.Role.CAMPESINO and character.combat < ALISTARSE_MIN_COMBAT:
 		character.gold -= ALISTARSE_GOLD
-	if character.role == Character.Role.MERCENARIO:
-		character.gold -= CAPITAN_GOLD   # quien llama crea la compañía (MissionData.raise_company)
 	character.role = result.next_role
 	return true
 
@@ -177,10 +139,8 @@ const DISGRACE_DEMOTION := {
 	Character.Role.NOBLEZA_ALTA: Character.Role.NOBLEZA_BAJA,
 	Character.Role.DUQUE: Character.Role.NOBLEZA_ALTA,
 	Character.Role.REGENTE: Character.Role.DUQUE,
-	Character.Role.CONDOTIERO: Character.Role.CAPITAN,
-	Character.Role.CAPITAN: Character.Role.MERCENARIO,
 }
-# Sin tierras propias, tu señor te expulsa de su servicio y quedas como mercenario.
+# Sin tierras propias, tu señor te expulsa de su servicio y quedas sin afiliación.
 const DISGRACE_EXPELLED_ROLES := [Character.Role.SOLDADO, Character.Role.CABALLERO]
 
 static func is_disgraced(character: Character) -> bool:
@@ -192,25 +152,22 @@ static func apply_disgrace(character: Character, has_liege: bool) -> Dictionary:
 	var old_title := character.role_title()
 	var expelled := has_liege and character.role in DISGRACE_EXPELLED_ROLES
 	if expelled:
-		character.role = Character.Role.MERCENARIO
+		character.role = Character.Role.INAFILIADO
 	elif DISGRACE_DEMOTION.has(character.role):
 		character.role = DISGRACE_DEMOTION[character.role]
 	character.honor = DISGRACE_HONOR_RESET
 	character.fame = maxi(0, character.fame - DISGRACE_FAME_LOSS)
 	var text := "Tu honor ha caído a cero: nadie respeta ya tu palabra."
 	if expelled:
-		text += " Tu señor te expulsa de su servicio; de %s pasas a vender tu espada como %s." % [old_title, character.role_title()]
+		text += " Tu señor te expulsa de su servicio; de %s pasas a ser %s." % [old_title, character.role_title()]
 	elif character.role_title() != old_title:
 		text += " Pierdes tu dignidad de %s y pasas a ser %s." % [old_title, character.role_title()]
 	text += " Fama −%d. Te queda rehacer tu nombre (honor %d)." % [DISGRACE_FAME_LOSS, DISGRACE_HONOR_RESET]
 	return {"text": text, "expelled": expelled}
 
 # --- Lealtad jurada (la llama el viaje al jurar lealtad a otro señor) ---
-# Un mercenario que jura lealtad entra en la escalera noble a su altura; los nobles conservan su rango.
+# Quien no tiene afiliación y jura lealtad se asienta; los nobles conservan su rango.
 const FEALTY_ROLE := {
-	Character.Role.MERCENARIO: Character.Role.SOLDADO,
-	Character.Role.CAPITAN: Character.Role.CABALLERO,
-	Character.Role.CONDOTIERO: Character.Role.NOBLEZA_BAJA,
 	Character.Role.INAFILIADO: Character.Role.CAMPESINO,   # jurar lealtad sin más es asentarse
 }
 
@@ -239,8 +196,19 @@ static func on_fealty_sworn(character: Character, lord_castle) -> String:
 		where = " en %s" % (lord_castle as Castle).castle_name
 	return "Dejas de ser %s: juras lealtad%s y pasas a ser %s." % [old_title, where, character.role_title()]
 
-## Pierdes todos tus castillos: si sobrevives, te queda vender tu espada.
-static func landless_role(character: Character) -> int:
-	if character.is_mercenary():
-		return character.role
-	return Character.Role.CAPITAN if character.rank() >= Character.rank_of(Character.Role.NOBLEZA_BAJA) else Character.Role.MERCENARIO
+## Pierdes todos tus castillos: si sobrevives, quedas sin afiliación.
+static func landless_role(_character: Character) -> int:
+	return Character.Role.INAFILIADO
+
+## Partidas antiguas: los roles mercenarios (ya retirados) pasan a la escalera normal.
+## Mercenario y Capitán -> No afiliado; Condotiero con castillo propio -> Nobleza Baja, si no -> No afiliado.
+static func migrate_legacy_role(character: Character) -> bool:
+	if character == null or not Character.is_legacy_role(character.role):
+		return false
+	var owns_castle := false
+	if character.role == Character.Role.CONDOTIERO:
+		var tree := Engine.get_main_loop() as SceneTree
+		var relations := tree.root.get_node_or_null("RelationsData") if tree != null else null
+		owns_castle = relations != null and not relations.castles_of(character.full_name()).is_empty()
+	character.role = Character.Role.NOBLEZA_BAJA if owns_castle else Character.Role.INAFILIADO
+	return true

@@ -6,7 +6,6 @@ const MissionsPanel = preload("res://scripts/ui/missions_panel.gd")
 const WorksPanel = preload("res://scripts/ui/works_panel.gd")
 const BuildingCatalog = preload("res://scripts/resources/building_catalog.gd")
 const AudiencePanel = preload("res://scripts/ui/audience_panel.gd")
-const ContractsPanel = preload("res://scripts/ui/contracts_panel.gd")
 const XpRules = preload("res://scripts/resources/xp_rules.gd")
 
 # Viaje (ver TravelData): en tu castillo, todo; desde lejos, solo lo que se gestiona por carta
@@ -146,9 +145,6 @@ func _refresh_ui() -> void:
 		honor_bar.add_theme_stylebox_override("fill", gold_fill)
 	gold_label.text = "Oro: %d · Fama: %d" % [character.gold, character.fame]
 	duels_label.text = "Duelos: %d ganados / %d perdidos" % [character.duels_won, character.duels_lost]
-	if character.is_mercenary():
-		duels_label.text += "\nCompañía: %d (soldada %d/mes)\nContratos: %d · Infamia: %d" % [
-			MissionData.company_size(), MissionData.company_pay(), MissionData.contracts_done, MissionData.infamy]
 	actions_label.text = "Acciones: %d / %d" % [GameManager.actions_remaining, GameManager.actions_per_turn]
 
 	if castle != null:
@@ -176,10 +172,7 @@ func _refresh_ui() -> void:
 
 	var check := RoleProgression.check_ascension(character, MissionData.progression_context())
 
-	if check.next_role == -1 and character.role == Character.Role.CONDOTIERO:
-		progression_label.text = "La cima del camino mercenario. Para ennoblecerte, jura lealtad a un señor en audiencia (pasarás a Nobleza Baja) o toma castillos a tu nombre."
-		btn_ascend.disabled = true
-	elif check.next_role == -1 and character.role == Character.Role.INAFILIADO:
+	if check.next_role == -1 and character.role == Character.Role.INAFILIADO:
 		progression_label.text = "Sin señor no hay ascenso: alístate como soldado o asiéntate como campesino en un castillo."
 		btn_ascend.disabled = true
 	elif check.next_role == -1:
@@ -198,10 +191,6 @@ func _on_ascend_pressed() -> void:
 	if RoleProgression.ascend(character, succession):
 		if character.role == Character.Role.REGENTE:
 			_show_feedback(RelationsData.become_regent(check.get("by_marriage", false)))
-		elif character.role == Character.Role.CAPITAN:
-			var company: Army = MissionData.raise_company(castle)
-			_show_feedback("Levantas tu propia compañía: ahora eres %s y %d soldados siguen tu estandarte (cobran %d de oro al mes entre todos)." % [
-				character.role_title(), company.size if company != null else 0, MissionData.company_pay()])
 		else:
 			_show_feedback("Asciendes a %s." % character.role_title())
 		GameManager.refresh_actions_for_role_change()
@@ -510,66 +499,20 @@ func _get_actions_for_role(role: int) -> Array[Dictionary]:
 				{"label": "Diplomacia (Relaciones)", "tooltip": "Declara guerras, firma paces, pacta alianzas y envía presentes.",
 					"locked": false, "no_cost": true, "callback": _action_abrir_relaciones},
 			]
-		Character.Role.MERCENARIO:
-			return [
-				_offer_services_action(),
-				{"label": "Retar a Duelo", "tooltip": DUEL_TOOLTIP, "unavailable": _duel_unavailable_reason(),
-					"locked": false, "callback": _action_retar_duelo},
-				_tournament_action(),
-				_entrenar_action(),
-			]
-		Character.Role.CAPITAN, Character.Role.CONDOTIERO:
-			var company_actions: Array[Dictionary] = [
-				_offer_services_action(),
-				{"label": "Retar a Duelo", "tooltip": DUEL_TOOLTIP, "unavailable": _duel_unavailable_reason(),
-					"locked": false, "callback": _action_retar_duelo},
-				_tournament_action(),
-				_mercenarios_action(),
-				{"label": "Ejercer el Mando (%d oro)" % MANDO_COST,
-					"tooltip": "Instruyes a tu compañía: %d%% de ganar +1 de Liderazgo (un Condotiero necesita %d)." % [
-						roundi(_mando_chance() * 100), RoleProgression.CONDOTIERO_MIN_LEADERSHIP],
-					"unavailable": _mando_unavailable_reason(),
-					"locked": false, "callback": _action_ejercer_mando},
-			]
-			# Un condotiero que ya tomó este castillo lo gobierna como su señorío.
-			if castle != null and castle.owner_name == character.full_name():
-				company_actions.append({"label": "Recaudar Impuestos", "tooltip": "Cobras a las tierras de tu señorío, proporcional a tu Liderazgo (%d%% para ti, el resto para el castillo)." % roundi(PLAYER_TAX_SHARE * 100),
-					"locked": false, "callback": _action_recaudar})
-				company_actions.append(_mobilize_action(MOBILIZE_FRACTION))
-			return company_actions
 	return []
 
-# --- Camino mercenario y Duque ---
+# --- Vasallaje y Duque ---
 
 func _abandon_liege_action() -> Dictionary:
 	var reason := "" if not RelationsData.liege_name.is_empty() else "No sirves a ningún señor."
 	return {"label": "Abandonar a tu Señor",
-		"tooltip": "Rompes tu juramento y te haces %s: sin señor, vendes tu espada a quien pague. Tu señor te lo reprochará (afinidad %d, honor %d)." % [
-			Character.role_title_for(Character.Role.MERCENARIO, character.gender), MissionData.DESERT_LIEGE_AFFINITY, MissionData.DESERT_LIEGE_HONOR],
+		"tooltip": "Rompes tu juramento y te haces %s: sin señor, vives de jornales. Tu señor te lo reprochará (afinidad %d, honor %d)." % [
+			Character.role_title_for(Character.Role.INAFILIADO, character.gender), MissionData.DESERT_LIEGE_AFFINITY, MissionData.DESERT_LIEGE_HONOR],
 		"unavailable": reason, "locked": false, "callback": _action_abandon_liege}
 
 func _action_abandon_liege() -> void:
 	_show_feedback(MissionData.desert_liege(character))
 	_refresh_ui()
-
-func _offer_services_action() -> Dictionary:
-	var lord: Relationship = RelationsData.get_relation(castle.owner_name) if castle != null else null
-	var reason := MissionData.hire_refusal(lord)
-	if reason.is_empty() and lord != null and lord.person_name == character.full_name():
-		reason = "Este castillo es tuyo: aquí no hay a quién servir."
-	if reason.is_empty() and MissionData.active.size() >= MissionData.MAX_ACTIVE:
-		reason = "Ya tienes %d contratos o encargos: cumple alguno antes." % MissionData.MAX_ACTIVE
-	return {"label": "Ofrecer tus Servicios",
-		"tooltip": "Te presentas ante %s y escuchas qué contratos ofrece. Firmar uno gasta 1 acción." % (lord.person_name if lord != null else "el señor del castillo"),
-		"unavailable": reason, "locked": false, "no_cost": true, "anywhere": true, "callback": _action_offer_services}
-
-func _action_offer_services() -> void:
-	var lord: Relationship = RelationsData.get_relation(castle.owner_name) if castle != null else null
-	var panel: Control = ContractsPanel.open(self, lord)
-	panel.tree_exited.connect(func():
-		if is_inside_tree():
-			_refresh_ui()
-			_build_role_actions())
 
 func _action_gobernar_ducado() -> void:
 	var total := 0
@@ -908,7 +851,7 @@ func _common_actions() -> Array[Dictionary]:
 		result.append({"label": "Visitar al Médico (%d oro)" % MEDICO_COST,
 			"tooltip": "Recuperas %d de vida y tu herida grave sana un mes antes. %s" % [MEDICO_HEAL, character.health_text()],
 			"unavailable": reason, "locked": false, "anywhere": true, "callback": _action_medico})
-	if DayJobs.eligible(character, not RelationsData.liege_name.is_empty(), MissionData.active.any(func(m): return m.get("contract", false))):
+	if DayJobs.eligible(character, not RelationsData.liege_name.is_empty()):
 		result.append(_day_job_action())
 	result.append_array(_command_actions())
 	return result
@@ -1025,7 +968,7 @@ func _command_actions() -> Array[Dictionary]:
 	result.append({"label": "Entrenar con la Tropa (%d oro)" % DRILL_COST,
 		"tooltip": "Maniobras con una familia de tropa: +%d de experiencia de mando en ella (más tu Liderazgo). Hasta %d veces al mes. Gasta 1 acción.\nTu mando: %s" % [
 			DRILL_XP, DRILL_PER_MONTH, WarCouncilPanel.mastery_line(character)],
-		"unavailable": drill_reason, "locked": false, "no_cost": true, "anywhere": character.is_mercenary(), "needs_presence": not character.is_mercenary(), "callback": _action_drill})
+		"unavailable": drill_reason, "locked": false, "no_cost": true, "needs_presence": true, "callback": _action_drill})
 	var study_reason := ""
 	if _drills_done("estudiar") >= STUDY_PER_MONTH:
 		study_reason = "Ya estudiaste táctica este mes."

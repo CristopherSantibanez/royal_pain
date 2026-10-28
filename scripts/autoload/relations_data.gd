@@ -283,6 +283,79 @@ func commoners(kingdom: int = -1) -> Array[Relationship]:
 			result.append(r)
 	return result
 
+# --- Reinos caídos: su gente no desaparece ---
+
+const CONQUEROR_JOIN_SHARE := 0.5   # parte de la corte y el pueblo de un reino caído que se une al vencedor
+const FALLEN_NEWS_NAMES := 3         # nombres que se citan en la crónica
+
+func kingdom_has_castles(kingdom: int) -> bool:
+	for c: Castle in MapData.castles:
+		if c.kingdom == kingdom:
+			return true
+	return false
+
+## Reinos que aún tienen castillos (sin contar los neutrales).
+func living_kingdoms() -> Array[int]:
+	var result: Array[int] = []
+	for c: Castle in MapData.castles:
+		if c.kingdom != KingdomEnums.Kingdom.NEUTRAL and c.kingdom >= 0 and not c.kingdom in result:
+			result.append(c.kingdom)
+	return result
+
+## Llamar cada vez que un castillo cambia de reino. Si el reino antiguo se queda sin castillos,
+## parte de su gente se une al vencedor y el resto huye como refugiada a otros reinos.
+func on_castle_taken(castle: Castle, old_kingdom: int, new_kingdom: int) -> void:
+	if old_kingdom == new_kingdom or old_kingdom < 0 or kingdom_has_castles(old_kingdom):
+		return
+	var castle_id := castle.castle_id if castle != null else ""
+	var joined: Array[String] = []
+	var fled: Array[String] = []
+	for r: Relationship in relations:
+		if r.kingdom != old_kingdom:
+			continue
+		if r.kind == Relationship.Kind.CORTESANO or r.kind == Relationship.Kind.PUEBLO:
+			if new_kingdom >= 0 and new_kingdom != KingdomEnums.Kingdom.NEUTRAL and randf() < CONQUEROR_JOIN_SHARE:
+				r.kingdom = new_kingdom
+				joined.append(r.person_name)
+			else:
+				r.kingdom = _refuge_kingdom(new_kingdom)
+				fled.append(r.person_name)
+		elif r.kind == Relationship.Kind.SENOR and not CaptureData.is_prisoner(r.person_name) \
+				and castles_of(r.person_name).is_empty():
+			# El señor vencido que no ha caído preso se refugia en otra corte.
+			r.kingdom = _refuge_kingdom(new_kingdom)
+			fled.append(r.person_name)
+	var fallen := KingdomEnums.kingdom_name(old_kingdom)
+	if not joined.is_empty():
+		WorldEvents.record("%s se une%s a %s tras la caída de %s." % [_names_text(joined),
+			"n" if joined.size() > 1 else "", KingdomEnums.kingdom_name(new_kingdom), fallen], castle_id)
+	if not fled.is_empty():
+		WorldEvents.record("%s huye%s de %s y busca%s refugio en otros reinos." % [_names_text(fled),
+			"n" if fled.size() > 1 else "", fallen, "n" if fled.size() > 1 else ""], castle_id)
+
+## Recoloca a cortesanos y pueblo de reinos que ya no tienen castillos (partidas antiguas).
+func rehome_stranded() -> void:
+	var stranded: Array[int] = []
+	for r: Relationship in relations:
+		if (r.kind == Relationship.Kind.CORTESANO or r.kind == Relationship.Kind.PUEBLO) and r.kingdom >= 0 \
+				and not r.kingdom in stranded and not kingdom_has_castles(r.kingdom):
+			stranded.append(r.kingdom)
+	for k in stranded:
+		on_castle_taken(null, k, -1)
+
+func _refuge_kingdom(prefer: int) -> int:
+	var options := living_kingdoms()
+	if options.is_empty():
+		return prefer
+	return options.pick_random()
+
+func _names_text(names: Array[String]) -> String:
+	var shown := names.slice(0, FALLEN_NEWS_NAMES)
+	var text := ", ".join(shown)
+	if names.size() > shown.size():
+		text += " y %d más" % (names.size() - shown.size())
+	return text
+
 func get_relation(person_name: String) -> Relationship:
 	for r: Relationship in relations:
 		if r.person_name == person_name:

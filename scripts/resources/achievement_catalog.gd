@@ -22,19 +22,13 @@ const ACHIEVEMENTS := [
 		"reward": {"points": 2, "fame": 10, "gold": 400}},
 	{"id": "goal_nobleza_alta", "cat": "Destino", "goal_role": Character.Role.NOBLEZA_ALTA, "title": "La Corona",
 		"reward": {"points": 3, "fame": 15, "unique": true}},
-	{"id": "goal_mercenario", "cat": "Destino", "goal_role": Character.Role.MERCENARIO, "title": "Espada de alquiler",
-		"reward": {"points": 2, "fame": 10, "gold": 200}},
-	{"id": "goal_capitan", "cat": "Destino", "goal_role": Character.Role.CAPITAN, "title": "La Compañía Libre",
-		"reward": {"points": 2, "fame": 10, "gold": 300}},
-	{"id": "goal_condotiero", "cat": "Destino", "goal_role": Character.Role.CONDOTIERO, "title": "Un señorío propio",
-		"reward": {"points": 3, "fame": 10, "gold": 300}},
 	{"id": "goal_inafiliado", "cat": "Destino", "goal_role": Character.Role.INAFILIADO, "title": "Trotamundos",
 		"reward": {"points": 2, "fame": 8, "gold": 150}},
 
 	# --- Armas ---
 	{"id": "primera_sangre", "cat": "Armas", "stat": "duels_won", "target": 1, "title": "Primera sangre",
 		"desc": "Gana tu primer duelo.", "reward": {"gold": 30, "xp": 20},
-		"featured": [Character.Role.SOLDADO, Character.Role.MERCENARIO]},
+		"featured": [Character.Role.SOLDADO, Character.Role.INAFILIADO]},
 	{"id": "espadachin", "cat": "Armas", "stat": "duels_won", "target": 5, "title": "Espadachín",
 		"desc": "Gana 5 duelos.", "reward": {"fame": 3, "xp": 60}},
 	{"id": "leyenda_armas", "cat": "Armas", "stat": "duels_won", "target": 25, "title": "Leyenda de las armas",
@@ -47,7 +41,7 @@ const ACHIEVEMENTS := [
 	# --- Gobierno ---
 	{"id": "primer_castillo", "cat": "Gobierno", "stat": "owned_castles", "target": 1, "title": "Señor de un castillo",
 		"desc": "Ten un castillo a tu nombre.", "reward": {"honor": 3, "fame": 5},
-		"featured": [Character.Role.CABALLERO, Character.Role.CONDOTIERO]},
+		"featured": [Character.Role.CABALLERO]},
 	{"id": "tres_castillos", "cat": "Gobierno", "stat": "owned_castles", "target": 3, "title": "Tres torres",
 		"desc": "Ten 3 castillos a tu nombre.", "reward": {"points": 1, "gold": 200}},
 	{"id": "constructor", "cat": "Gobierno", "stat": "building_level", "target": 1, "title": "Constructor",
@@ -89,8 +83,8 @@ const ACHIEVEMENTS := [
 	{"id": "tesoro", "cat": "Riqueza", "stat": "gold", "target": 3000, "title": "Un tesoro digno de reyes",
 		"desc": "Reúne 3000 de oro.", "reward": {"points": 1, "fame": 5}},
 	{"id": "encargos", "cat": "Riqueza", "stat": "missions_done", "target": 5, "title": "Hombre de palabra",
-		"desc": "Cumple 5 encargos o contratos.", "reward": {"gold": 100, "honor": 2},
-		"featured": [Character.Role.CAMPESINO, Character.Role.MERCENARIO, Character.Role.CAPITAN]},
+		"desc": "Cumple 5 encargos.", "reward": {"gold": 100, "honor": 2},
+		"featured": [Character.Role.CAMPESINO]},
 	{"id": "pieza_unica", "cat": "Riqueza", "stat": "unique_items", "target": 1, "title": "Reliquia legendaria",
 		"desc": "Hazte con una pieza única (★★★★).", "reward": {"fame": 5}},
 
@@ -105,8 +99,7 @@ const ACHIEVEMENTS := [
 const ROLE_GOAL_IDS := {
 	Character.Role.CAMPESINO: "goal_campesino", Character.Role.SOLDADO: "goal_soldado",
 	Character.Role.CABALLERO: "goal_caballero", Character.Role.NOBLEZA_BAJA: "goal_nobleza_baja",
-	Character.Role.NOBLEZA_ALTA: "goal_nobleza_alta", Character.Role.MERCENARIO: "goal_mercenario",
-	Character.Role.CAPITAN: "goal_capitan", Character.Role.CONDOTIERO: "goal_condotiero",
+	Character.Role.NOBLEZA_ALTA: "goal_nobleza_alta",
 	Character.Role.INAFILIADO: "goal_inafiliado",
 }
 

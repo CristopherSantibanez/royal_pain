@@ -17,10 +17,11 @@ extends Control
 @onready var result_panel: PanelContainer = %ResultPanel
 @onready var companions_label: Label = %CompanionsLabel
 
-const MAX_LOG_LINES := 12
+const MAX_LOG_LINES := LogView.MAX_LINES
+const LOG_HEIGHT := 150.0  # el registro de batalla tiene alto fijo y se desplaza
 # Compañeros que trae el señor enemigo según su rango (cortesanos de su reino).
 const ENEMY_COMPANIONS_BY_ROLE := {Character.Role.NOBLEZA_BAJA: 1, Character.Role.NOBLEZA_ALTA: 2, Character.Role.REGENTE: 3,
-	Character.Role.DUQUE: 3, Character.Role.CAPITAN: 1, Character.Role.CONDOTIERO: 2}
+	Character.Role.DUQUE: 3}
 const ENEMY_COMPANION_CHANCE := 0.7
 const DEFENDER_HINT := "Defiendes tras la muralla (+50%)."
 const IDLE_HINT := "Elige un pelotón azul."
@@ -73,6 +74,7 @@ var _alloc_cost_label: Label
 var _go_btn: Button
 
 func _ready() -> void:
+	LogView.wrap(log_label, LOG_HEIGHT)
 	skirmish = CombatSetup.skirmish
 	invited = CombatSetup.invited
 	army = ArmyData.active_battle_army
@@ -178,8 +180,8 @@ func _start_invited(player: Character) -> void:
 	var side: int = int(invited.get("side", BattleEnums.Side.ATACANTE))
 	battle.player_side = side
 	_alloc_default_mine = int(invited.get("player_soldiers", CombatSetup.PERSONAL_LEVY_BY_RANK[0]))
-	# Tu compañía mercenaria ya cobra cada mes: la repartes gratis. Si no, los hombres se contratan.
-	_alloc_hired = not player.is_mercenary()
+	# Los hombres de una batalla ajena se contratan.
+	_alloc_hired = true
 	_alloc_pool = 0 if _alloc_hired else _alloc_default_mine
 	# A una batalla ajena solo te acompaña tu séquito (tu señor no te presta a nadie para servir a otro).
 	var companions: Array[Character] = []
@@ -998,7 +1000,7 @@ func _on_log_message(text: String) -> void:
 	log_lines.append(text)
 	while log_lines.size() > MAX_LOG_LINES:
 		log_lines.remove_at(0)
-	log_label.text = "\n".join(log_lines)
+	LogView.show(log_label, "\n".join(log_lines))
 
 func _on_battle_ended(winner_side: int, report: Dictionary) -> void:
 	_close_prompt()

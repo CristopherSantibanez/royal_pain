@@ -148,6 +148,11 @@ static func load_game(slot: String = AUTO_SLOT) -> bool:
 		var node := _module(module_name)
 		if node != null and node.has_method("load_state"):
 			node.load_state(s.modules.get(module_name, {}) if s.version >= 2 else {})
+	# Partidas antiguas: la gente de reinos ya caídos se recoloca; los roles mercenarios desaparecen.
+	RelationsData.rehome_stranded()
+	RoleProgression.migrate_legacy_role(GameManager.player_character)
+	if Character.is_legacy_role(GameManager.starting_role):
+		GameManager.starting_role = Character.Role.INAFILIADO
 	ArmyData.armies_changed.emit()
 	ArmyData.events_changed.emit()
 	return true

@@ -241,6 +241,7 @@ var wounded_companions: Array[String] = []   # nombres de compañeros heridos en
 
 var generals := {}                    # side -> Character: general del bando (lo elige su señor)
 var negotiated := false               # ya pediste otra tropa al general en esta batalla
+var player_family := -1              # tropa pactada para tu pelotón; sobrevive a rehacer el despliegue (-1: ninguna)
 var pending_retreat := false          # el general de tu bando ordenó la retirada: ¿te vas o cubres?
 var covering := false                 # te quedaste cubriendo la retirada
 var cover_turns_left := 0
@@ -266,7 +267,9 @@ func start_battle(attacker_size: int, defender_size: int, walls: bool, a_cmd: Ch
 	units.clear()
 	pending_challenge = {}
 	betrayed_side = -1
-	negotiated = false
+	if not reusing:   # rehacer el despliegue antes del primer golpe no borra lo ya pactado
+		negotiated = false
+		player_family = -1
 	pending_retreat = false
 	covering = false
 	cover_turns_left = 0
@@ -306,6 +309,7 @@ func start_battle(attacker_size: int, defender_size: int, walls: bool, a_cmd: Ch
 		_share_soldiers(side)
 		if side == player_side:
 			_apply_allocation(side)
+			_apply_player_family()
 		_place_side(side)
 	_mark_own_units()
 	_initial_soldiers = {
@@ -1665,6 +1669,9 @@ func _unit_mastery(u: BattleUnit) -> int:
 func _family_for(c: Character, side: int) -> int:
 	if c == null:
 		return BattleEnums.Family.INFANTERIA
+	# Lo que eligió el jugador para sí mismo se respeta (también siendo general).
+	if c == player_leader and c.assigned_family >= 0:
+		return c.assigned_family
 	var best := _stat_family(c) if _all_mastery_basic(c) else c.best_family()
 	if c == general_of(side):
 		var own: int = c.assigned_family if c.assigned_family >= 0 else best
@@ -1839,6 +1846,7 @@ func negotiate_unit(fam: int) -> Dictionary:
 	var g := general_of(player_side)
 	var chance := negotiation_chance(fam)
 	if chance >= 1.0 or randf() < chance:
+		player_family = fam
 		_set_family(u, fam, player_leader)
 		_place_side(player_side)
 		state_updated.emit()
@@ -1975,15 +1983,23 @@ func intent_range() -> int:
 		return 0
 	return INTENT_RANGE_BASE + (c.strategy - INTENT_MIN_STRATEGY) / INTENT_STEP + roundi(SkillEffects.fx(c, "intent"))
 
+## La tropa pactada para tu pelotón (negociación o Consejo de guerra) se mantiene al rehacer las tropas.
+func _apply_player_family() -> void:
+	var u := player_unit()
+	if player_family >= 0 and u != null and u.family() != player_family:
+		_set_family(u, player_family, player_leader)
+
 ## Tras el Consejo de guerra (antes del primer golpe): los jefes de tu bando toman la tropa asignada.
 func apply_assignments() -> void:
 	if turn > 1:
 		return
 	for u: BattleUnit in units:
 		var c := u.leader()
-		if u.side == player_side and not u.ally and _named(c) and c != player_leader and c.assigned_family >= 0 \
-				and c.assigned_family != u.family():
+		if u.side == player_side and not u.ally and _named(c) and c.assigned_family >= 0 \
+				and c.assigned_family != u.family() and (c != player_leader or u == player_unit()):
 			_set_family(u, c.assigned_family, c)
+			if c == player_leader:
+				player_family = c.assigned_family
 	_place_side(player_side)
 	state_updated.emit()
 

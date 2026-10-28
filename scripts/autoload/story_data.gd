@@ -443,7 +443,9 @@ func _apply_world(world: Dictionary) -> String:
 		if gift != null and gift.owner_name != p.full_name() and gift.owner_name != RelationsData.liege_name:
 			gift.owner_name = p.full_name()
 			if GameManager.player_kingdom >= 0:
+				var was := gift.kingdom
 				gift.kingdom = GameManager.player_kingdom
+				RelationsData.on_castle_taken(gift, was, gift.kingdom)
 			parts.append("%s pasa a tus manos" % gift.castle_name)
 	if p != null and (world.has("unique") or world.has("unique_chance")):
 		if randf() * 100.0 < float(world.get("unique_chance", 100)):

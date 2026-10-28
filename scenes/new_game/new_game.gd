@@ -19,7 +19,6 @@ const AchievementCatalog = preload("res://scripts/resources/achievement_catalog.
 const STARTING_ROLES: Array[int] = [
 	Character.Role.CAMPESINO, Character.Role.SOLDADO, Character.Role.CABALLERO,
 	Character.Role.NOBLEZA_BAJA, Character.Role.NOBLEZA_ALTA,
-	Character.Role.MERCENARIO, Character.Role.CAPITAN, Character.Role.CONDOTIERO,
 	Character.Role.INAFILIADO,
 ]
 # Oro máximo con el que empiezan los más pobres (si no, se alistarían el primer mes).
@@ -89,9 +88,7 @@ func _populate_characters() -> void:
 func _populate_roles() -> void:
 	role_option.clear()
 	for r in STARTING_ROLES:
-		if r == Character.Role.MERCENARIO:
-			role_option.add_separator("Camino mercenario")
-		elif r == Character.Role.INAFILIADO:
+		if r == Character.Role.INAFILIADO:
 			role_option.add_separator("Sin tierra ni señor")
 		role_option.add_item(Character.role_name_for(r), r)
 	_on_character_selected()
@@ -136,7 +133,7 @@ Comida: %d" % [
 
 	var role := role_option.get_selected_id()
 	goal_title.text = "Hazañas destacadas · %s" % VictoryRules.goal_title(role)
-	# Solo lo esencial: el resto (cómo terminan las partidas, el camino mercenario…) está en el glosario.
+	# Solo lo esencial: el resto (cómo terminan las partidas…) está en el glosario.
 	var featured: Array[String] = []
 	for a: Dictionary in AchievementCatalog.featured_for(role):
 		featured.append("• %s: %s" % [a.title, AchievementCatalog.description_of(a)])

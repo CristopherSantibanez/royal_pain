@@ -47,10 +47,9 @@ const PLATOON_PER_LEADERSHIP := 2         # (Liderazgo 5 → 20, 10 → 30, 15 �
 const PLATOON_STEP := 5                   # lo que suma o resta cada pulsación
 # Soldada por batalla: en una batalla ajena los hombres se contratan para ella y se pagan de tu bolsa
 # (si vencéis, el anfitrión paga INVITE_WIN_GOLD_PER_SOLDIER por cada uno). Tu propia gente
-# (ejército, guarnición, compañía mercenaria) ya cobra: repartirla es gratis.
+# (ejército, guarnición) ya cobra: repartirla es gratis.
 const SOLDADA_PER_MAN := 2
 const PERSONAL_RETAINERS := PLATOON_MIN    # tus allegados: el mínimo de tu propio pelotón nunca se paga
-const MERCENARY_MIN_LEVY := 20
 const FIELD_BATTLE_SHARE := 0.4          # parte de cada guarnición que sale a la batalla campal
 const FIELD_BATTLE_MIN := 20
 
@@ -98,20 +97,17 @@ func battle_blocker(player: Character) -> String:
 		return "Un campesino no va a la guerra por su cuenta: solo si alguien que te conoce te llama a filas."
 	return ""
 
-## Tu pelotón por defecto en una batalla ajena: tu compañía si eres mercenario; si no, según tu rango.
+## Tu pelotón por defecto en una batalla ajena, según tu rango.
 func player_levy(player: Character) -> int:
 	if player == null:
 		return PERSONAL_LEVY_BY_RANK[0]
-	if player.is_mercenary():
-		return maxi(MERCENARY_MIN_LEVY, MissionData.company_size())
 	return PERSONAL_LEVY_BY_RANK[clampi(player.rank(), 0, PERSONAL_LEVY_BY_RANK.size() - 1)]
 
 ## Hombres que puede mandar alguien en un pelotón (según su Liderazgo).
 func platoon_max(c: Character) -> int:
 	return PLATOON_BASE_MAX + PLATOON_PER_LEADERSHIP * (c.leadership if c != null else 0)
 
-## Soldada de un reparto {nombre: hombres}: solo si los hombres se contratan (batalla ajena sin compañía
-## propia). Los allegados de tu propio pelotón (PERSONAL_RETAINERS) no cobran.
+## Soldada de un reparto {nombre: hombres}: solo si los hombres se contratan (batalla ajena). Los allegados de tu propio pelotón (PERSONAL_RETAINERS) no cobran.
 func soldada_cost(allocation: Dictionary, player_name: String, hired: bool) -> int:
 	if not hired:
 		return 0

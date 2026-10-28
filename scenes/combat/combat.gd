@@ -19,6 +19,7 @@ var _embedded_winner: Character
 @onready var hint_label: Label = %HintLabel
 @onready var screen_margin: MarginContainer = %ScreenMargin
 
+const LOG_HEIGHT := 96.0  # el registro del duelo tiene alto fijo y se desplaza
 const ENEMY_TURN_DELAY := 1.2  # segundos de pausa antes de que el enemigo actúe
 const DEFAULT_HINT := "Elige una postura y una acción."
 const KO_SLOW_MO := 0.5        # segundos reales de cámara lenta en el golpe final
@@ -81,6 +82,7 @@ const CHAMPION_OWNER_XP_SHARE := 0.25   # parte de la experiencia del campeón q
 const XpRules = preload("res://scripts/resources/xp_rules.gd")
 
 func _ready() -> void:
+	LogView.wrap(log_label, LOG_HEIGHT)
 	if player_character == null:
 		player_character = CombatSetup.player_character if CombatSetup.player_character != null \
 			else CharacterLoader.make_test_character("Sir Alaric", Character.Role.CABALLERO)
@@ -224,7 +226,7 @@ func _begin() -> void:
 		btn_volver_menu.disabled = true
 		btn_volver_menu.tooltip_text = "Termina el duelo (o ríndete / retírate) para volver a la batalla."
 		turn_log_buffer = "DUELO SINGULAR — %s contra %s, ante los dos ejércitos" % [player_character.full_name(), enemy_character.full_name()]
-		log_label.text = turn_log_buffer
+		LogView.show(log_label, turn_log_buffer)
 	_spoken[player_character] = {"hurt": false, "low": false, "cooldown": 0}
 	_spoken[enemy_character] = {"hurt": false, "low": false, "cooldown": 0}
 	_opening_lines()
@@ -246,10 +248,10 @@ func _begin() -> void:
 		if CombatSetup.is_tournament():
 			turn_log_buffer = "TORNEO — Ronda %d de %d contra %s" % [
 				CombatSetup.tournament_round, CombatSetup.tournament_opponents.size(), enemy_character.full_name()]
-			log_label.text = turn_log_buffer
+			LogView.show(log_label, turn_log_buffer)
 		elif _practice:
 			turn_log_buffer = "DUELO DE PRÁCTICA contra %s — sin heridas ni honor en juego" % enemy_character.full_name()
-			log_label.text = turn_log_buffer
+			LogView.show(log_label, turn_log_buffer)
 
 # --- Diálogo: cada luchador habla según su personalidad y su historia con el otro ---
 
@@ -269,7 +271,7 @@ func _enemy_opens() -> void:
 	_set_buttons_enabled(false)
 	_update_turn_indicator()
 	turn_log_buffer = "%s toma la iniciativa." % enemy_character.full_name()
-	log_label.text = turn_log_buffer
+	LogView.show(log_label, turn_log_buffer)
 	await get_tree().create_timer(ENEMY_TURN_DELAY + 1.0).timeout
 	_enemy_turn()
 
@@ -598,7 +600,7 @@ func _read_enemy() -> void:
 		return
 	_enemy_intent = DuelAI.choose(duel, enemy_character, player_character)
 	turn_log_buffer += "\n%s%s" % [READ_ICON, DuelManager.intent_text(_enemy_intent)]
-	log_label.text = turn_log_buffer
+	LogView.show(log_label, turn_log_buffer)
 
 # Las acciones que la postura actual no permite se ven apagadas, con el motivo en la ayuda.
 func _update_action_blocks() -> void:
@@ -805,7 +807,8 @@ func _on_log_message(text: String) -> void:
 		turn_log_buffer = text
 	else:
 		turn_log_buffer += "\n" + text
-	log_label.text = turn_log_buffer
+	turn_log_buffer = LogView.cap(turn_log_buffer)
+	LogView.show(log_label, turn_log_buffer)
 
 func _start_new_turn_log() -> void:
 	turn_log_buffer = ""
@@ -819,14 +822,14 @@ func _on_duel_ended(winner: Character, reason: String) -> void:
 		_say(duel.opponent_of(winner), "duel_lose", 2.6)
 	var winner_name := winner.full_name() if winner != null else "Nadie (huida)"
 	turn_log_buffer += "\n DUELO TERMINADO Ganador: %s" % winner_name
-	log_label.text = turn_log_buffer
+	LogView.show(log_label, turn_log_buffer)
 	if embedded:
 		_embedded_winner = winner
 		if winner != null and player_character.is_alive():
 			var xp_text := _xp_line(player_character, XpRules.BATTLE_DUEL_WIN if winner == player_character else XpRules.BATTLE_DUEL_LOSS)
 			if not xp_text.is_empty():
 				turn_log_buffer += "\n" + xp_text
-				log_label.text = turn_log_buffer
+				LogView.show(log_label, turn_log_buffer)
 		btn_volver_menu.disabled = false
 		btn_volver_menu.tooltip_text = ""
 		btn_volver_menu.grab_focus.call_deferred()
@@ -893,7 +896,7 @@ func _end_practice(winner: Character) -> void:
 	var text := RelationsData.finish_practice(winner == player_character, winner == null)
 	CombatSetup.last_result_text = text
 	turn_log_buffer += "\n" + text
-	log_label.text = turn_log_buffer
+	LogView.show(log_label, turn_log_buffer)
 	btn_volver_menu.disabled = false
 	btn_volver_menu.tooltip_text = ""
 	btn_volver_menu.grab_focus.call_deferred()
@@ -944,7 +947,7 @@ func _offer_trophy() -> void:
 		var text := UniqueItems.claim_trophy(taker, enemy_character)
 		CombatSetup.last_result_text = (CombatSetup.last_result_text + " " + text).strip_edges()
 		turn_log_buffer += "\n" + text
-		log_label.text = turn_log_buffer
+		LogView.show(log_label, turn_log_buffer)
 		overlay.queue_free())
 	leave.pressed.connect(func(): overlay.queue_free())
 	leave.grab_focus.call_deferred()
@@ -963,12 +966,12 @@ func _resolve_death(winner: Character) -> String:
 		CombatSetup.return_scene = "res://scenes/map/map.tscn"   # el mapa abre la sucesión
 		btn_volver_menu.text = "Volver al Mapa"
 		turn_log_buffer += "\n☠ %s muere %s." % [loser.full_name(), cause]
-		log_label.text = turn_log_buffer
+		LogView.show(log_label, turn_log_buffer)
 		return "☠ Has muerto %s. Tu dinastía buscará un heredero." % cause
 	if RelationsData.has_method("on_character_died"):
 		RelationsData.on_character_died(loser.full_name(), "duelo a muerte")
 	turn_log_buffer += "\n☠ %s muere %s." % [loser.full_name(), cause]
-	log_label.text = turn_log_buffer
+	LogView.show(log_label, turn_log_buffer)
 	if loser == _champion:
 		return "☠ Tu campeón %s muere en el duelo." % loser.full_name()
 	return "☠ %s muere a tus pies." % loser.full_name() if _champion == null else "☠ %s muere a manos de tu campeón." % loser.full_name()
@@ -1045,7 +1048,7 @@ func _tournament_round_ended(winner: Character, rivalry: String) -> void:
 		_pending_next_round = true
 		btn_volver_menu.text = "Siguiente ronda (%d/%d)" % [round_num + 1, total]
 		turn_log_buffer += "\n¡Pasas a la ronda %d!" % (round_num + 1)
-		log_label.text = turn_log_buffer
+		LogView.show(log_label, turn_log_buffer)
 		return
 
 	var text: String
@@ -1072,7 +1075,7 @@ func _tournament_round_ended(winner: Character, rivalry: String) -> void:
 	var wound := player_character.after_fight_recovery()
 	CombatSetup.last_result_text = " ".join([text, rivalry, _demotion_text, wound]).strip_edges()
 	turn_log_buffer += "\n" + text
-	log_label.text = turn_log_buffer
+	LogView.show(log_label, turn_log_buffer)
 
 func _campaign_summary(winner: Character) -> String:
 	var outcome: String

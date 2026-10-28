@@ -43,7 +43,6 @@ const BETRAYAL_GRUDGE := 40             # ...y su rencor (pueden volverse rivale
 const BETRAYAL_NEW_SIDE := 10           # el bando al que te pasas te recibe con cierta gratitud
 const BETRAYAL_HONOR := 25
 const BETRAYAL_FAME := 5
-const BETRAYAL_INFAMY := 30             # los mercenarios que traicionan, además, cargan infamia
 
 var armies: Array[Army] = []
 var _next_id: int = 1
@@ -390,6 +389,7 @@ func resolve_battle(army: Army, attacker_won: bool, attacker_survivors: int, def
 		castle.owner_name = army.owner_name
 		castle.garrison_size = attacker_survivors
 		disband_army(army)
+		RelationsData.on_castle_taken(castle, old_kingdom, castle.kingdom)
 		lines.append("%s cae en manos de %s (antes: %s). Guarnición: %d soldados." % [
 			castle.castle_name, KingdomEnums.kingdom_name(castle.kingdom), KingdomEnums.kingdom_name(old_kingdom), attacker_survivors])
 		if player_attacking and player != null:
@@ -495,7 +495,7 @@ func _handle_home_castle_lost(lost: Castle, lines: Array[String]) -> void:
 			GameManager.current_castle = c
 			lines.append("Pierdes tu hogar, pero te refugias en %s." % c.castle_name)
 			return
-	# Sin castillo propio sobrevives vendiendo tu espada: pasas al camino mercenario.
+	# Sin castillo propio sobrevives sin afiliación (RoleProgression.landless_role).
 	var refuge := _landless_refuge(lost)
 	if refuge == null:
 		var reason := "%s ha caído y no te queda ningún castillo donde refugiarte." % lost.castle_name
@@ -508,7 +508,7 @@ func _handle_home_castle_lost(lost: Castle, lines: Array[String]) -> void:
 	GameManager.home_castle_id = refuge.castle_id
 	GameManager.current_castle = refuge
 	GameManager.refresh_actions_for_role_change()
-	lines.append("%s ha caído y no te queda tierra propia. Huyes a %s: ya no eres %s, sino %s que vende su espada." % [
+	lines.append("%s ha caído y no te queda tierra propia. Huyes a %s: ya no eres %s, sino %s." % [
 		lost.castle_name, refuge.castle_name, old_title, player.role_title()])
 
 # Castillo donde se refugia quien lo pierde todo: uno de su reino, o el más cercano que no lo odie.
@@ -542,8 +542,10 @@ func _check_rebellions() -> void:
 func _rebel(c: Castle) -> void:
 	var lost := c.garrison_size - int(c.garrison_size * KingdomDiplomacy.REBEL_GARRISON_FACTOR)
 	c.garrison_size = maxi(1, c.garrison_size - lost)
+	var old_kingdom := c.kingdom
 	c.kingdom = c.original_kingdom
 	c.owner_name = c.original_owner
+	RelationsData.on_castle_taken(c, old_kingdom, c.kingdom)
 	_add_event("¡Rebelión en %s! El pueblo se alza y devuelve el castillo a %s (%s)." % [
 		c.castle_name, c.original_owner, KingdomEnums.kingdom_name(c.original_kingdom)], c.castle_id)
 	armies_changed.emit()
@@ -595,8 +597,8 @@ func _inviter_for(lord: String, lord_kingdom: int, enemy_kingdom: int) -> Dictio
 	var r := RelationsData.get_relation(lord)
 	if r == null or lord == player.full_name() or r.at_war or r.is_hostile():
 		return {}
-	# Nadie te pide luchar contra tu propio reino (salvo que vendas tu espada).
-	if enemy_kingdom == GameManager.player_kingdom and not player.is_mercenary() and player.role != Character.Role.INAFILIADO:
+	# Nadie te pide luchar contra tu propio reino (salvo que no tengas afiliación).
+	if enemy_kingdom == GameManager.player_kingdom and player.role != Character.Role.INAFILIADO:
 		return {}
 	var liege := lord == RelationsData.liege_name
 	var score := -1.0
@@ -748,9 +750,6 @@ func apply_betrayal(witnesses: Array[Character], new_commander: Character) -> St
 	player.honor = clampi(player.honor - BETRAYAL_HONOR, 0, 100)
 	player.add_fame(-BETRAYAL_FAME)
 	var text := "Traicionas a tu bando: honor −%d, fama −%d." % [BETRAYAL_HONOR, BETRAYAL_FAME]
-	if player.is_mercenary():
-		MissionData.infamy += BETRAYAL_INFAMY
-		text += " Infamia +%d." % BETRAYAL_INFAMY
 	if not names.is_empty():
 		text += " %s no lo %s." % [", ".join(names), "olvidarán" if names.size() > 1 else "olvidará"]
 	RelationsData.relations_changed.emit()
@@ -762,8 +761,6 @@ func defect_to(lord_name: String) -> String:
 	var player: Character = GameManager.player_character
 	if player == null:
 		return ""
-	if player.is_mercenary():
-		return "Cobras de tu nuevo patrón; de lealtades no se habla."
 	var lord := RelationsData.get_relation(lord_name)
 	var lands := RelationsData.castles_of(lord_name)
 	if lord == null or lands.is_empty() or lord_name == player.full_name():
@@ -778,7 +775,9 @@ func defect_to(lord_name: String) -> String:
 		old_liege.adjust(BETRAYAL_RELATION)
 		old_liege.allied = false
 	for c: Castle in RelationsData.castles_of(player.full_name()):
+		var was := c.kingdom
 		c.kingdom = castle.kingdom
+		RelationsData.on_castle_taken(c, was, c.kingdom)
 	for a: Army in armies:
 		if is_player_army(a):
 			a.kingdom = castle.kingdom

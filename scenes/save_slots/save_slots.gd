@@ -17,6 +17,7 @@ func _ready() -> void:
 	btn_back.text = "Volver al Mapa" if saving else "Volver al Menú"
 	btn_back.pressed.connect(func(): get_tree().change_scene_to_file(SaveSystem.slots_return_scene))
 	_rebuild()
+	(func(): UiAnim.focus_first(self)).call_deferred()   # teclado y mando
 
 func _rebuild() -> void:
 	for child in rows.get_children():
@@ -27,20 +28,20 @@ func _rebuild() -> void:
 func _make_row(slot: String) -> Control:
 	var info := SaveSystem.slot_info(slot)
 	var panel := PanelContainer.new()
-	var margin := MarginContainer.new()
-	for side in ["left", "right", "top", "bottom"]:
-		margin.add_theme_constant_override("margin_" + side, 10)
-	panel.add_child(margin)
+	panel.theme_type_variation = &"CardPanel"
+	panel.custom_minimum_size = Vector2(620, 0)
 	var hbox := HBoxContainer.new()
 	hbox.add_theme_constant_override("separation", 12)
-	margin.add_child(hbox)
+	panel.add_child(hbox)
 
 	var text_box := VBoxContainer.new()
 	text_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var name_lbl := Label.new()
 	name_lbl.text = SaveSystem.slot_title(slot)
-	name_lbl.add_theme_color_override("font_color", Color(0.831, 0.686, 0.216))
+	name_lbl.theme_type_variation = &"SubheaderLabel"
 	var detail_lbl := Label.new()
+	if not info.exists:
+		detail_lbl.theme_type_variation = &"MutedLabel"
 	detail_lbl.text = "%s\nGuardada el %s" % [info.summary, info.saved_at] if info.exists else "— Vacía —"
 	text_box.add_child(name_lbl)
 	text_box.add_child(detail_lbl)
@@ -50,18 +51,23 @@ func _make_row(slot: String) -> Control:
 		if slot == SaveSystem.AUTO_SLOT:
 			var note := Label.new()
 			note.text = "Se guarda sola al comenzar cada mes"
-			note.add_theme_font_size_override("font_size", 12)
+			note.theme_type_variation = &"MutedLabel"
+			note.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			hbox.add_child(note)
 		else:
 			var confirming := _confirm_slot == slot and _confirm_action == "save"
 			var btn_save := Button.new()
 			btn_save.text = "¿Sobrescribir?" if confirming else "Guardar aquí"
+			btn_save.theme_type_variation = &"PrimaryButton"
+			btn_save.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			btn_save.pressed.connect(_on_save_pressed.bind(slot, info.exists))
 			hbox.add_child(btn_save)
 	else:
 		var btn_load := Button.new()
 		btn_load.text = "Cargar"
 		btn_load.disabled = not info.exists
+		btn_load.theme_type_variation = &"PrimaryButton"
+		btn_load.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		btn_load.pressed.connect(_on_load_pressed.bind(slot))
 		hbox.add_child(btn_load)
 
@@ -69,6 +75,8 @@ func _make_row(slot: String) -> Control:
 		var confirming_delete := _confirm_slot == slot and _confirm_action == "delete"
 		var btn_delete := Button.new()
 		btn_delete.text = "¿Borrar de verdad?" if confirming_delete else "Borrar"
+		btn_delete.theme_type_variation = &"FlatButton"
+		btn_delete.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		btn_delete.pressed.connect(_on_delete_pressed.bind(slot))
 		hbox.add_child(btn_delete)
 	return panel

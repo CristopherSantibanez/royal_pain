@@ -1,9 +1,16 @@
 extends Control
 
+const AchievementCatalog = preload("res://scripts/resources/achievement_catalog.gd")
+
 @onready var character_option: OptionButton = %CharacterOption
 @onready var castle_option: OptionButton = %CastleOption
 @onready var role_option: OptionButton = %RoleOption
 @onready var info_label: Label = %InfoLabel
+@onready var goal_title: Label = %GoalTitle
+@onready var character_info: Label = %CharacterInfo
+@onready var portrait: TextureRect = %Portrait
+@onready var castle_info: Label = %CastleInfo
+@onready var kingdom_banner: ColorRect = %KingdomBanner
 @onready var btn_volver_menu: Button = %BtnVolverMenu
 @onready var btn_crear_personaje: Button = %BtnCrearPersonaje
 @onready var btn_comenzar: Button = %BtnComenzar
@@ -12,13 +19,30 @@ extends Control
 const STARTING_ROLES: Array[int] = [
 	Character.Role.CAMPESINO, Character.Role.SOLDADO, Character.Role.CABALLERO,
 	Character.Role.NOBLEZA_BAJA, Character.Role.NOBLEZA_ALTA,
+	Character.Role.MERCENARIO, Character.Role.CAPITAN, Character.Role.CONDOTIERO,
+	Character.Role.INAFILIADO,
 ]
+# Oro máximo con el que empiezan los más pobres (si no, se alistarían el primer mes).
+const START_GOLD_CAP := {Character.Role.CAMPESINO: 60, Character.Role.INAFILIADO: 40}
 
 var available_paths: Array[String] = []
 var preview_characters: Array[Character] = []
+var aging_check: CheckButton
 
 func _ready() -> void:
 	available_paths = CharacterLoader.get_saved_character_paths()
+	# Cada partida nueva se juega en un mundo nuevo (no se toca el de una partida en curso).
+	if not GameManager.is_game_active:
+		MapData.new_world()
+	%BtnOtroMundo.disabled = GameManager.is_game_active
+	%BtnOtroMundo.pressed.connect(_on_new_world_pressed)
+	aging_check = CheckButton.new()
+	aging_check.text = "Los personajes envejecen"
+	aging_check.tooltip_text = "Activado: cada enero todos cumplen un año y desde los 55 se puede morir de viejo.\nDesactivado: los adultos no envejecen; los hijos sí crecen."
+	aging_check.button_pressed = true
+	%BtnOtroMundo.get_parent().add_child(aging_check)
+	%BtnOtroMundo.get_parent().move_child(aging_check, %BtnOtroMundo.get_index())
+	_refresh_world_label()
 	_populate_characters()
 	_populate_castles()
 	_populate_roles()
@@ -30,6 +54,20 @@ func _ready() -> void:
 	btn_crear_personaje.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/character_creation/character_creation.tscn"))
 	btn_comenzar.pressed.connect(_on_comenzar_pressed)
 
+	_refresh_info()
+	UiAnim.stagger_in(%RootVBox, 0.06)
+	(btn_comenzar if not btn_comenzar.disabled else btn_crear_personaje).grab_focus.call_deferred()
+
+func _refresh_world_label() -> void:
+	%WorldLabel.text = MapData.world_summary() if not GameManager.is_game_active else "Hay una partida en curso: al comenzar se generará un mundo nuevo."
+
+func _on_new_world_pressed() -> void:
+	var selected := castle_option.selected
+	MapData.new_world()
+	_refresh_world_label()
+	_populate_castles()
+	if selected >= 0 and selected < castle_option.item_count:
+		castle_option.select(selected)
 	_refresh_info()
 
 func _populate_characters() -> void:
@@ -51,6 +89,10 @@ func _populate_characters() -> void:
 func _populate_roles() -> void:
 	role_option.clear()
 	for r in STARTING_ROLES:
+		if r == Character.Role.MERCENARIO:
+			role_option.add_separator("Camino mercenario")
+		elif r == Character.Role.INAFILIADO:
+			role_option.add_separator("Sin tierra ni señor")
 		role_option.add_item(Character.role_name_for(r), r)
 	_on_character_selected()
 
@@ -81,31 +123,54 @@ func _selected_castle() -> Castle:
 	return MapData.get_castle_by_id(castle_option.get_item_metadata(castle_option.selected))
 
 func _refresh_info() -> void:
-	if available_paths.is_empty():
-		info_label.text = "No hay personajes guardados.\nCrea uno y guárdalo para poder comenzar una partida."
-		btn_comenzar.disabled = true
-		return
-
-	var lines: Array[String] = []
-	var c := _selected_preview()
-	if c != null:
-		lines.append("%s — comienza como %s" % [c.full_name(), Character.role_name_for(role_option.get_selected_id())])
-		lines.append("Liderazgo %d · Carisma %d · Estrategia %d · Combate %d · Defensa %d" % [
-			c.leadership, c.charisma, c.strategy, c.combat, c.defense])
-		lines.append("Honor %d · Oro %d" % [c.honor, c.gold])
-		var role := role_option.get_selected_id()
-		lines.append("Objetivo — %s: %s" % [VictoryRules.goal_title(role), VictoryRules.goal_description(role)])
-	else:
-		lines.append("No se pudo leer este personaje.")
-
 	var castle := _selected_castle()
 	if castle != null:
-		lines.append("")
-		lines.append("Inicias en: %s (%s)" % [castle.castle_name, KingdomEnums.kingdom_name(castle.kingdom)])
-		lines.append("Guarnición %d · Oro %d · Comida %d" % [castle.garrison_size, castle.gold, castle.food])
+		kingdom_banner.color = KingdomEnums.kingdom_color(castle.kingdom)
+		castle_info.text = "%s
+Señor: %s
 
-	info_label.text = "\n".join(lines)
-	btn_comenzar.disabled = c == null or castle == null
+Guarnición: %d soldados
+Oro del castillo: %d
+Comida: %d" % [
+			KingdomEnums.kingdom_name(castle.kingdom), castle.owner_name, castle.garrison_size, castle.gold, castle.food]
+
+	var role := role_option.get_selected_id()
+	goal_title.text = "Hazañas destacadas · %s" % VictoryRules.goal_title(role)
+	# Solo lo esencial: el resto (cómo terminan las partidas, el camino mercenario…) está en el glosario.
+	var featured: Array[String] = []
+	for a: Dictionary in AchievementCatalog.featured_for(role):
+		featured.append("• %s: %s" % [a.title, AchievementCatalog.description_of(a)])
+	info_label.text = "\n".join(featured)
+	info_label.tooltip_text = "«%s»: %s. Las hazañas dan recompensas; la partida solo termina si dominas el mundo, unes los dos últimos reinos por matrimonio o tu linaje se extingue." % [
+		VictoryRules.goal_title(role), VictoryRules.goal_estimate(role)]
+
+	if available_paths.is_empty():
+		portrait.texture = preload("res://assets/portraits/placeholder_default.png")
+		character_info.text = "No hay personajes guardados.
+
+Crea uno y guárdalo para poder comenzar una partida."
+		btn_comenzar.disabled = true
+		btn_crear_personaje.theme_type_variation = &"PrimaryButton"
+		return
+
+	var c := _selected_preview()
+	if c == null:
+		character_info.text = "No se pudo leer este personaje."
+		btn_comenzar.disabled = true
+		return
+	portrait.texture = c.get_portrait()
+	character_info.text = "%s
+Comienza como %s, con %d años
+
+Liderazgo %d
+Carisma %d
+Estrategia %d
+Combate %d
+Defensa %d
+
+Honor %d · Oro %d" % [
+		c.full_name(), Character.role_name_for(role), DynastyData.START_AGE_BY_ROLE.get(role, 20), c.leadership, c.charisma, c.strategy, c.combat, c.defense, c.honor, c.gold]
+	btn_comenzar.disabled = castle == null
 
 func _on_comenzar_pressed() -> void:
 	var idx := character_option.selected
@@ -114,15 +179,18 @@ func _on_comenzar_pressed() -> void:
 		return
 
 	# Se carga una copia fresca (sin caché) para que los duelos de prueba no contaminen la partida.
-	var character := ResourceLoader.load(available_paths[idx], "", ResourceLoader.CACHE_MODE_IGNORE) as Character
+	var character := CharacterLoader.load_character(available_paths[idx])
 	if character == null:
 		info_label.text = "Error al cargar el personaje."
 		return
 	character.role = role_option.get_selected_id()
+	if START_GOLD_CAP.has(character.role):
+		character.gold = mini(character.gold, START_GOLD_CAP[character.role])
 	character.current_health = character.max_health
 	character.current_stamina = character.max_stamina
 	character.current_morale = character.max_morale
 
+	DynastyData.aging_enabled = aging_check.button_pressed
 	GameManager.start_new_game(character, castle.castle_id)
 	GameManager.change_state(GameStateEnums.State.MAP)
 	get_tree().change_scene_to_file("res://scenes/map/map.tscn")

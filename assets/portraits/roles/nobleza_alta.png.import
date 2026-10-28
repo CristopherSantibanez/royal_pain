@@ -3,20 +3,21 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://45mwsnuwoq7u"
-path="res://.godot/imported/nobleza_alta.png-4316746303331b0c0b8b41b5076ada03.ctex"
+path.bptc="res://.godot/imported/nobleza_alta.png-4316746303331b0c0b8b41b5076ada03.bptc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/portraits/roles/nobleza_alta.png"
-dest_files=["res://.godot/imported/nobleza_alta.png-4316746303331b0c0b8b41b5076ada03.ctex"]
+dest_files=["res://.godot/imported/nobleza_alta.png-4316746303331b0c0b8b41b5076ada03.bptc.ctex"]
 
 [params]
 
-compress/mode=0
-compress/high_quality=false
+compress/mode=2
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

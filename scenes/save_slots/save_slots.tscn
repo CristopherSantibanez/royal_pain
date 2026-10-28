@@ -48,8 +48,7 @@ theme_override_constants/separation = 12
 [node name="TitleLabel" type="Label" parent="Center/RootVBox"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.831, 0.686, 0.216, 1)
-theme_override_font_sizes/font_size = 28
+theme_type_variation = &"TitleLabel"
 horizontal_alignment = 1
 
 [node name="Rows" type="VBoxContainer" parent="Center/RootVBox"]
@@ -66,4 +65,5 @@ autowrap_mode = 3
 [node name="BtnBack" type="Button" parent="Center/RootVBox"]
 unique_name_in_owner = true
 layout_mode = 2
+theme_type_variation = &"FlatButton"
 size_flags_horizontal = 4

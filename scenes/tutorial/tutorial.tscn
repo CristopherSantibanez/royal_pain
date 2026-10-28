@@ -1,0 +1,159 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scenes/tutorial/tutorial.gd" id="1_tut"]
+[ext_resource type="Texture2D" path="res://assets/TurnFight-Trining_Ground.png" id="2_bg"]
+
+[node name="Tutorial" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_tut")
+
+[node name="Background" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("2_bg")
+expand_mode = 3
+stretch_mode = 6
+
+[node name="Dim" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.03, 0.02, 0.015, 0.72)
+
+[node name="ScreenMargin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 12
+
+[node name="RootVBox" type="VBoxContainer" parent="ScreenMargin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Header" type="HBoxContainer" parent="ScreenMargin/RootVBox"]
+layout_mode = 2
+
+[node name="TitleLabel" type="Label" parent="ScreenMargin/RootVBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"TitleLabel"
+theme_override_font_sizes/font_size = 28
+text = "Tutorial de combate"
+
+[node name="BtnBack" type="Button" parent="ScreenMargin/RootVBox/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+text = "Volver"
+
+[node name="Body" type="HBoxContainer" parent="ScreenMargin/RootVBox"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 12
+
+[node name="LessonsPanel" type="PanelContainer" parent="ScreenMargin/RootVBox/Body"]
+custom_minimum_size = Vector2(262, 0)
+layout_mode = 2
+
+[node name="LessonsScroll" type="ScrollContainer" parent="ScreenMargin/RootVBox/Body/LessonsPanel"]
+layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="LessonsBox" type="VBoxContainer" parent="ScreenMargin/RootVBox/Body/LessonsPanel/LessonsScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 2
+
+[node name="LessonVBox" type="VBoxContainer" parent="ScreenMargin/RootVBox/Body"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="LessonHeader" type="HBoxContainer" parent="ScreenMargin/RootVBox/Body/LessonVBox"]
+layout_mode = 2
+
+[node name="LessonTitle" type="Label" parent="ScreenMargin/RootVBox/Body/LessonVBox/LessonHeader"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"HeaderLabel"
+theme_override_font_sizes/font_size = 21
+
+[node name="StepCounter" type="Label" parent="ScreenMargin/RootVBox/Body/LessonVBox/LessonHeader"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"MutedLabel"
+
+[node name="StepPanel" type="PanelContainer" parent="ScreenMargin/RootVBox/Body/LessonVBox"]
+layout_mode = 2
+theme_type_variation = &"HighlightPanel"
+
+[node name="StepLabel" type="Label" parent="ScreenMargin/RootVBox/Body/LessonVBox/StepPanel"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(400, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+autowrap_mode = 3
+
+[node name="ArenaPanel" type="PanelContainer" parent="ScreenMargin/RootVBox/Body/LessonVBox"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_type_variation = &"CardPanel"
+
+[node name="Arena" type="Control" parent="ScreenMargin/RootVBox/Body/LessonVBox/ArenaPanel"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 240)
+layout_mode = 2
+
+[node name="ResultPanel" type="PanelContainer" parent="ScreenMargin/RootVBox/Body/LessonVBox"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="ResultLabel" type="Label" parent="ScreenMargin/RootVBox/Body/LessonVBox/ResultPanel"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(400, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+autowrap_mode = 3
+
+[node name="Footer" type="HBoxContainer" parent="ScreenMargin/RootVBox/Body/LessonVBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="BtnRetry" type="Button" parent="ScreenMargin/RootVBox/Body/LessonVBox/Footer"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"FlatButton"
+text = "Repetir lección"
+
+[node name="Spacer" type="Control" parent="ScreenMargin/RootVBox/Body/LessonVBox/Footer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="BtnNext" type="Button" parent="ScreenMargin/RootVBox/Body/LessonVBox/Footer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_type_variation = &"PrimaryButton"
+text = "Siguiente paso ▸"

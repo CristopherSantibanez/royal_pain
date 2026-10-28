@@ -68,25 +68,17 @@ func _on_volver_editar_pressed() -> void:
 	get_tree().change_scene_to_file("res://scenes/character_creation/character_creation.tscn")
 
 func _on_guardar_pressed() -> void:
-	var dir := DirAccess.open("user://")
-	if not dir.dir_exists("characters"):
-		dir.make_dir("characters")
+	# Guardar de nuevo el mismo personaje lo actualiza (no crea copias).
+	var save_path := CharacterLoader.save_character(character, true)
 
-	var safe_name := character.full_name().strip_edges().to_lower().replace(" ", "_")
-	if safe_name.is_empty():
-		safe_name = "personaje_sin_nombre"
-
-	var save_path := "user://characters/%s.tres" % safe_name
-	var result := ResourceSaver.save(character, save_path)
-
-	if result == OK:
+	if not save_path.is_empty():
 		btn_guardar.text = "¡Guardado!"
 		btn_guardar.disabled = true
 		CreationState.last_saved_path = save_path
 		btn_comenzar_partida.disabled = false
 		btn_comenzar_partida.tooltip_text = ""
 	else:
-		btn_guardar.text = "Error al guardar (código %d)" % result
+		btn_guardar.text = "Error al guardar"
 
 func _on_comenzar_partida_pressed() -> void:
 	get_tree().change_scene_to_file("res://scenes/new_game/new_game.tscn")

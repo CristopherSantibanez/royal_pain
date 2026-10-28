@@ -7,16 +7,83 @@ class_name EventCatalog
 # Formato de una opción:
 #   {label, requires?: {gold, castle_gold}, effects: {...}, result: "texto"}
 #   o con azar: {label, chance, chance_stat?, success: {effects, result}, failure: {effects, result}}
+#   o con combate: {label, requires?, effects, result, fight: {type: "duel"|"battle", foe: {name, role, power,
+#     personality}, enemy_name?, enemy_ratio?, garrison_share?, no_rival?, win: {effects, result}, lose: {...}}}
+#     El combate se juega de verdad (duelo o escaramuza) y su desenlace se aplica al terminar.
 # Efectos posibles: gold, honor, combat, leadership, charisma, strategy, defense,
 #   castle_gold, castle_food, garrison, health (puede causar una herida grave)
+# Eventos con protagonista (ver RelationsData.roll_social_event): además
+#   affinity, grudge, affection, clear_suitor, que se aplican a la relación con ese personaje.
+# fame: fama del jugador. Las pérdidas (números negativos) se multiplican por PENALTY_SCALE.
+# Requisitos: gold, castle_gold, healthy (poder batirse en duelo).
 
-const MONTHLY_EVENT_CHANCE := 0.6
+const MONTHLY_EVENT_CHANCE := 0.2   # bajó de 0.3: historias, complots y capturas ya aportan decisiones
+const FAME_EVENT_BONUS := 0.003       # +0,3% de probabilidad de evento por punto de fama (la fama atrae sucesos)
+const MAX_EVENT_CHANCE := 0.85
+const PENALTY_SCALE := 1.25           # dificultad: las pérdidas de los eventos pesan un 25% más que las ganancias
 const CHANCE_PER_STAT_POINT := 0.03   # cada punto de la stat por encima/debajo de 10 ajusta la probabilidad
 
 const R := Character.Role
 const P := Character.Personality
+const XpRules = preload("res://scripts/resources/xp_rules.gd")
 
 const EVENTS := [
+	{
+		"id": "caballero_errante", "title": "Un caballero errante",
+		"text": "Un caballero sin señor planta su tienda junto al camino y reta a quien se atreva a cruzar lanzas con él. Dicen que nadie lo ha vencido en todo el invierno.",
+		"roles": [R.SOLDADO, R.CABALLERO, R.NOBLEZA_BAJA], "bias": {P.ARROGANTE: 1.5, P.VALIENTE: 1.8, P.COBARDE: 0.4},
+		"options": [
+			{"label": "Aceptar el desafío", "requires": {"healthy": true}, "effects": {},
+				"result": "Saludas con la espada. El caballero errante sonríe bajo el yelmo.",
+				"fight": {"type": "duel", "foe": {"name": "El Caballero Errante", "role": R.CABALLERO, "power": 1, "personality": "HONORABLE"},
+					"win": {"effects": {"fame": 8, "honor": 5, "gold": 60, "unique": 10}, "result": "Vences al invicto: su bolsa y su fama son ahora tuyas."},
+					"lose": {"effects": {"honor": -2}, "result": "Caes con honra. El caballero te tiende la mano para levantarte."}}},
+			{"label": "Seguir tu camino", "effects": {"honor": -1}, "result": "El caballero ni se inmuta."},
+		],
+	},
+	{
+		"id": "emboscada", "title": "Emboscada en el camino",
+		"text": "De vuelta al castillo, una lluvia de flechas sale de la arboleda: os han tendido una emboscada.",
+		"roles": [R.CABALLERO, R.NOBLEZA_BAJA, R.NOBLEZA_ALTA], "bias": {P.PRUDENTE: 0.6},
+		"options": [
+			{"label": "Formar y plantar cara (escaramuza)", "requires": {"garrison": 20}, "effects": {},
+				"result": "Ordenas cerrar filas y cargar contra la arboleda.",
+				"fight": {"type": "battle", "no_rival": true, "enemy_name": "Los emboscados", "enemy_ratio": 1.1, "garrison_share": 0.2,
+					"foe": {"name": "Capitán de los emboscados", "role": R.SOLDADO, "power": 1},
+					"win": {"effects": {"honor": 6, "fame": 5, "gold": 30}, "result": "Los emboscados huyen dejando armas y botín."},
+					"lose": {"effects": {"honor": -3, "gold": -30}, "result": "Os batís en retirada y perdéis parte del equipaje."}}},
+			{"label": "Huir al galope", "effects": {"honor": -4, "gold": -30}, "result": "Salvas la vida, pero no el equipaje ni la reputación."},
+		],
+	},
+	{
+		"id": "juicio_combate", "title": "Juicio por combate",
+		"text": "Un vecino te acusa de robarle tierras y, como manda la costumbre, exige que Dios lo decida en un juicio por combate.",
+		"roles": [R.SOLDADO, R.CABALLERO, R.NOBLEZA_BAJA], "bias": {P.PIADOSO: 1.4},
+		"options": [
+			{"label": "Aceptar el juicio", "requires": {"healthy": true}, "effects": {},
+				"result": "El tribunal fija el día. Que gane quien tenga la razón… o la mejor espada.",
+				"fight": {"type": "duel", "foe": {"name": "Campeón del acusador", "power": 0},
+					"win": {"effects": {"honor": 8, "fame": 3}, "result": "Dios ha hablado: la acusación queda en nada."},
+					"lose": {"effects": {"honor": -6, "gold": -40}, "result": "Pierdes el juicio y debes pagar una compensación."}}},
+			{"label": "Pagar un acuerdo (50)", "requires": {"gold": 50}, "effects": {"gold": -50, "honor": -2},
+				"result": "Pagas para evitar el combate. Algunos lo entienden como una confesión."},
+		],
+	},
+	{
+		"id": "saqueadores", "title": "Saqueadores en tus aldeas",
+		"text": "Una banda de saqueadores quema granjas en tus tierras. Los campesinos piden protección.",
+		"roles": [R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.DUQUE, R.REGENTE], "bias": {P.GENEROSO: 1.4, P.CRUEL: 0.7},
+		"options": [
+			{"label": "Salir a su encuentro (escaramuza)", "requires": {"garrison": 30}, "effects": {},
+				"result": "Tus jinetes salen del castillo al amanecer.",
+				"fight": {"type": "battle", "no_rival": true, "enemy_name": "Los saqueadores", "enemy_ratio": 0.8,
+					"foe": {"name": "Jefe de los saqueadores", "role": R.SOLDADO},
+					"win": {"effects": {"honor": 6, "fame": 4, "castle_food": 30}, "result": "Recuperas el grano robado y los campesinos te aclaman."},
+					"lose": {"effects": {"honor": -4, "castle_food": -40}, "result": "Los saqueadores se llevan el grano y tus tierras arden."}}},
+			{"label": "Cerrar las puertas y esperar", "effects": {"castle_food": -50, "honor": -3},
+				"result": "Los saqueadores se marchan cargados. El pueblo no lo olvidará."},
+		],
+	},
 	{
 		"id": "recaudador", "title": "El recaudador abusivo",
 		"text": "Un recaudador del señor exige un tributo extra, alegando deudas que nunca contrajiste.",
@@ -34,9 +101,17 @@ const EVENTS := [
 		"text": "Una partida de bandidos asalta a unos viajeros cerca de las murallas.",
 		"roles": [R.SOLDADO, R.CABALLERO, R.NOBLEZA_BAJA, R.NOBLEZA_ALTA], "bias": {P.ARROGANTE: 1.5},
 		"options": [
-			{"label": "Enfrentarlos", "chance": 0.55, "chance_stat": "combat",
-				"success": {"effects": {"gold": 40, "honor": 6}, "result": "Los pones en fuga y recuperas parte del botín."},
-				"failure": {"effects": {"honor": -4, "health": -40}, "result": "Te superan en número y debes retirarte malherido."}},
+			{"label": "Retar al cabecilla (duelo)", "requires": {"healthy": true}, "effects": {},
+				"result": "Te abres paso hasta el cabecilla y le exiges que pelee.",
+				"fight": {"type": "duel", "no_rival": true, "foe": {"name": "Cabecilla de los bandidos", "role": R.SOLDADO, "power": -1, "personality": "CRUEL"},
+					"win": {"effects": {"gold": 40, "honor": 6, "fame": 4}, "result": "El cabecilla cae y su banda huye. Recuperas parte del botín."},
+					"lose": {"effects": {"honor": -4}, "result": "Los bandidos escapan con el botín y se ríen de ti."}}},
+			{"label": "Cargar con tus hombres (escaramuza)", "requires": {"garrison": 30}, "effects": {},
+				"result": "Reúnes a parte de la guarnición y salís tras ellos.",
+				"fight": {"type": "battle", "no_rival": true, "enemy_name": "Los bandidos", "enemy_ratio": 0.9,
+					"foe": {"name": "Cabecilla de los bandidos", "role": R.SOLDADO},
+					"win": {"effects": {"gold": 60, "honor": 5, "fame": 5}, "result": "Ni uno de los bandidos vuelve a amenazar el camino."},
+					"lose": {"effects": {"honor": -3}, "result": "Tus hombres se dispersan y los bandidos se salen con la suya."}}},
 			{"label": "Avisar a la guardia y no intervenir", "effects": {"honor": -2},
 				"result": "La guardia llega tarde. Algunos murmuran que no hiciste nada."},
 		],
@@ -82,6 +157,11 @@ const EVENTS := [
 			{"label": "Responder con firmeza", "chance": 0.6, "chance_stat": "charisma",
 				"success": {"effects": {"honor": 5}, "result": "Tus palabras dejan en ridículo al provocador."},
 				"failure": {"effects": {"honor": -3}, "result": "La taberna entera se ríe... de ti."}},
+			{"label": "Retarle a duelo", "requires": {"healthy": true}, "effects": {},
+				"result": "Arrojas tu guante a sus pies. La taberna enmudece.",
+				"fight": {"type": "duel", "foe": {"name": "El provocador", "power": 0, "personality": "ARROGANTE"},
+					"win": {"effects": {"honor": 7, "fame": 3}, "result": "El provocador pide disculpas desde el suelo."},
+					"lose": {"effects": {"honor": -5}, "result": "La humillación es doble: de palabra y de espada."}}},
 			{"label": "Ignorarlo y marcharte", "effects": {"honor": -2},
 				"result": "Evitas la pelea, pero el rumor de tu cobardía corre."},
 		],
@@ -89,7 +169,7 @@ const EVENTS := [
 	{
 		"id": "disputa", "title": "Disputa de tierras",
 		"text": "Dos familias se disputan un campo. Una de ellas es rica y te ofrece un regalo si fallas a su favor.",
-		"roles": [R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.REGENTE], "bias": {P.LEAL: 1.3, P.ASTUTO: 1.3},
+		"roles": [R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.DUQUE, R.REGENTE], "bias": {P.LEAL: 1.3, P.ASTUTO: 1.3},
 		"options": [
 			{"label": "Juzgar con justicia", "effects": {"honor": 6},
 				"result": "Tu fallo es justo y el pueblo lo celebra."},
@@ -100,7 +180,7 @@ const EVENTS := [
 	{
 		"id": "incendio", "title": "Incendio en el granero",
 		"text": "Un incendio arrasa parte de los graneros del castillo.",
-		"roles": [R.CABALLERO, R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.REGENTE], "bias": {},
+		"roles": [R.CABALLERO, R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.DUQUE, R.REGENTE], "bias": {},
 		"options": [
 			{"label": "Pagar la reconstrucción (60 de oro del castillo)", "requires": {"castle_gold": 60},
 				"effects": {"castle_gold": -60, "honor": 2}, "result": "Los graneros se reconstruyen antes del invierno."},
@@ -135,7 +215,7 @@ const EVENTS := [
 	{
 		"id": "voluntarios", "title": "Jóvenes voluntarios",
 		"text": "Un grupo de jóvenes de las aldeas se ofrece para servir en la guarnición.",
-		"roles": [R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.REGENTE], "bias": {},
+		"roles": [R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.DUQUE, R.REGENTE], "bias": {},
 		"options": [
 			{"label": "Equiparlos (30 de oro del castillo)", "requires": {"castle_gold": 30},
 				"effects": {"castle_gold": -30, "garrison": 15}, "result": "La guarnición crece con quince nuevos soldados."},
@@ -146,7 +226,7 @@ const EVENTS := [
 	{
 		"id": "libro_estrategia", "title": "Un tratado de guerra",
 		"text": "Llega a tus manos una copia de un antiguo tratado sobre el arte de la guerra.",
-		"roles": [R.SOLDADO, R.CABALLERO, R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.REGENTE], "bias": {P.PRUDENTE: 1.5},
+		"roles": [R.SOLDADO, R.CABALLERO, R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.DUQUE, R.REGENTE], "bias": {P.PRUDENTE: 1.5},
 		"options": [
 			{"label": "Estudiarlo a fondo", "effects": {"strategy": 1},
 				"result": "Sus lecciones afinan tu mente táctica."},
@@ -168,7 +248,7 @@ const EVENTS := [
 	{
 		"id": "conspiracion", "title": "Rumores de conspiración",
 		"text": "Se susurra que algunos nobles traman contra ti en secreto.",
-		"roles": [R.NOBLEZA_ALTA, R.REGENTE], "bias": {P.PRUDENTE: 1.5, P.ASTUTO: 1.5},
+		"roles": [R.NOBLEZA_ALTA, R.DUQUE, R.REGENTE], "bias": {P.PRUDENTE: 1.5, P.ASTUTO: 1.5},
 		"options": [
 			{"label": "Pagar espías para investigar (50 de oro)", "requires": {"gold": 50}, "chance": 0.6, "chance_stat": "strategy",
 				"success": {"effects": {"gold": -50, "leadership": 1, "honor": 4}, "result": "Desenmascaras a los conspiradores y tu autoridad se fortalece."},
@@ -190,14 +270,14 @@ const ANNUAL_EVENTS := [
 # --- Eventos mensuales ---
 
 static func roll_monthly(character: Character) -> Dictionary:
-	if character == null or randf() >= MONTHLY_EVENT_CHANCE:
+	if character == null or randf() >= event_chance(character):
 		return {}
 	var pool: Array = []
 	var weights: Array[float] = []
 	var total := 0.0
 	for e: Dictionary in EVENTS:
 		var roles: Array = e.roles
-		if not roles.is_empty() and not character.role in roles:
+		if not roles.is_empty() and not character.role in roles and not character.ladder_role() in roles:
 			continue
 		var w: float = e.bias.get(character.personality, 1.0)
 		pool.append(e)
@@ -212,11 +292,26 @@ static func roll_monthly(character: Character) -> Dictionary:
 			return pool[i].duplicate(true)
 	return pool[pool.size() - 1].duplicate(true)
 
+## Probabilidad de evento mensual: crece con la fama.
+static func event_chance(character: Character) -> float:
+	var fame: int = character.fame if character != null else 0
+	return minf(MONTHLY_EVENT_CHANCE + fame * FAME_EVENT_BONUS, MAX_EVENT_CHANCE)
+
 static func can_choose(option: Dictionary, character: Character, castle: Castle) -> bool:
 	var req: Dictionary = option.get("requires", {})
 	if req.has("gold") and character.gold < req.gold:
 		return false
 	if req.has("castle_gold") and (castle == null or castle.gold < req.castle_gold):
+		return false
+	# Oro propio más el del tesoro de tu castillo (rescates).
+	if req.has("total_gold") and character.gold + (castle.gold if castle != null else 0) < int(req.total_gold):
+		return false
+	if req.get("healthy", false) and (not character.can_fight_duels() or character.is_wounded()):
+		return false
+	if req.has("garrison") and (castle == null or castle.garrison_size < int(req.garrison)):
+		return false
+	# Un campesino no va a la batalla por su cuenta (solo si lo llaman a filas: combates "invited").
+	if option.get("fight", {}).get("type", "") == "battle" and not CombatSetup.battle_blocker(character).is_empty():
 		return false
 	return true
 
@@ -225,6 +320,12 @@ static func requirement_text(option: Dictionary) -> String:
 	var parts: Array[String] = []
 	if req.has("gold"): parts.append("%d de oro propio" % req.gold)
 	if req.has("castle_gold"): parts.append("%d de oro del castillo" % req.castle_gold)
+	if req.has("total_gold"): parts.append("%d de oro (tuyo y del castillo)" % int(req.total_gold))
+	if req.get("healthy", false): parts.append("poder batirte en duelo (sin heridas graves)")
+	if req.has("garrison"): parts.append("al menos %d soldados en tu castillo" % int(req.garrison))
+	var player: Character = GameManager.player_character if GameManager.is_game_active else null
+	if option.get("fight", {}).get("type", "") == "battle" and player != null and not CombatSetup.battle_blocker(player).is_empty():
+		return CombatSetup.battle_blocker(player)
 	return "Requiere " + " y ".join(parts) if not parts.is_empty() else ""
 
 static func success_chance(option: Dictionary, character: Character) -> float:
@@ -232,10 +333,11 @@ static func success_chance(option: Dictionary, character: Character) -> float:
 	var stat: String = option.get("chance_stat", "")
 	if stat != "":
 		chance += (int(character.get(stat)) - 10) * CHANCE_PER_STAT_POINT
+	chance += SkillEffects.event_luck(character)   # rasgos y habilidades de buena (o mala) estrella
 	return clampf(chance, 0.05, 0.95)
 
 # Aplica la opción elegida y devuelve el texto del resultado.
-static func apply_option(event: Dictionary, index: int, character: Character, castle: Castle) -> String:
+static func apply_option(event: Dictionary, index: int, character: Character, castle: Castle, relation: Relationship = null) -> String:
 	var options: Array = event.get("options", [])
 	if index < 0 or index >= options.size():
 		return ""
@@ -245,7 +347,10 @@ static func apply_option(event: Dictionary, index: int, character: Character, ca
 		outcome = option.success if randf() < success_chance(option, character) else option.failure
 
 	var text: String = outcome.get("result", "")
-	var summary := _apply_effects(outcome.get("effects", {}), character, castle)
+	# Declinar una llamada a filas: el asedio se libra sin ti ahora mismo (ver ArmyData.decline_invitation).
+	if option.has("invite_decline"):
+		ArmyData.decline_invitation(str(option.invite_decline))
+	var summary := _apply_effects(outcome.get("effects", {}), character, castle, relation)
 	if summary != "":
 		text += "\n(" + summary + ")"
 	if RoleProgression.check_dishonor_demotion(character):
@@ -254,11 +359,24 @@ static func apply_option(event: Dictionary, index: int, character: Character, ca
 		text += "\nCaes en deshonra: de %s a %s." % [Character.role_name_for(old_role), character.role_name()]
 	return text
 
-static func _apply_effects(effects: Dictionary, character: Character, castle: Castle) -> String:
+static func _apply_effects(effects: Dictionary, character: Character, castle: Castle, relation: Relationship = null, as_list: bool = false) -> String:
 	var parts: Array[String] = []
 	for key: String in effects.keys():
+		# Historias encadenadas (StoryData): {set, next, end} — no es un número.
+		if key == "story":
+			var story := (Engine.get_main_loop() as SceneTree).root.get_node_or_null("StoryData")
+			if story != null:
+				var told: String = story.apply_story(effects[key], character)
+				if not told.is_empty():
+					parts.append(told)
+			continue
 		var amount: int = effects[key]
+		if amount < 0 and key in SCALED_PENALTIES:
+			amount = roundi(amount * PENALTY_SCALE)
 		match key:
+			"fame":
+				character.add_fame(amount)
+				parts.append("Fama %+d" % amount)
 			"gold":
 				character.gold = maxi(0, character.gold + amount)
 				parts.append("Oro %+d" % amount)
@@ -286,7 +404,61 @@ static func _apply_effects(effects: Dictionary, character: Character, castle: Ca
 				if castle != null:
 					castle.garrison_size = maxi(0, castle.garrison_size + amount)
 					parts.append("Guarnición %+d" % amount)
+			"affinity":
+				if relation != null:
+					relation.adjust(amount)
+					parts.append("Afinidad con %s %+d" % [relation.person_name, amount])
+			"grudge":
+				if relation != null:
+					relation.adjust_grudge(amount)
+					parts.append(("Rencor de %s %+d" if amount > 0 else "Rencor de %s %d") % [relation.person_name, amount])
+			"affection":
+				if relation != null:
+					relation.adjust_affection(amount)
+					parts.append("Afecto de %s %+d" % [relation.person_name, amount])
+			"clear_suitor":
+				if relation != null:
+					relation.rival_suitor = ""
+			"xp":
+				if amount > 0:
+					var levels := character.gain_xp(amount, XpRules.SOURCE_EVENT)
+					parts.append("+%d exp." % character.last_xp_gained + (" ¡Subes al nivel %d!" % character.level if levels > 0 else ""))
+			"item":
+				parts.append(_grant_item(character, amount))
+			"unique":   # probabilidad (en %) de encontrar una pieza única
+				if randf() * 100.0 < amount:
+					var found: String = load("res://scripts/resources/unique_items.gd").grant(character)
+					if not found.is_empty():
+						parts.append(found)
+	# as_list: una recompensa por línea (pantallas de resultado), en vez de todo seguido.
+	if as_list:
+		return "\n".join(parts.map(func(x: String) -> String: return "• " + x))
 	return ", ".join(parts)
+
+## Entrega una pieza al azar de la calidad dada (1..3). Si ya no cabe o ya la tiene, se vende al momento.
+static func _grant_item(character: Character, tier: int) -> String:
+	var pool: Array[Equipment] = []
+	for item: Equipment in GameData.equipment_catalog:
+		if item.tier == clampi(tier, 1, 3) and item.price > 0:
+			pool.append(item)
+	if pool.is_empty():
+		return ""
+	var found: Equipment = pool.pick_random()
+	var owned := character.equipment.any(func(e: Equipment) -> bool: return e.equipment_name == found.equipment_name)
+	var slot_taken := character.equipment.any(func(e: Equipment) -> bool: return e.slot == found.slot)
+	var worse := character.equipment.any(func(e: Equipment) -> bool: return e.slot == found.slot and e.price >= found.price)
+	if owned or worse or (not slot_taken and character.equipment.size() >= GameData.MAX_EQUIPMENT):
+		var value := maxi(1, roundi(found.price * 0.4))
+		character.gold += value
+		return "Encuentras %s y la vendes por %d de oro" % [found.equipment_name, value]
+	var replaced := character.equip(found.duplicate() as Equipment)
+	if replaced != null:
+		var value := maxi(1, roundi(replaced.price * 0.4))
+		character.gold += value
+		return "Encuentras %s (vendes %s por %d de oro)" % [found.equipment_name, replaced.equipment_name, value]
+	return "Encuentras %s" % found.equipment_name
+
+const SCALED_PENALTIES := ["gold", "honor", "health", "garrison", "castle_gold", "castle_food", "fame"]
 
 static func _stat_label(key: String) -> String:
 	match key:

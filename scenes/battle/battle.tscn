@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" path="res://scenes/battle/battle.gd" id="1_battl"]
 [ext_resource type="Script" path="res://scenes/battle/battle_board.gd" id="2_board"]
+[ext_resource type="Texture2D" path="res://assets/TurnFight-Meadow.png" id="3_bg"]
 
 [node name="Battle" type="Control"]
 layout_mode = 3
@@ -12,14 +13,26 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_battl")
 
-[node name="Background" type="ColorRect" parent="."]
+[node name="Background" type="TextureRect" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.12, 0.1, 0.08, 1)
+texture = ExtResource("3_bg")
+expand_mode = 3
+stretch_mode = 6
+
+[node name="Dim" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.03, 0.02, 0.015, 0.72)
 
 [node name="ScreenMargin" type="MarginContainer" parent="."]
 layout_mode = 1
@@ -28,82 +41,153 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/margin_left = 24
-theme_override_constants/margin_top = 24
-theme_override_constants/margin_right = 24
-theme_override_constants/margin_bottom = 24
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 14
 
-[node name="MainHBox" type="HBoxContainer" parent="ScreenMargin"]
+[node name="RootVBox" type="VBoxContainer" parent="ScreenMargin"]
 layout_mode = 2
-theme_override_constants/separation = 24
+theme_override_constants/separation = 10
 
-[node name="BoardCenter" type="CenterContainer" parent="ScreenMargin/MainHBox"]
+[node name="TopBar" type="HBoxContainer" parent="ScreenMargin/RootVBox"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="TitleLabel" type="Label" parent="ScreenMargin/RootVBox/TopBar"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
+theme_type_variation = &"HeaderLabel"
+theme_override_font_sizes/font_size = 20
+autowrap_mode = 3
 
-[node name="Board" type="Control" parent="ScreenMargin/MainHBox/BoardCenter"]
+[node name="TurnLabel" type="Label" parent="ScreenMargin/RootVBox/TopBar"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+theme_type_variation = &"StatLabel"
+
+[node name="MainHBox" type="HBoxContainer" parent="ScreenMargin/RootVBox"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 12
+
+[node name="BoardFrame" type="PanelContainer" parent="ScreenMargin/RootVBox/MainHBox"]
+layout_mode = 2
+size_flags_vertical = 0
+
+[node name="BoardCenter" type="CenterContainer" parent="ScreenMargin/RootVBox/MainHBox/BoardFrame"]
+layout_mode = 2
+
+[node name="Board" type="Control" parent="ScreenMargin/RootVBox/MainHBox/BoardFrame/BoardCenter"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(672, 448)
 layout_mode = 2
 script = ExtResource("2_board")
 
-[node name="SidePanel" type="VBoxContainer" parent="ScreenMargin/MainHBox"]
-custom_minimum_size = Vector2(380, 0)
+[node name="SidePanel" type="VBoxContainer" parent="ScreenMargin/RootVBox/MainHBox"]
+custom_minimum_size = Vector2(340, 0)
 layout_mode = 2
-theme_override_constants/separation = 10
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
 
-[node name="TitleLabel" type="Label" parent="ScreenMargin/MainHBox/SidePanel"]
+[node name="ForcesCard" type="PanelContainer" parent="ScreenMargin/RootVBox/MainHBox/SidePanel"]
+layout_mode = 2
+theme_type_variation = &"CardPanel"
+
+[node name="ForcesVBox" type="VBoxContainer" parent="ScreenMargin/RootVBox/MainHBox/SidePanel/ForcesCard"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="ForcesLabel" type="Label" parent="ScreenMargin/RootVBox/MainHBox/SidePanel/ForcesCard/ForcesVBox"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.831, 0.686, 0.216, 1)
-theme_override_font_sizes/font_size = 20
+theme_type_variation = &"BodyBoldLabel"
+
+[node name="ForcesBar" type="ProgressBar" parent="ScreenMargin/RootVBox/MainHBox/SidePanel/ForcesCard/ForcesVBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 12)
+layout_mode = 2
+max_value = 1.0
+step = 0.001
+value = 0.5
+show_percentage = false
+
+[node name="CompanionsLabel" type="Label" parent="ScreenMargin/RootVBox/MainHBox/SidePanel/ForcesCard/ForcesVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"MutedLabel"
+theme_override_font_sizes/font_size = 14
 autowrap_mode = 3
 
-[node name="TurnLabel" type="Label" parent="ScreenMargin/MainHBox/SidePanel"]
-unique_name_in_owner = true
+[node name="UnitCard" type="PanelContainer" parent="ScreenMargin/RootVBox/MainHBox/SidePanel"]
 layout_mode = 2
+theme_type_variation = &"CardPanel"
 
-[node name="ForcesLabel" type="Label" parent="ScreenMargin/MainHBox/SidePanel"]
-unique_name_in_owner = true
+[node name="UnitVBox" type="VBoxContainer" parent="ScreenMargin/RootVBox/MainHBox/SidePanel/UnitCard"]
 layout_mode = 2
+theme_override_constants/separation = 2
 
-[node name="Sep1" type="HSeparator" parent="ScreenMargin/MainHBox/SidePanel"]
+[node name="UnitHeader" type="Label" parent="ScreenMargin/RootVBox/MainHBox/SidePanel/UnitCard/UnitVBox"]
 layout_mode = 2
+theme_type_variation = &"SubheaderLabel"
+text = "Órdenes"
 
-[node name="UnitInfoLabel" type="Label" parent="ScreenMargin/MainHBox/SidePanel"]
+[node name="UnitInfoLabel" type="Label" parent="ScreenMargin/RootVBox/MainHBox/SidePanel/UnitCard/UnitVBox"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 70)
+custom_minimum_size = Vector2(0, 92)
 layout_mode = 2
+theme_override_font_sizes/font_size = 16
 autowrap_mode = 3
 
-[node name="Sep2" type="HSeparator" parent="ScreenMargin/MainHBox/SidePanel"]
-layout_mode = 2
-
-[node name="LogLabel" type="Label" parent="ScreenMargin/MainHBox/SidePanel"]
-unique_name_in_owner = true
+[node name="LogCard" type="PanelContainer" parent="ScreenMargin/RootVBox/MainHBox/SidePanel"]
 layout_mode = 2
 size_flags_vertical = 3
-theme_override_font_sizes/font_size = 13
+theme_type_variation = &"CardPanel"
+
+[node name="LogVBox" type="VBoxContainer" parent="ScreenMargin/RootVBox/MainHBox/SidePanel/LogCard"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="LogHeader" type="Label" parent="ScreenMargin/RootVBox/MainHBox/SidePanel/LogCard/LogVBox"]
+layout_mode = 2
+theme_type_variation = &"SubheaderLabel"
+text = "Crónica de la batalla"
+
+[node name="LogLabel" type="Label" parent="ScreenMargin/RootVBox/MainHBox/SidePanel/LogCard/LogVBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_font_sizes/font_size = 14
 autowrap_mode = 3
 clip_text = true
 
-[node name="LegendLabel" type="Label" parent="ScreenMargin/MainHBox/SidePanel"]
+[node name="LegendLabel" type="Label" parent="ScreenMargin/RootVBox/MainHBox/SidePanel"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.75, 0.75, 0.75, 1)
-theme_override_font_sizes/font_size = 11
+theme_type_variation = &"MutedLabel"
+theme_override_font_sizes/font_size = 13
 autowrap_mode = 3
 
-[node name="BtnEndTurn" type="Button" parent="ScreenMargin/MainHBox/SidePanel"]
-unique_name_in_owner = true
+[node name="ButtonsRow" type="HBoxContainer" parent="ScreenMargin/RootVBox/MainHBox/SidePanel"]
 layout_mode = 2
-text = "Terminar Turno"
+theme_override_constants/separation = 8
 
-[node name="BtnRetreat" type="Button" parent="ScreenMargin/MainHBox/SidePanel"]
+[node name="BtnRetreat" type="Button" parent="ScreenMargin/RootVBox/MainHBox/SidePanel/ButtonsRow"]
 unique_name_in_owner = true
 layout_mode = 2
+theme_type_variation = &"FlatButton"
 tooltip_text = "Abandonas la batalla: cuenta como derrota, pero salvas a los soldados que te quedan."
 text = "Retirarse"
+
+[node name="BtnEndTurn" type="Button" parent="ScreenMargin/RootVBox/MainHBox/SidePanel/ButtonsRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"PrimaryButton"
+text = "Terminar Turno ▸"
 
 [node name="ResultOverlay" type="ColorRect" parent="."]
 unique_name_in_owner = true
@@ -114,7 +198,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0, 0, 0, 0.6)
+color = Color(0, 0, 0, 0.62)
 
 [node name="ResultCenter" type="CenterContainer" parent="ResultOverlay"]
 layout_mode = 1
@@ -125,33 +209,33 @@ grow_horizontal = 2
 grow_vertical = 2
 
 [node name="ResultPanel" type="PanelContainer" parent="ResultOverlay/ResultCenter"]
-custom_minimum_size = Vector2(460, 0)
+unique_name_in_owner = true
+custom_minimum_size = Vector2(520, 0)
 layout_mode = 2
 
-[node name="ResultMargin" type="MarginContainer" parent="ResultOverlay/ResultCenter/ResultPanel"]
+[node name="ResultVBox" type="VBoxContainer" parent="ResultOverlay/ResultCenter/ResultPanel"]
 layout_mode = 2
-theme_override_constants/margin_left = 20
-theme_override_constants/margin_top = 20
-theme_override_constants/margin_right = 20
-theme_override_constants/margin_bottom = 20
+theme_override_constants/separation = 12
 
-[node name="ResultVBox" type="VBoxContainer" parent="ResultOverlay/ResultCenter/ResultPanel/ResultMargin"]
-layout_mode = 2
-theme_override_constants/separation = 14
-
-[node name="ResultTitle" type="Label" parent="ResultOverlay/ResultCenter/ResultPanel/ResultMargin/ResultVBox"]
+[node name="ResultTitle" type="Label" parent="ResultOverlay/ResultCenter/ResultPanel/ResultVBox"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.831, 0.686, 0.216, 1)
-theme_override_font_sizes/font_size = 28
+theme_type_variation = &"TitleLabel"
 horizontal_alignment = 1
 
-[node name="ResultLabel" type="Label" parent="ResultOverlay/ResultCenter/ResultPanel/ResultMargin/ResultVBox"]
+[node name="ResultSeparator" type="HSeparator" parent="ResultOverlay/ResultCenter/ResultPanel/ResultVBox"]
+layout_mode = 2
+
+[node name="ResultLabel" type="Label" parent="ResultOverlay/ResultCenter/ResultPanel/ResultVBox"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(480, 0)
 layout_mode = 2
 autowrap_mode = 3
 
-[node name="BtnBackToMap" type="Button" parent="ResultOverlay/ResultCenter/ResultPanel/ResultMargin/ResultVBox"]
+[node name="BtnBackToMap" type="Button" parent="ResultOverlay/ResultCenter/ResultPanel/ResultVBox"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(220, 0)
 layout_mode = 2
+size_flags_horizontal = 4
+theme_type_variation = &"PrimaryButton"
 text = "Volver al Mapa"

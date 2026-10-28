@@ -3,6 +3,14 @@
 [ext_resource type="Script" uid="uid://dytf4osjtdwqr" path="res://scenes/main_menu/main_menu.gd" id="1_fsom3"]
 [ext_resource type="Texture2D" uid="uid://b8i0hob6iwv4" path="res://assets/Main-Menu.png" id="2_0ebjn"]
 
+[sub_resource type="Gradient" id="Gradient_shade"]
+offsets = PackedFloat32Array(0, 0.45, 1)
+colors = PackedColorArray(0, 0, 0, 0, 0.05, 0.03, 0.02, 0.45, 0.06, 0.035, 0.02, 0.88)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_shade"]
+gradient = SubResource("Gradient_shade")
+fill_to = Vector2(1, 0)
+
 [node name="MainMenu" type="Control" unique_id=1138446230]
 layout_mode = 3
 anchors_preset = 15
@@ -25,53 +33,125 @@ texture = ExtResource("2_0ebjn")
 expand_mode = 3
 stretch_mode = 6
 
-[node name="ScreenMargin" type="MarginContainer" parent="." unique_id=1005298010]
-propagate_maximum_size = false
+[node name="Shade" type="TextureRect" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
+texture = SubResource("GradientTexture2D_shade")
+expand_mode = 1
+
+[node name="MenuColumn" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 11
+anchor_left = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -460.0
+grow_horizontal = 0
+grow_vertical = 2
 theme_override_constants/margin_left = 40
-theme_override_constants/margin_top = 40
-theme_override_constants/margin_right = 40
-theme_override_constants/margin_bottom = 40
-accessibility_region = true
+theme_override_constants/margin_top = 22
+theme_override_constants/margin_right = 56
+theme_override_constants/margin_bottom = 16
 
-[node name="CenterBox" type="CenterContainer" parent="ScreenMargin" unique_id=1997010091]
+[node name="MenuVBox" type="VBoxContainer" parent="MenuColumn"]
+unique_name_in_owner = true
 layout_mode = 2
+theme_override_constants/separation = 8
 
-[node name="MenuVBox" type="VBoxContainer" parent="ScreenMargin/CenterBox" unique_id=790616597]
+[node name="TitleLabel" type="Label" parent="MenuColumn/MenuVBox" unique_id=1812759390]
 layout_mode = 2
-theme_override_constants/separation = 16
-alignment = 1
-
-[node name="TitleLabel" type="Label" parent="ScreenMargin/CenterBox/MenuVBox" unique_id=1812759390]
-layout_mode = 2
-theme_override_font_sizes/font_size = 32
+theme_type_variation = &"TitleLabel"
+theme_override_font_sizes/font_size = 54
 text = "Royal Pain"
+horizontal_alignment = 1
 
-[node name="BtnNuevaPartida" type="Button" parent="ScreenMargin/CenterBox/MenuVBox"]
+[node name="SubtitleLabel" type="Label" parent="MenuColumn/MenuVBox"]
 layout_mode = 2
+theme_type_variation = &"SubheaderLabel"
+theme_override_font_sizes/font_size = 17
+text = "— Reinos de Destino —"
+horizontal_alignment = 1
+
+[node name="TopSeparator" type="HSeparator" parent="MenuColumn/MenuVBox"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="BtnMapa" type="Button" parent="MenuColumn/MenuVBox" unique_id=795181948]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"PrimaryButton"
+theme_override_font_sizes/font_size = 18
+text = "Continuar"
+
+[node name="BtnNuevaPartida" type="Button" parent="MenuColumn/MenuVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"MenuButtonLarge"
 text = "Nueva Partida"
 
-[node name="BtnCargarPartida" type="Button" parent="ScreenMargin/CenterBox/MenuVBox"]
+[node name="BtnCargarPartida" type="Button" parent="MenuColumn/MenuVBox"]
+unique_name_in_owner = true
 layout_mode = 2
+theme_type_variation = &"MenuButtonLarge"
 text = "Cargar Partida"
 
-[node name="BtnCombatePrueba" type="Button" parent="ScreenMargin/CenterBox/MenuVBox" unique_id=331482050]
+[node name="BtnCrearPersonaje" type="Button" parent="MenuColumn/MenuVBox" unique_id=1719078322]
+unique_name_in_owner = true
 layout_mode = 2
-text = "Combate de prueba"
-
-[node name="BtnCrearPersonaje" type="Button" parent="ScreenMargin/CenterBox/MenuVBox" unique_id=1719078322]
-layout_mode = 2
+theme_type_variation = &"MenuButtonLarge"
 text = "Crear Personaje"
 
-[node name="BtnMapa" type="Button" parent="ScreenMargin/CenterBox/MenuVBox" unique_id=795181948]
+[node name="BtnCombatePrueba" type="Button" parent="MenuColumn/MenuVBox" unique_id=331482050]
+unique_name_in_owner = true
 layout_mode = 2
-text = "Mapa"
+theme_type_variation = &"MenuButtonLarge"
+text = "Duelo de Práctica"
 
-[node name="BtnSalir" type="Button" parent="ScreenMargin/CenterBox/MenuVBox" unique_id=270006974]
+[node name="LearnRow" type="HBoxContainer" parent="MenuColumn/MenuVBox"]
 layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="BtnTutorial" type="Button" parent="MenuColumn/MenuVBox/LearnRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Lecciones de duelo y batalla con casos reales."
+theme_type_variation = &"MenuButtonLarge"
+text = "Tutorial"
+
+[node name="BtnGlosario" type="Button" parent="MenuColumn/MenuVBox/LearnRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Explicación de cada parte del juego."
+theme_type_variation = &"MenuButtonLarge"
+text = "Glosario"
+
+[node name="BtnOpciones" type="Button" parent="MenuColumn/MenuVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"MenuButtonLarge"
+text = "Opciones"
+
+[node name="BtnSalir" type="Button" parent="MenuColumn/MenuVBox" unique_id=270006974]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"MenuButtonLarge"
 text = "Salir"
+
+[node name="Spacer" type="Control" parent="MenuColumn/MenuVBox"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="SaveInfoLabel" type="Label" parent="MenuColumn/MenuVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"MutedLabel"
+horizontal_alignment = 1
+clip_text = true
+text_overrun_behavior = 3

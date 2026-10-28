@@ -53,7 +53,7 @@ grow_vertical = 2
 theme_override_constants/margin_left = 50
 theme_override_constants/margin_top = 50
 theme_override_constants/margin_right = 50
-theme_override_constants/margin_bottom = 50
+theme_override_constants/margin_bottom = 96
 
 [node name="RootVBox" type="VBoxContainer" parent="ScreenMargin" unique_id=724668887]
 unique_name_in_owner = true
@@ -62,7 +62,8 @@ layout_mode = 2
 [node name="TitleLabel" type="Label" parent="ScreenMargin/RootVBox" unique_id=1202104190]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.012617188, 0.012617188, 0.012617188, 1)
+theme_type_variation = &"InkHeaderLabel"
+theme_override_font_sizes/font_size = 26
 text = "Creación de personaje"
 
 [node name="PagesTab" type="TabContainer" parent="ScreenMargin/RootVBox" unique_id=1008308162]
@@ -110,11 +111,12 @@ layout_mode = 2
 [node name="LblFirstName" type="Label" parent="ScreenMargin/RootVBox/PagesTab/PageIdentity/IdentitySection/FieldsBox/FirstNameRow" unique_id=766809597]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.012617188, 0.012617188, 0.012617188, 1)
+theme_type_variation = &"InkLabel"
 text = "Nombre"
 
 [node name="EditFirstName" type="LineEdit" parent="ScreenMargin/RootVBox/PagesTab/PageIdentity/IdentitySection/FieldsBox/FirstNameRow" unique_id=294786576]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(240, 0)
 layout_mode = 2
 
 [node name="LastNameRow" type="HBoxContainer" parent="ScreenMargin/RootVBox/PagesTab/PageIdentity/IdentitySection/FieldsBox" unique_id=10323444]
@@ -124,11 +126,12 @@ layout_mode = 2
 [node name="LblLastName" type="Label" parent="ScreenMargin/RootVBox/PagesTab/PageIdentity/IdentitySection/FieldsBox/LastNameRow" unique_id=1371005698]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.012617188, 0.012617188, 0.012617188, 1)
+theme_type_variation = &"InkLabel"
 text = "Apellido"
 
 [node name="EditLastName" type="LineEdit" parent="ScreenMargin/RootVBox/PagesTab/PageIdentity/IdentitySection/FieldsBox/LastNameRow" unique_id=394716245]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(240, 0)
 layout_mode = 2
 
 [node name="GenderRow" type="HBoxContainer" parent="ScreenMargin/RootVBox/PagesTab/PageIdentity/IdentitySection/FieldsBox" unique_id=928057831]
@@ -138,8 +141,8 @@ layout_mode = 2
 [node name="LblGender" type="Label" parent="ScreenMargin/RootVBox/PagesTab/PageIdentity/IdentitySection/FieldsBox/GenderRow" unique_id=1265558392]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.012617188, 0.012617188, 0.012617188, 1)
-text = "Genero"
+theme_type_variation = &"InkLabel"
+text = "Género"
 
 [node name="BtnMale" type="Button" parent="ScreenMargin/RootVBox/PagesTab/PageIdentity/IdentitySection/FieldsBox/GenderRow" unique_id=2099229057]
 unique_name_in_owner = true
@@ -165,7 +168,7 @@ theme_override_constants/separation = 15
 [node name="LblBio" type="Label" parent="ScreenMargin/RootVBox/PagesTab/PageIdentity/IdentitySection/BioBox" unique_id=310695663]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.011764706, 0.011764706, 0.011764706, 1)
+theme_type_variation = &"InkLabel"
 text = "Biografía (opcional)"
 
 [node name="EditBio" type="TextEdit" parent="ScreenMargin/RootVBox/PagesTab/PageIdentity/IdentitySection/BioBox" unique_id=181116256]
@@ -196,7 +199,7 @@ size_flags_horizontal = 3
 [node name="LblAdvantages" type="Label" parent="ScreenMargin/RootVBox/PagesTab/PageTraits/TraitsSection/AdvantagesBox" unique_id=541339931]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.012617188, 0.012617188, 0.012617188, 1)
+theme_type_variation = &"InkLabel"
 text = "Ventajas (mínimo 3)"
 
 [node name="AdvantagesScroll" type="ScrollContainer" parent="ScreenMargin/RootVBox/PagesTab/PageTraits/TraitsSection/AdvantagesBox" unique_id=1452192155]
@@ -211,7 +214,7 @@ layout_mode = 2
 [node name="LblAdvantagesCount" type="Label" parent="ScreenMargin/RootVBox/PagesTab/PageTraits/TraitsSection/AdvantagesBox" unique_id=728630360]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.012617188, 0.012617188, 0.012617188, 1)
+theme_type_variation = &"InkLabel"
 
 [node name="DisadvantagesBox" type="VBoxContainer" parent="ScreenMargin/RootVBox/PagesTab/PageTraits/TraitsSection" unique_id=1992070537]
 unique_name_in_owner = true
@@ -222,7 +225,7 @@ size_flags_horizontal = 3
 [node name="LblDisadvantages" type="Label" parent="ScreenMargin/RootVBox/PagesTab/PageTraits/TraitsSection/DisadvantagesBox" unique_id=1151304524]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.012617188, 0.012617188, 0.012617188, 1)
+theme_type_variation = &"InkLabel"
 text = "Desventajas (mínimo 2)"
 
 [node name="DisadvantagesScroll" type="ScrollContainer" parent="ScreenMargin/RootVBox/PagesTab/PageTraits/TraitsSection/DisadvantagesBox" unique_id=857593205]
@@ -239,7 +242,7 @@ layout_mode = 2
 [node name="LblDisadvantagesCount" type="Label" parent="ScreenMargin/RootVBox/PagesTab/PageTraits/TraitsSection/DisadvantagesBox" unique_id=150836641]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.012617188, 0.012617188, 0.012617188, 1)
+theme_type_variation = &"InkLabel"
 
 [node name="PageStats" type="VBoxContainer" parent="ScreenMargin/RootVBox/PagesTab" unique_id=1600606452]
 unique_name_in_owner = true
@@ -261,7 +264,7 @@ size_flags_horizontal = 3
 [node name="LblPersonality" type="Label" parent="ScreenMargin/RootVBox/PagesTab/PageStats/PersonalitySection/PersonalityRow" unique_id=1057765946]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.012617188, 0.012617188, 0.012617188, 1)
+theme_type_variation = &"InkLabel"
 text = "Personalidad"
 
 [node name="OptPersonality" type="OptionButton" parent="ScreenMargin/RootVBox/PagesTab/PageStats/PersonalitySection/PersonalityRow" unique_id=98241343]
@@ -276,7 +279,7 @@ size_flags_horizontal = 3
 [node name="LblAlignment" type="Label" parent="ScreenMargin/RootVBox/PagesTab/PageStats/PersonalitySection/AlignmentRow" unique_id=1896452377]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.012617188, 0.012617188, 0.012617188, 1)
+theme_type_variation = &"InkLabel"
 text = "Alineación"
 
 [node name="OptAlignment" type="OptionButton" parent="ScreenMargin/RootVBox/PagesTab/PageStats/PersonalitySection/AlignmentRow" unique_id=1822727075]
@@ -291,7 +294,7 @@ size_flags_horizontal = 3
 [node name="LblFighterType" type="Label" parent="ScreenMargin/RootVBox/PagesTab/PageStats/PersonalitySection/FighterTypeRow" unique_id=1713847982]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.012617188, 0.012617188, 0.012617188, 1)
+theme_type_variation = &"InkLabel"
 text = "Tipo de Luchador"
 
 [node name="OptFighterType" type="OptionButton" parent="ScreenMargin/RootVBox/PagesTab/PageStats/PersonalitySection/FighterTypeRow" unique_id=499211276]
@@ -333,7 +336,7 @@ size_flags_vertical = 3
 [node name="LblGeneralSkills" type="Label" parent="ScreenMargin/RootVBox/PagesTab/PageSkills/GeneralSkillsBox" unique_id=1477696267]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.011764706, 0.011764706, 0.011764706, 1)
+theme_type_variation = &"InkLabel"
 text = "Habilidades Generales"
 
 [node name="GeneralSkillsScroll" type="ScrollContainer" parent="ScreenMargin/RootVBox/PagesTab/PageSkills/GeneralSkillsBox" unique_id=963966623]
@@ -355,7 +358,7 @@ size_flags_vertical = 3
 [node name="LblCombatSkills" type="Label" parent="ScreenMargin/RootVBox/PagesTab/PageSkills/CombatSkillsBox" unique_id=1947815079]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.011764706, 0.011764706, 0.011764706, 1)
+theme_type_variation = &"InkLabel"
 text = "Habilidades de Combate"
 
 [node name="CombatSkillsScroll" type="ScrollContainer" parent="ScreenMargin/RootVBox/PagesTab/PageSkills/CombatSkillsBox" unique_id=1217298709]
@@ -377,7 +380,7 @@ size_flags_vertical = 3
 [node name="LblBattleSkills" type="Label" parent="ScreenMargin/RootVBox/PagesTab/PageSkills/BattleSkillsBox" unique_id=1548560359]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.011764706, 0.011764706, 0.011764706, 1)
+theme_type_variation = &"InkLabel"
 text = "Habilidades de Batalla"
 
 [node name="BattleSkillsScroll" type="ScrollContainer" parent="ScreenMargin/RootVBox/PagesTab/PageSkills/BattleSkillsBox" unique_id=2108127756]
@@ -398,7 +401,7 @@ metadata/_tab_index = 4
 [node name="LblEquipmentCount" type="Label" parent="ScreenMargin/RootVBox/PagesTab/PageEquipment" unique_id=2067593053]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.011764706, 0.011764706, 0.011764706, 1)
+theme_type_variation = &"InkLabel"
 
 [node name="EquipmentScroll" type="ScrollContainer" parent="ScreenMargin/RootVBox/PagesTab/PageEquipment" unique_id=1058577507]
 unique_name_in_owner = true
@@ -418,10 +421,13 @@ anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -1152.0
-offset_top = -28.0
+offset_left = -620.0
+offset_top = -92.0
+offset_right = -60.0
+offset_bottom = -44.0
 grow_horizontal = 0
 grow_vertical = 0
+theme_override_constants/separation = 10
 alignment = 2
 
 [node name="BtnAleatorio" type="Button" parent="BottomBar"]
@@ -438,6 +444,7 @@ text = "Volver"
 [node name="BtnContinuar" type="Button" parent="BottomBar" unique_id=1760652400]
 unique_name_in_owner = true
 layout_mode = 2
+theme_type_variation = &"PrimaryButton"
 disabled = true
 text = "Continuar"
 

@@ -2,7 +2,6 @@
 
 [ext_resource type="Script" path="res://scenes/new_game/new_game.gd" id="1_newgm"]
 [ext_resource type="Texture2D" uid="uid://b8i0hob6iwv4" path="res://assets/Main-Menu.png" id="2_bgimg"]
-[ext_resource type="Texture2D" uid="uid://buefo3wn0eicc" path="res://assets/backboxScretch.png" id="3_backb"]
 
 [node name="NewGame" type="Control"]
 layout_mode = 3
@@ -24,16 +23,15 @@ texture = ExtResource("2_bgimg")
 expand_mode = 3
 stretch_mode = 6
 
-[node name="BackboxScretch" type="TextureRect" parent="."]
+[node name="Dim" type="ColorRect" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-texture = ExtResource("3_backb")
-expand_mode = 5
-stretch_mode = 5
+mouse_filter = 2
+color = Color(0.03, 0.02, 0.015, 0.55)
 
 [node name="ScreenMargin" type="MarginContainer" parent="."]
 layout_mode = 1
@@ -42,82 +40,165 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/margin_left = 50
-theme_override_constants/margin_top = 50
-theme_override_constants/margin_right = 50
-theme_override_constants/margin_bottom = 50
+theme_override_constants/margin_left = 40
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 40
+theme_override_constants/margin_bottom = 16
 
 [node name="RootVBox" type="VBoxContainer" parent="ScreenMargin"]
+unique_name_in_owner = true
 layout_mode = 2
-theme_override_constants/separation = 24
-alignment = 1
+theme_override_constants/separation = 12
 
 [node name="TitleLabel" type="Label" parent="ScreenMargin/RootVBox"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.011764706, 0.011764706, 0.011764706, 1)
-theme_override_font_sizes/font_size = 28
+theme_type_variation = &"TitleLabel"
 text = "Nueva Partida"
 horizontal_alignment = 1
 
+[node name="SubtitleLabel" type="Label" parent="ScreenMargin/RootVBox"]
+layout_mode = 2
+theme_type_variation = &"MutedLabel"
+text = "Elige quién eres, dónde empiezas y qué destino persigues."
+horizontal_alignment = 1
+
+[node name="WorldRow" type="HBoxContainer" parent="ScreenMargin/RootVBox"]
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 12
+
+[node name="WorldLabel" type="Label" parent="ScreenMargin/RootVBox/WorldRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+theme_type_variation = &"MutedLabel"
+
+[node name="BtnOtroMundo" type="Button" parent="ScreenMargin/RootVBox/WorldRow"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Genera otro mundo: otros señores, otras fuerzas y otras guerras."
+text = "Otro mundo"
+
 [node name="SelectHBox" type="HBoxContainer" parent="ScreenMargin/RootVBox"]
 layout_mode = 2
-theme_override_constants/separation = 80
-alignment = 1
+size_flags_vertical = 3
+theme_override_constants/separation = 18
 
-[node name="CharacterBox" type="VBoxContainer" parent="ScreenMargin/RootVBox/SelectHBox"]
+[node name="CharacterCard" type="PanelContainer" parent="ScreenMargin/RootVBox/SelectHBox"]
 layout_mode = 2
+size_flags_horizontal = 3
 
-[node name="LblCharacter" type="Label" parent="ScreenMargin/RootVBox/SelectHBox/CharacterBox"]
+[node name="CharacterBox" type="VBoxContainer" parent="ScreenMargin/RootVBox/SelectHBox/CharacterCard"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.011764706, 0.011764706, 0.011764706, 1)
-text = "Personaje"
+theme_override_constants/separation = 10
 
-[node name="CharacterOption" type="OptionButton" parent="ScreenMargin/RootVBox/SelectHBox/CharacterBox"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(280, 0)
+[node name="LblCharacter" type="Label" parent="ScreenMargin/RootVBox/SelectHBox/CharacterCard/CharacterBox"]
 layout_mode = 2
+theme_type_variation = &"SubheaderLabel"
+text = "I · Personaje"
 
-[node name="CastleBox" type="VBoxContainer" parent="ScreenMargin/RootVBox/SelectHBox"]
-layout_mode = 2
-
-[node name="LblCastle" type="Label" parent="ScreenMargin/RootVBox/SelectHBox/CastleBox"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.011764706, 0.011764706, 0.011764706, 1)
-text = "Castillo de origen"
-
-[node name="CastleOption" type="OptionButton" parent="ScreenMargin/RootVBox/SelectHBox/CastleBox"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(320, 0)
-layout_mode = 2
-
-[node name="RoleBox" type="VBoxContainer" parent="ScreenMargin/RootVBox/SelectHBox"]
-layout_mode = 2
-
-[node name="LblRole" type="Label" parent="ScreenMargin/RootVBox/SelectHBox/RoleBox"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.011764706, 0.011764706, 0.011764706, 1)
-text = "Rol inicial"
-
-[node name="RoleOption" type="OptionButton" parent="ScreenMargin/RootVBox/SelectHBox/RoleBox"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(200, 0)
-layout_mode = 2
-
-[node name="InfoLabel" type="Label" parent="ScreenMargin/RootVBox"]
+[node name="CharacterOption" type="OptionButton" parent="ScreenMargin/RootVBox/SelectHBox/CharacterCard/CharacterBox"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.011764706, 0.011764706, 0.011764706, 1)
-horizontal_alignment = 1
+clip_text = true
+fit_to_longest_item = false
+
+[node name="CharacterRow" type="HBoxContainer" parent="ScreenMargin/RootVBox/SelectHBox/CharacterCard/CharacterBox"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 12
+
+[node name="Portrait" type="TextureRect" parent="ScreenMargin/RootVBox/SelectHBox/CharacterCard/CharacterBox/CharacterRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 200)
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="CharacterInfo" type="Label" parent="ScreenMargin/RootVBox/SelectHBox/CharacterCard/CharacterBox/CharacterRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+theme_override_font_sizes/font_size = 17
+autowrap_mode = 3
+
+[node name="CastleCard" type="PanelContainer" parent="ScreenMargin/RootVBox/SelectHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="CastleBox" type="VBoxContainer" parent="ScreenMargin/RootVBox/SelectHBox/CastleCard"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="LblCastle" type="Label" parent="ScreenMargin/RootVBox/SelectHBox/CastleCard/CastleBox"]
+layout_mode = 2
+theme_type_variation = &"SubheaderLabel"
+text = "II · Castillo de origen"
+
+[node name="CastleOption" type="OptionButton" parent="ScreenMargin/RootVBox/SelectHBox/CastleCard/CastleBox"]
+unique_name_in_owner = true
+layout_mode = 2
+clip_text = true
+fit_to_longest_item = false
+
+[node name="KingdomBanner" type="ColorRect" parent="ScreenMargin/RootVBox/SelectHBox/CastleCard/CastleBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 6)
+layout_mode = 2
+
+[node name="CastleInfo" type="Label" parent="ScreenMargin/RootVBox/SelectHBox/CastleCard/CastleBox"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_font_sizes/font_size = 17
+autowrap_mode = 3
+
+[node name="RoleCard" type="PanelContainer" parent="ScreenMargin/RootVBox/SelectHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="RoleBox" type="VBoxContainer" parent="ScreenMargin/RootVBox/SelectHBox/RoleCard"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="LblRole" type="Label" parent="ScreenMargin/RootVBox/SelectHBox/RoleCard/RoleBox"]
+layout_mode = 2
+theme_type_variation = &"SubheaderLabel"
+text = "III · Rol inicial y destino"
+
+[node name="RoleOption" type="OptionButton" parent="ScreenMargin/RootVBox/SelectHBox/RoleCard/RoleBox"]
+unique_name_in_owner = true
+layout_mode = 2
+clip_text = true
+fit_to_longest_item = false
+
+[node name="GoalTitle" type="Label" parent="ScreenMargin/RootVBox/SelectHBox/RoleCard/RoleBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"StatLabel"
+autowrap_mode = 3
+
+[node name="InfoLabel" type="Label" parent="ScreenMargin/RootVBox/SelectHBox/RoleCard/RoleBox"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_font_sizes/font_size = 17
+autowrap_mode = 3
 
 [node name="BottomBar" type="HBoxContainer" parent="ScreenMargin/RootVBox"]
 layout_mode = 2
-theme_override_constants/separation = 16
-alignment = 1
+theme_override_constants/separation = 14
 
 [node name="BtnVolverMenu" type="Button" parent="ScreenMargin/RootVBox/BottomBar"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Volver"
+theme_type_variation = &"FlatButton"
+text = "← Volver"
+
+[node name="Spacer" type="Control" parent="ScreenMargin/RootVBox/BottomBar"]
+layout_mode = 2
+size_flags_horizontal = 3
 
 [node name="BtnCrearPersonaje" type="Button" parent="ScreenMargin/RootVBox/BottomBar"]
 unique_name_in_owner = true
@@ -126,5 +207,7 @@ text = "Crear Personaje"
 
 [node name="BtnComenzar" type="Button" parent="ScreenMargin/RootVBox/BottomBar"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(220, 0)
 layout_mode = 2
+theme_type_variation = &"PrimaryButton"
 text = "Comenzar"

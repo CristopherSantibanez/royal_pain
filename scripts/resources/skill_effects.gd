@@ -45,7 +45,7 @@ static func march_turns(month: int, commander: Character) -> int:
 	return 1
 
 static func income(amount: int, character: Character) -> int:
-	return roundi(amount * ADMINISTRADOR_BONUS) if has(character, ADMINISTRADOR) else amount
+	return roundi(amount * income_multiplier(character))   # Administrador y demás efectos de ingresos
 
 static func max_march_hops(character: Character) -> int:
 	return VIAJERO_MAX_HOPS if has(character, VIAJERO) else 1
@@ -71,3 +71,127 @@ static func march_destinations(origin_id: String, castles: Array[Castle], hops: 
 					result.append(n)
 		frontier = next
 	return result
+
+# --- Efectos del catálogo (ContentCatalog) ---
+# Cada habilidad, ventaja, desventaja o pieza de equipo puede aportar efectos con nombre
+# (ver la lista en content_catalog.gd). Se suman por nombre, así funcionan también las
+# fichas guardadas antes de que existieran.
+
+const ContentCatalog = preload("res://scripts/resources/content_catalog.gd")
+static var _fx_by_name := {}
+
+static func _fx_table() -> Dictionary:
+	if _fx_by_name.is_empty():
+		for list in [ContentCatalog.GENERAL_SKILLS, ContentCatalog.COMBAT_SKILLS, ContentCatalog.BATTLE_SKILLS,
+				ContentCatalog.ADVANTAGES, ContentCatalog.DISADVANTAGES, ContentCatalog.EQUIPMENT]:
+			for e: Dictionary in list:
+				_fx_by_name[e.name] = e.get("fx", {})
+	return _fx_by_name
+
+# --- Piezas únicas (ContentCatalog, nivel 4): cada una tiene una habilidad propia por id ---
+const UNIQUE_DURANDAL := "durandal"          # primer ataque de cada duelo imparable
+const UNIQUE_BLEED := "sangrado"             # cada golpe hace sangrar al rival
+const UNIQUE_CRIT_WARD := "anticritico"      # el primer crítico recibido en cada duelo se anula
+const UNIQUE_REFLECT := "reflejo"            # devuelve parte del daño recibido
+const UNIQUE_STEADY := "firmeza"             # inmune al desequilibrio
+const UNIQUE_ORIFLAMMA := "oriflama"         # batalla: +10 de moral y el primer pelotón que huiría resiste
+const UNIQUE_OLIFANT := "olifante"           # batalla: una habilidad de mando más
+const UNIQUE_BABIECA := "babieca"            # viajar en invierno sin coste extra
+const UNIQUE_ELOQUENCE := "elocuencia"       # +15% de éxito al conversar
+const UNIQUE_SAFE_ROADS := "camino_seguro"   # la mitad de encuentros en el camino
+const UNIQUE_RELIC := "reliquia"             # cura las heridas graves cada mes
+const UNIQUE_SEAL := "sello"                 # cartas sin acción extra
+
+const BLEED_DAMAGE := 4
+const BLEED_TURNS := 2
+const REFLECT_FACTOR := 0.25
+const ELOQUENCE_BONUS := 0.15
+const SAFE_ROADS_FACTOR := 0.5
+
+static var _unique_by_name := {}
+
+## ¿Lleva el personaje equipada la pieza única con ese id?
+static func has_unique(character: Character, unique_id: String) -> bool:
+	if character == null:
+		return false
+	if _unique_by_name.is_empty():
+		for e: Dictionary in ContentCatalog.EQUIPMENT:
+			if e.has("unique"):
+				_unique_by_name[e.name] = e.unique
+	for e: Equipment in character.equipment:
+		if e != null and _unique_by_name.get(e.equipment_name, "") == unique_id:
+			return true
+	return false
+
+static func is_unique_item(item: Equipment) -> bool:
+	return item != null and item.tier >= ContentCatalog.UNIQUE_TIER
+
+## Suma de un efecto entre todo lo que tiene el personaje (0 si nada lo aporta).
+static func fx(character: Character, key: String) -> float:
+	if character == null:
+		return 0.0
+	var table := _fx_table()
+	var total := 0.0
+	for list in [character.general_skills, character.combat_skills, character.battle_skills]:
+		for s: Skill in list:
+			if s != null:
+				total += table.get(s.skill_name, {}).get(key, 0.0)
+	for list in [character.advantages, character.disadvantages]:
+		for t: CharacterTrait in list:
+			if t != null:
+				total += table.get(t.trait_name, {}).get(key, 0.0)
+	for e: Equipment in character.equipment:
+		if e != null:
+			total += table.get(e.equipment_name, {}).get(key, 0.0)
+	return total
+
+# --- Ayudas para el mundo, la economía y lo social (las usan otros sistemas) ---
+
+## Multiplicador de oro ganado (impuestos, gobierno, trabajo, rentas). Incluye Administrador.
+static func income_multiplier(character: Character) -> float:
+	var m := 1.0 + fx(character, "income")
+	if has(character, ADMINISTRADOR):
+		m *= ADMINISTRADOR_BONUS
+	return maxf(0.2, m)
+
+## Multiplicador del coste de reclutar (milicia, mercenarios): menor es más barato.
+static func recruit_cost_multiplier(character: Character) -> float:
+	return clampf(1.0 + fx(character, "recruit"), 0.3, 2.0)
+
+## Multiplicador del gasto de mantener la tropa (paga y comida) de tus castillos.
+static func upkeep_multiplier(character: Character) -> float:
+	return clampf(1.0 + fx(character, "upkeep"), 0.3, 2.0)
+
+## Multiplicador del efecto de conversar y de los gestos íntimos.
+static func social_multiplier(character: Character) -> float:
+	return clampf(1.0 + fx(character, "social") + (character.charisma - 10) * 0.02 if character != null else 1.0, 0.3, 2.5)
+
+## Multiplicador del efecto de los regalos.
+static func gift_multiplier(character: Character) -> float:
+	return clampf(1.0 + fx(character, "gift"), 0.3, 2.5)
+
+## Suma a la probabilidad de éxito de las opciones de evento con riesgo (p. ej. +0.05).
+static func event_luck(character: Character) -> float:
+	return fx(character, "event_luck")
+
+## Multiplicadores de fama y honor ganados (las pérdidas no se modifican).
+static func fame_gain_multiplier(character: Character) -> float:
+	return maxf(0.0, 1.0 + fx(character, "fame_gain"))
+
+static func honor_gain_multiplier(character: Character) -> float:
+	return maxf(0.0, 1.0 + fx(character, "honor_gain"))
+
+## Vida extra recuperada cada mes, y meses menos de herida grave.
+static func heal_bonus(character: Character) -> int:
+	return roundi(fx(character, "heal"))
+
+static func wound_reduction(character: Character) -> int:
+	return roundi(fx(character, "wound_resist"))
+
+## Castillos extra (saltos) de visión en el mapa.
+static func vision_bonus(character: Character) -> int:
+	return roundi(fx(character, "vision"))
+
+## Moral extra de los compañeros que luchan a tu lado.
+static func companion_loyalty(character: Character) -> int:
+	return roundi(fx(character, "loyalty"))

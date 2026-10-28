@@ -24,6 +24,20 @@ GameManager="*uid://kihvwyjrsou5"
 MapData="*uid://bo7ni712xogui"
 ArmyData="*res://scripts/autoload/army_data.gd"
 RelationsData="*res://scripts/autoload/relations_data.gd"
+MissionData="*res://scripts/autoload/mission_data.gd"
+WorldEvents="*res://scripts/autoload/world_events.gd"
+DynastyData="*res://scripts/autoload/dynasty_data.gd"
+ExplorationData="*res://scripts/autoload/exploration_data.gd"
+TravelData="*res://scripts/autoload/travel_data.gd"
+AchievementData="*res://scripts/autoload/achievement_data.gd"
+CaptureData="*res://scripts/autoload/capture_data.gd"
+AmbitionData="*res://scripts/autoload/ambition_data.gd"
+StoryData="*res://scripts/autoload/story_data.gd"
+Settings="*res://scripts/autoload/settings.gd"
+Sfx="*res://scripts/autoload/sfx.gd"
+Music="*res://scripts/autoload/music.gd"
+Ambience="*res://scripts/autoload/ambience.gd"
+SceneFade="*res://scripts/autoload/scene_fade.gd"
 
 [display]
 
@@ -36,7 +50,7 @@ version_control/autoload_on_startup=true
 
 [gui]
 
-theme/custom_font="uid://8iybn7xfbeev"
+theme/custom="res://ui/theme/royal_theme.tres"
 
 [physics]
 

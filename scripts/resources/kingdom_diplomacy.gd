@@ -66,7 +66,8 @@ static func _wars_of(wars: Dictionary, kingdom: int) -> int:
 			n += 1
 	return n
 
-# Actualización mensual. Devuelve noticias [{text, castle_id}] (castle_id: un castillo del reino que actúa).
+# Actualización mensual. Devuelve noticias [{text, castle_id, kind}] (castle_id: un castillo del reino que actúa;
+# kind: "peace", "war" o "alliance").
 static func monthly_update(castles: Array[Castle], wars: Dictionary, alliances: Dictionary,
 		month: int, player_kingdom: int) -> Array[Dictionary]:
 	var news: Array[Dictionary] = []
@@ -87,7 +88,7 @@ static func monthly_update(castles: Array[Castle], wars: Dictionary, alliances: 
 		if month - int(wars[key]) >= MIN_WAR_MONTHS and randf() < PEACE_CHANCE:
 			wars.erase(key)
 			news.append({"text": "%s y %s firman la paz." % [KingdomEnums.kingdom_name(a), KingdomEnums.kingdom_name(b)],
-				"castle_id": a_castle.get(a, "")})
+				"castle_id": a_castle.get(a, ""), "kind": "peace"})
 
 	# Nuevas guerras y alianzas. El reino del jugador no participa: su diplomacia la decide él.
 	for k in neighbors.keys():
@@ -98,20 +99,21 @@ static func monthly_update(castles: Array[Castle], wars: Dictionary, alliances: 
 			continue
 		if randf() < WAR_CHANCE and _wars_of(wars, k) < MAX_WARS_PER_KINGDOM:
 			# Prefiere al vecino más débil con el que no tenga alianza ni guerra.
-			var targets: Array = options.filter(func(o): return not allied(alliances, k, o) and not at_war(wars, k, o))
+			# La Isla Neutral no tiene señor al que declararle la guerra (se toma sin declaración).
+			var targets: Array = options.filter(func(o): return o != KingdomEnums.Kingdom.NEUTRAL and not allied(alliances, k, o) and not at_war(wars, k, o))
 			if not targets.is_empty():
 				targets.sort_custom(func(x, y): return _kingdom_strength(castles, x) < _kingdom_strength(castles, y))
 				var t: int = targets[0]
 				declare_war(wars, alliances, k, t, month)
 				news.append({"text": "%s declara la guerra a %s." % [KingdomEnums.kingdom_name(k), KingdomEnums.kingdom_name(t)],
-					"castle_id": a_castle.get(k, "")})
+					"castle_id": a_castle.get(k, ""), "kind": "war"})
 		elif randf() < ALLIANCE_CHANCE:
 			var friends: Array = options.filter(func(o): return not allied(alliances, k, o) and not at_war(wars, k, o) and o != KingdomEnums.Kingdom.NEUTRAL)
 			if not friends.is_empty():
 				var f: int = friends.pick_random()
 				alliances[pair_key(k, f)] = true
 				news.append({"text": "%s y %s sellan una alianza." % [KingdomEnums.kingdom_name(k), KingdomEnums.kingdom_name(f)],
-					"castle_id": a_castle.get(k, "")})
+					"castle_id": a_castle.get(k, ""), "kind": "alliance"})
 	return news
 
 # --- Rebeliones en castillos conquistados por el jugador ---

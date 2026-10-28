@@ -12,10 +12,16 @@ export_presets.cfg
 Thumbs.db
 
 # Builds/exportaciones (si exportas el juego, no subas los ejecutables pesados)
-export/
-builds/
+/export/
+/builds/
 
 # Logs
 *.log
 # Ejecutables del editor de Godot (pesan >100 MB, no van al repositorio)
 Godot_v*.exe
+
+# Visual Studio
+.vs/
+
+# Python
+__pycache__/

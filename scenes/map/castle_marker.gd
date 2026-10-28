@@ -1,6 +1,7 @@
 extends Area2D
 
 signal castle_clicked(castle: Castle)
+signal castle_hovered(castle: Castle, hovering: bool)
 
 @onready var name_label: Label = $NameLabel
 @onready var icon: Sprite2D = $Icon
@@ -16,15 +17,32 @@ const LABEL_OUTLINE_SIZE := 4
 func setup(data: Castle) -> void:
 	castle_data = data
 	position = data.position_on_map
-	name_label.text = data.castle_name
+	# Tu castillo de origen se marca con una estrella.
+	var is_home: bool = GameManager.is_game_active and data.castle_id == GameManager.home_castle_id
+	name_label.text = ("★ " if is_home else "") + data.castle_name
 	input_pickable = true
 	_fit_icon_scale()
 	_style_label()
 
+# Rótulo tipo placa: fondo oscuro con una franja del color del reino, centrado bajo el icono.
 func _style_label() -> void:
-	name_label.add_theme_color_override("font_color", LABEL_GOLD_COLOR)
+	name_label.theme_type_variation = &"SubheaderLabel"
+	name_label.add_theme_font_size_override("font_size", 14)
+	name_label.add_theme_color_override("font_color", LABEL_GOLD_COLOR.lightened(0.25))
 	name_label.add_theme_color_override("font_outline_color", LABEL_OUTLINE_COLOR)
 	name_label.add_theme_constant_override("outline_size", LABEL_OUTLINE_SIZE)
+	var plate := StyleBoxFlat.new()
+	plate.bg_color = Color(0.06, 0.04, 0.03, 0.8)
+	plate.border_color = KingdomEnums.kingdom_color(castle_data.kingdom)
+	plate.border_width_bottom = 3
+	plate.set_corner_radius_all(3)
+	plate.content_margin_left = 7
+	plate.content_margin_right = 7
+	plate.content_margin_top = 1
+	plate.content_margin_bottom = 2
+	name_label.add_theme_stylebox_override("normal", plate)
+	name_label.reset_size()
+	name_label.position = Vector2(-name_label.size.x / 2.0, ICON_DISPLAY_SIZE * 0.5)
 
 func _fit_icon_scale() -> void:
 	if icon.texture == null:
@@ -44,11 +62,31 @@ func _on_input_event(_viewport: Node, event: InputEvent, _shape_idx: int) -> voi
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		castle_clicked.emit(castle_data)
 
+const MapJuice = preload("res://scenes/map/map_juice.gd")
+const SELECT_RING_COLOR := Color("f0d48a")
+const SELECT_POP := 1.2
+var _icon_base_scale := Vector2.ZERO
+var _pop_tween: Tween
+
+## Latido al seleccionarlo: anillo dorado y el icono crece y vuelve.
+func select_pulse() -> void:
+	MapJuice.ring(get_parent() as Node2D, position, SELECT_RING_COLOR, 40.0)
+	if _icon_base_scale == Vector2.ZERO:
+		_icon_base_scale = icon.scale
+	if _pop_tween != null and _pop_tween.is_valid():
+		_pop_tween.kill()
+	icon.scale = _icon_base_scale
+	_pop_tween = create_tween()
+	_pop_tween.tween_property(icon, "scale", _icon_base_scale * SELECT_POP, 0.08)
+	_pop_tween.tween_property(icon, "scale", _icon_base_scale, 0.3).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+
 func _on_mouse_entered() -> void:
 	scale = Vector2(1.15, 1.15)
+	castle_hovered.emit(castle_data, true)
 
 func _on_mouse_exited() -> void:
 	scale = Vector2(1.0, 1.0)
+	castle_hovered.emit(castle_data, false)
 	
 var is_visible_to_player: bool = true
 

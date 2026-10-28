@@ -122,7 +122,7 @@ const INTIMATE_SLOTS := 2                 # plazas extra solo para íntimos (el 
 const OccupationRules = preload("res://scripts/resources/occupation_rules.gd")
 
 # --- Pueblo ---
-const COMMONERS_PER_CASTLE := 6
+const COMMONERS_PER_CASTLE := 4   # mínimo por castillo (si hay pocos retratos)
 const COMMONER_ROLES := [Character.Role.CAMPESINO, Character.Role.CAMPESINO, Character.Role.SOLDADO]
 
 const SUITOR_CHANCE := 0.15
@@ -135,7 +135,9 @@ const SPOUSE_START_AFFECTION := 60
 
 const DUEL_POWER_WINDOW := 3             # cortesanos válidos como rival: combate+defensa a ±3 del jugador
 
-const COURTIERS_PER_CASTLE := 3
+const COURTIERS_PER_CASTLE := 2    # mínimo por castillo (si hay pocos retratos)
+const PORTRAIT_RESERVE := 31        # retratos que no se usan al crear el mundo: hijos, cónyuges, herederos…
+const COURTIER_SHARE := 1.0 / 3.0   # parte de la gente de cada castillo que es cortesana
 const COURTIER_ROLES := [Character.Role.SOLDADO, Character.Role.CABALLERO, Character.Role.NOBLEZA_BAJA]
 
 var relations: Array[Relationship] = []
@@ -202,10 +204,21 @@ func _populate_world() -> void:
 		r.character = CharacterLoader.make_random_character(lord_role, gender, _take_portrait(pool, gender), c.owner_name)
 		relations.append(r)
 
-	for c: Castle in MapData.castles:
-		if c.kingdom == KingdomEnums.Kingdom.NEUTRAL:
-			continue
-		for i in range(COURTIERS_PER_CASTLE):
+	# Se usan todos los retratos salvo PORTRAIT_RESERVE (para hijos, cónyuges, herederos…), repartidos
+	# entre los castillos; si hay pocos retratos, cada castillo tiene al menos su mínimo.
+	var peopled: Array = MapData.castles.filter(func(c: Castle) -> bool: return c.kingdom != KingdomEnums.Kingdom.NEUTRAL)
+	peopled.shuffle()
+	var free_faces := pool.remaining(CharacterEnums.Gender.MASCULINO) + pool.remaining(CharacterEnums.Gender.FEMENINO)
+	var budget := maxi(0, free_faces - PORTRAIT_RESERVE)
+	for idx in peopled.size():
+		var c: Castle = peopled[idx]
+		var people: int = budget / peopled.size() + (1 if idx < budget % peopled.size() else 0)
+		people = maxi(people, COURTIERS_PER_CASTLE + COMMONERS_PER_CASTLE)
+		var courtiers := maxi(COURTIERS_PER_CASTLE, roundi(people * COURTIER_SHARE))
+		_populate_castle(c, pool, courtiers, people - courtiers)
+
+func _populate_castle(c: Castle, pool: PortraitPool, courtier_count: int, commoner_count: int) -> void:
+		for i in range(courtier_count):
 			var gender := pool.pick_gender()
 			var person := _unique_random_character(COURTIER_ROLES.pick_random(), gender, _take_portrait(pool, gender), MapData.culture_of_castle(c))
 			var r := Relationship.new()
@@ -215,7 +228,7 @@ func _populate_world() -> void:
 			r.character = person
 			relations.append(r)
 		# Campesinos y soldados: gente del lugar con la que también se puede tratar.
-		for i in range(COMMONERS_PER_CASTLE):
+		for i in range(commoner_count):
 			var gender := pool.pick_gender()
 			var person := _unique_random_character(COMMONER_ROLES[i % COMMONER_ROLES.size()], gender, _take_portrait(pool, gender), MapData.culture_of_castle(c))
 			var r := Relationship.new()

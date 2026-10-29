@@ -5,7 +5,6 @@
 .godot/
 .import/
 export.cfg
-export_presets.cfg
 
 # Archivos temporales del sistema operativo
 .DS_Store

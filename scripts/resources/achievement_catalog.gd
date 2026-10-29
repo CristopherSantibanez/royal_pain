@@ -76,6 +76,10 @@ const ACHIEVEMENTS := [
 		"desc": "Alcanza 90 de honor.", "reward": {"fame": 5}},
 	{"id": "sequito", "cat": "Fama", "stat": "retinue", "target": 3, "title": "Leales hasta el fin",
 		"desc": "Reúne un séquito de 3 personas.", "reward": {"honor": 3, "gold": 50}},
+	{"id": "leyenda_viva", "cat": "Fama", "stat": "story_titles", "target": 1, "title": "Leyenda viva",
+		"desc": "Gana un título al cerrar una historia.", "reward": {"fame": 5, "xp": 30}},
+	{"id": "cronista", "cat": "Fama", "stat": "stories_done", "target": 3, "title": "Materia de crónicas",
+		"desc": "Lleva tres historias hasta su final.", "reward": {"fame": 8, "gold": 100}},
 
 	# --- Riqueza ---
 	{"id": "bolsa_llena", "cat": "Riqueza", "stat": "gold", "target": 500, "title": "Bolsa llena",

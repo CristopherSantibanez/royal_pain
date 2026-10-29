@@ -27,6 +27,7 @@ const NAME_REROLLS := 30           # intentos para no repetir el nombre de un he
 
 var _children: Array[Character] = []   # hijos del jugador y, tras una sucesión, sus hermanos
 var _parent_of := {}                   # nombre del hijo -> nombre de su progenitor jugador
+var _natural := {}                     # nombre del hijo -> true si es de una amante (segunda línea)
 var _pending_cause := ""             # no vacío: el jugador murió y falta elegir heredero
 var _deceased_name := ""
 # Opción de Nueva Partida. Si es false, los adultos no envejecen ni mueren de viejos;
@@ -42,6 +43,7 @@ func _ready() -> void:
 func reset() -> void:
 	_children.clear()
 	_parent_of.clear()
+	_natural.clear()
 	_pending_cause = ""
 	_deceased_name = ""
 	var player: Character = GameManager.player_character
@@ -53,12 +55,18 @@ func reset() -> void:
 func children() -> Array[Character]:
 	return _children.duplicate()
 
+## Herederos adultos: los legítimos; los hijos de amantes solo si no hay ningún legítimo adulto.
 func adult_children() -> Array[Character]:
-	var result: Array[Character] = []
+	var legit: Array[Character] = []
+	var natural: Array[Character] = []
 	for c: Character in _children:
 		if c.age >= ADULT_AGE:
-			result.append(c)
-	return result
+			(natural if is_natural(c) else legit).append(c)
+	return legit if not legit.is_empty() else natural
+
+## Hijo de amante (heredero de segunda línea).
+func is_natural(c: Character) -> bool:
+	return _natural.has(c.full_name())
 
 ## true si es hijo o hija del jugador actual (false: hermano o hermana, de una generación anterior).
 func is_own_child(c: Character) -> bool:
@@ -118,13 +126,21 @@ func _age_everyone() -> void:
 
 func _births() -> void:
 	var player: Character = GameManager.player_character
-	var spouse_rel: Relationship = RelationsData.spouse_relation() if RelationsData.is_married() else null
-	if player == null or spouse_rel == null or spouse_rel.character == null:
+	if player == null:
 		return
-	var mother: Character = spouse_rel.character if spouse_rel.character.gender == CharacterEnums.Gender.FEMENINO else player
-	if mother.age >= MAX_FERTILE_AGE or _children.size() >= MAX_CHILDREN or randf() >= BIRTH_CHANCE:
-		return
-	var child := CharacterLoader.make_child(player, spouse_rel.character, house_name(player))
+	# Cualquier cónyuge o amante puede dar hijos; los de amantes son herederos de segunda línea.
+	var partners: Array[Relationship] = RelationsData.spouse_relations()
+	partners.append_array(RelationsData.concubine_relations())
+	for partner: Relationship in partners:
+		if partner.character == null or partner.character.gender == player.gender or _children.size() >= MAX_CHILDREN:
+			continue
+		var mother: Character = partner.character if partner.character.gender == CharacterEnums.Gender.FEMENINO else player
+		if mother.age >= MAX_FERTILE_AGE or randf() >= BIRTH_CHANCE:
+			continue
+		_add_child(player, partner, RelationsData.is_concubine(partner.person_name))
+
+func _add_child(player: Character, partner: Relationship, natural: bool) -> Character:
+	var child := CharacterLoader.make_child(player, partner.character, house_name(player))
 	# La familia se identifica por nombre completo: dos hermanos (o un hijo y su padre) no pueden llamarse igual.
 	var taken: Array = _children.map(func(c: Character): return c.full_name()) + [player.full_name()]
 	for _attempt in NAME_REROLLS:
@@ -133,23 +149,24 @@ func _births() -> void:
 		child.first_name = CharacterLoader.random_first_name(child.gender)
 	_children.append(child)
 	_parent_of[child.full_name()] = player.full_name()
-	_news("Nace tu %s %s. %s y tú lo celebráis con toda la casa." % [_child_word(child), child.first_name, spouse_rel.person_name], "Un nacimiento")
+	if natural:
+		_natural[child.full_name()] = true
+	_news("Nace tu %s %s%s. %s y tú lo celebráis." % [_child_word(child), child.first_name,
+		" (bastardo)" if natural else "", partner.person_name], "Un nacimiento")
 	family_changed.emit()
+	return child
 
 func _spouse_old_age() -> void:
-	var spouse_rel: Relationship = RelationsData.spouse_relation() if RelationsData.is_married() else null
-	if spouse_rel == null or spouse_rel.character == null:
-		return
-	if randf() < old_age_chance(spouse_rel.character.age):
-		_news("%s, tu cónyuge, muere de vejez a los %d años." % [spouse_rel.person_name, spouse_rel.character.age], "Luto en la familia")
-		_end_marriage(spouse_rel)
+	for spouse_rel: Relationship in RelationsData.spouse_relations():
+		if spouse_rel.character != null and randf() < old_age_chance(spouse_rel.character.age):
+			_news("%s, tu cónyuge, muere de vejez a los %d años." % [spouse_rel.person_name, spouse_rel.character.age], "Luto en la familia")
+			_end_marriage(spouse_rel)
 
 # El cónyuge que muere (o enviuda) deja de ser una relación del jugador.
 func _end_marriage(spouse_rel: Relationship) -> void:
 	RelationsData.relations.erase(spouse_rel)
 	RelationsData.retinue.erase(spouse_rel.person_name)
-	RelationsData.spouse_name = ""
-	RelationsData.spouse_family = ""
+	RelationsData._unregister_spouse(spouse_rel.person_name)
 	RelationsData.relations_changed.emit()
 
 const TITLES := ["Sir", "Lady", "Dama", "Don", "Doña", "Lord", "Señor", "Señora"]
@@ -213,9 +230,9 @@ func succeed(heir: Character) -> String:
 	for a: Army in ArmyData.armies:
 		if a.owner_name == old_name:
 			a.owner_name = heir.full_name()
-	var spouse_rel: Relationship = RelationsData.spouse_relation() if RelationsData.is_married() else null
-	if spouse_rel != null:
+	for spouse_rel: Relationship in RelationsData.spouse_relations():
 		_end_marriage(spouse_rel)
+	RelationsData.concubines.clear()
 	_children.erase(heir)
 	_parent_of.erase(heir.full_name())
 	MissionData.reset()
@@ -243,6 +260,7 @@ func save_state() -> Dictionary:
 	return {
 		"children": _children.map(func(c: Character): return DataCodec.encode(c)),
 		"parent_of": _parent_of.duplicate(),
+		"natural": _natural.duplicate(),
 		"pending_cause": _pending_cause,
 		"deceased_name": _deceased_name,
 		"aging_enabled": aging_enabled,
@@ -255,6 +273,7 @@ func load_state(data: Dictionary) -> void:
 		if c != null:
 			_children.append(c)
 	_parent_of = data.get("parent_of", {}).duplicate()
+	_natural = data.get("natural", {}).duplicate()
 	_pending_cause = str(data.get("pending_cause", ""))
 	_deceased_name = str(data.get("deceased_name", ""))
 	aging_enabled = bool(data.get("aging_enabled", true))

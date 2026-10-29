@@ -123,8 +123,12 @@ func _run() -> void:
 		_resolve(e, 0)
 		check(third.grudge > tg, "el tercero gana rencor")
 	r2.kind = 2; r3.kind = 2   # vuelven a ser cortesanos
-	e = SE.rivalry_event(r2, "soc_apuesta")
-	check(e.is_empty(), "sin rival no hay apuesta")
+	var none := 0
+	for i in range(200):
+		SE.cooldowns = {}
+		if not SE._try_rivalry().is_empty() and RD.duel_rivals().is_empty():
+			none += 1
+	check(none == 0, "sin rivales no hay sucesos de rivalidad")
 
 	print("4) señores: reaccionan a tus hazañas, con retrato")
 	var liege = RD.get_relation(RD.liege_name)
@@ -170,7 +174,7 @@ func _run() -> void:
 	check(SD.modifiers.is_empty(), "la peste caduca a los 8 meses")
 	SD._apply_lasting({"lasting": "herejia"}, home, parts)
 	var h0: int = p.honor
-	EventCatalog._apply_effects({"honor": 10}, p, home)
+	load("res://scripts/resources/event_catalog.gd")._apply_effects({"honor": 10}, p, home)
 	check(p.honor - h0 == 5, "herejía: honor ganado a la mitad (+%d)" % (p.honor - h0))
 	SD.returns[0].due = 0
 	SD.returns[0].npc = "Rodrigo Vela"

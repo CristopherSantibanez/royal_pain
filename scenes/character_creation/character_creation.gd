@@ -90,6 +90,54 @@ func _ready() -> void:
 	_refresh_portrait_preview()
 	_recalculate_points()
 	_update_continue_button()
+	if CreationState.edit_character != null:
+		_load_for_edit(CreationState.edit_character)
+
+# --- Editar un personaje guardado (Mis personajes) ---
+# Rellena los mismos controles de la interfaz, así se respetan las reglas de creación.
+
+func _load_for_edit(c: Character) -> void:
+	var gender := c.gender
+	(btn_male if gender == CharacterEnums.Gender.MASCULINO else btn_female).button_pressed = true
+	_set_gender(gender)
+	edit_first_name.text = c.first_name
+	_on_first_name_changed(c.first_name)
+	edit_last_name.text = c.last_name
+	_on_last_name_changed(c.last_name)
+	if c.portrait != null:
+		_select_portrait(c.portrait)
+	for pair in [[opt_personality, c.personality], [opt_alignment, c.alignment], [opt_fighter_type, c.fighter_type]]:
+		var opt: OptionButton = pair[0]
+		var idx := opt.get_item_index(int(pair[1]))
+		if idx >= 0:
+			opt.select(idx)
+	_recalculate_points()
+	# Las ventajas, desventajas y el equipo ya sumaron sus modificadores: se descuentan.
+	var mods := {}
+	for item in c.advantages + c.disadvantages + c.equipment:
+		for key: String in STAT_LABELS:
+			mods[key] = int(mods.get(key, 0)) + int(item.get(key + "_mod"))
+	for key: String in STAT_LABELS:
+		var target := int(c.get(key)) - int(mods.get(key, 0))
+		while allocator.current_value(key) < target and allocator.can_increase(key):
+			allocator.increase(key)
+	var wanted := {}
+	for item in c.advantages + c.disadvantages + c.general_skills + c.combat_skills + c.battle_skills:
+		wanted[item.trait_name if item is CharacterTrait else item.skill_name] = true
+	for list: Container in [advantages_list, disadvantages_list, general_skills_list, combat_skills_list, battle_skills_list]:
+		for cb: CheckBox in list.find_children("*", "CheckBox", true, false):
+			if wanted.has(cb.text) and not cb.button_pressed:
+				cb.button_pressed = true
+	var gear := {}
+	for e: Equipment in c.equipment:
+		gear[e.equipment_name] = true
+	for e: Equipment in equipment_checkboxes:
+		if gear.has(e.equipment_name) and not equipment_checkboxes[e].button_pressed:
+			equipment_checkboxes[e].button_pressed = true
+	edit_bio.text = c.biography
+	_on_bio_changed()
+	character.role = c.role
+	_update_continue_button()
 
 func _setup_tabs() -> void:
 	pages_tab.set_tab_title(0, "Personaje")
@@ -329,6 +377,7 @@ func _update_continue_button() -> void:
 	btn_continuar.tooltip_text = "" if result.valid else "\n".join(result.errors)
 
 func _on_volver_menu_pressed() -> void:
+	CreationState.clear_edit()
 	get_tree().change_scene_to_file("res://scenes/main_menu/main_menu.tscn")
 
 # --- Habilidades ---

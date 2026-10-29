@@ -15,6 +15,7 @@ const SiteMarkerScript = preload("res://scenes/map/site_marker.gd")
 const SiteCatalog = preload("res://scripts/resources/site_catalog.gd")
 const LEVEL_UP_PANEL := "res://scripts/ui/level_up_panel.gd"
 const PlayerTokenScript = preload("res://scenes/map/player_token.gd")
+const TravelerTokenScript = preload("res://scenes/map/traveler_token.gd")
 
 @onready var camera: Camera2D = $Camera2D
 @onready var castles_container: Node2D = $CastlesContainer
@@ -588,6 +589,7 @@ func _spawn_armies() -> void:
 					line.width = 2.0
 					line.default_color = Color(0.9, 0.75, 0.15, 0.8) if ArmyData.is_player_army(a) else Color(0.55, 0.2, 0.65, 0.8)
 					armies_container.add_child(line)
+	_spawn_travelers()
 
 	if selected_army != null and army_panel.visible:
 		_refresh_army_panel()
@@ -793,6 +795,10 @@ func _on_event_close_pressed() -> void:
 		_showing_notification = false
 		_show_next_notification()
 		return
+	# «Conversar» con un viajero abre la charla al cerrar el encuentro (ver TravelerData).
+	var talk_to := RelationsData.get_relation(TravelerData.take_conversation())
+	if talk_to != null:
+		load("res://scripts/ui/conversation_panel.gd").open($UILayer, talk_to)
 	if not _pending_fight.is_empty():
 		var scene := CombatSetup.begin_event_fight(_pending_fight, _pending_fight_title)
 		_pending_fight = {}
@@ -941,6 +947,22 @@ func _spawn_player_token() -> void:
 	move_child(_player_token, armies_container.get_index() + 1)
 	_player_token.setup(GameManager.player_character, TravelData.current_castle_id())
 	TravelData.location_changed.connect(_on_location_changed)
+
+## Viajeros entre reinos (TravelerData) en los castillos que ves; van con los ejércitos y se redibujan con ellos.
+func _spawn_travelers() -> void:
+	if not GameManager.is_game_active:
+		return
+	var here := TravelData.current_castle_id()
+	var counts := {}
+	for t: Dictionary in TravelerData.travelers:
+		var r := RelationsData.get_relation(str(t.name))
+		var castle := MapData.get_castle_by_id(str(t.at))
+		if r == null or r.character == null or castle == null or not (t.at in visible_castle_ids or t.at == here):
+			continue
+		var token: Node2D = TravelerTokenScript.new()
+		armies_container.add_child(token)
+		token.setup(r, castle, int(counts.get(t.at, 0)), TravelerData.tooltip(t))
+		counts[t.at] = int(counts.get(t.at, 0)) + 1
 
 func _on_location_changed(castle_id: String) -> void:
 	if _player_token != null and is_instance_valid(_player_token):

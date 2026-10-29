@@ -502,3 +502,76 @@ static func chain(id: String) -> Dictionary:
 		if c.id == id:
 			return c
 	return {}
+
+# --- Huella duradera de los finales (ver StoryData._apply_world) ---
+# "cadena/final" -> claves extra del mundo: lasting (modificador de reino de MODIFIERS), title (título del
+# jugador), returns (alguien vuelve años después: id de RETURNS), building (mejora del castillo con noticia),
+# achievement (hazaña de AchievementCatalog que se desbloquea).
+const ENDING_LASTING := {
+	"herejia/hoguera": {"title": "Martillo de herejes", "lasting": "herejia"},
+	"herejia/reforma": {"title": "Amparo de los pobres", "building": "capilla"},
+	"herejia/negativa": {"lasting": "herejia"},
+	"pretendiente/impostor": {"title": "Azote de impostores"},
+	"pretendiente/duda": {"returns": "pretendiente_vuelve"},
+	"peste/contenida": {"lasting": "peste_leve", "title": "Guardián en la plaga"},
+	"peste/estragos": {"lasting": "peste"},
+	"bastardo/digno": {"returns": "bastardo_leal"},
+	"bastardo/rencor": {"returns": "bastardo_venganza"},
+	"reliquia/devuelta": {"building": "capilla", "title": "Custodio de reliquias"},
+	"revuelta_senor/aplastada": {"lasting": "hambre"},
+	"revuelta_senor/pacto": {"building": "mercado", "title": "Amigo del pueblo"},
+	"revuelta_pueblo/jacquerie": {"title": "Voz de los descalzos"},
+	"cruzada/gloria": {"title": "Defensor del santuario"},
+	"caido/rehabilitado": {"returns": "caido_vuelve"},
+	"torneo_amanado/campeon": {"title": "Campeón limpio"},
+	"boda/salvado": {"title": "Salvador del banquete"},
+	"bestia/bestia_muerta": {"title": "Matabestias"},
+	"bestia/plaga_lobo": {"lasting": "hambre"},
+	"mercader/perdonado": {"returns": "mercader_agradecido"},
+}
+
+# Modificadores de reino con monthly tick: garrison_mult (guarniciones × cada mes), food (comida de cada castillo
+# al mes), honor_gain (multiplica las ganancias de honor del jugador mientras dure).
+const MODIFIERS := {
+	"peste": {"name": "La peste", "months": 8, "garrison_mult": 0.97, "food": -6},
+	"peste_leve": {"name": "Rescoldos de la peste", "months": 4, "garrison_mult": 0.99, "food": -2},
+	"herejia": {"name": "La herejía", "months": 12, "honor_gain": 0.5},
+	"hambre": {"name": "Años de hambre", "months": 6, "food": -5},
+}
+
+# Personajes que regresan: delay [min, max] meses y el evento (con {npc}).
+const RETURNS := {
+	"bastardo_venganza": {"delay": [24, 48], "event": {"title": "La deuda de sangre",
+		"text": "{npc}, aquel hijo que rechazaste, ha vuelto con espuelas y una cicatriz. Te espera a las puertas y exige que respondas con la espada por tu desprecio.",
+		"options": [
+			{"label": "Batirte", "requires": {"healthy": true}, "effects": {}, "result": "Sales a su encuentro.",
+				"fight": {"type": "duel", "foe": {"name": "{npc}", "power": 1, "personality": "CRUEL"},
+					"win": {"effects": {"honor": 4, "fame": 4}, "result": "{npc} cae y se marcha para siempre."},
+					"lose": {"effects": {"honor": -4, "gold": -50}, "result": "{npc} se cobra la deuda en oro y en orgullo."}}},
+			{"label": "Pagarle", "requires": {"gold": 80}, "effects": {"gold": -80, "honor": -3}, "result": "{npc} toma el oro con desprecio."},
+		]}},
+	"bastardo_leal": {"delay": [18, 36], "event": {"title": "Sangre que vuelve",
+		"text": "{npc} regresa de servir lejos, con fama de buen soldado. Trae un presente y pide cabalgar a tu lado cuando haga falta.",
+		"options": [
+			{"label": "Abrazar a {npc}", "effects": {"fame": 3, "honor": 2, "item": 2}, "result": "Tu sangre te honra."},
+			{"label": "Agradecer de lejos", "effects": {"gold": 40}, "result": "{npc} deja el regalo y se marcha."},
+		]}},
+	"caido_vuelve": {"delay": [12, 30], "event": {"title": "Sir {npc} cumple su palabra",
+		"text": "Sir {npc}, a quien devolviste las espuelas, llega con una docena de lanzas. Jura que viene a pagar su deuda contigo.",
+		"options": [
+			{"label": "Aceptar su servicio", "effects": {"garrison": 12, "fame": 2}, "result": "Doce lanzas más en tus murallas."},
+			{"label": "Liberarle de la deuda", "effects": {"honor": 4}, "result": "Sir {npc} se inclina y parte, libre."},
+		]}},
+	"pretendiente_vuelve": {"delay": [24, 48], "event": {"title": "El hijo perdido, otra vez",
+		"text": "Llegan noticias del extranjero: {npc}, el supuesto hijo del rey, reúne partidarios al otro lado de la frontera y pregunta por ti.",
+		"options": [
+			{"label": "Avisar a tu señor", "effects": {"honor": 3, "fame": 1}, "result": "Tu lealtad queda por escrito."},
+			{"label": "Callar", "effects": {"gold": 40, "honor": -2}, "result": "Un mensajero discreto te deja una bolsa."},
+		]}},
+	"mercader_agradecido": {"delay": [12, 24], "event": {"title": "El mercader no olvida",
+		"text": "{npc}, a quien perdonaste la deuda, ha prosperado en las ferias del sur. Te envía un cofre con una nota: «Lo prometido, y algo más».",
+		"options": [
+			{"label": "Aceptar el cofre", "effects": {"gold": 120}, "result": "El cofre pesa más de lo esperado."},
+			{"label": "Donarlo a la iglesia", "effects": {"honor": 6}, "result": "Los monjes rezan por ambos."},
+		]}},
+}

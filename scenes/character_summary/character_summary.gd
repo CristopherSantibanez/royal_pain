@@ -65,11 +65,18 @@ func _names_or_none(arr: Array, prop: String) -> String:
 	return ", ".join(names)
 
 func _on_volver_editar_pressed() -> void:
+	if CreationState.edit_character != null:
+		CreationState.edit_character = character   # vuelve a editar lo que ya llevabas
 	get_tree().change_scene_to_file("res://scenes/character_creation/character_creation.tscn")
 
 func _on_guardar_pressed() -> void:
 	# Guardar de nuevo el mismo personaje lo actualiza (no crea copias).
-	var save_path := CharacterLoader.save_character(character, true)
+	# Editando uno de «Mis personajes»: se actualiza su archivo aunque cambie de nombre.
+	var save_path := ""
+	if CreationState.edit_path.is_empty():
+		save_path = CharacterLoader.save_character(character, true)
+	elif DataCodec.write_file(CreationState.edit_path, character) == OK:
+		save_path = CreationState.edit_path
 
 	if not save_path.is_empty():
 		btn_guardar.text = "¡Guardado!"

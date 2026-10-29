@@ -158,6 +158,8 @@ func _refresh_ui() -> void:
 			castle_info_label.text += " · de visita"
 		castle_banner.color = KingdomEnums.kingdom_color(castle.kingdom)
 		castle_stats_label.text = "Tesoro del castillo: %d\nComida: %d\nGuarnición: %d soldados" % [castle.gold, castle.food, castle.garrison_size]
+		if LoyaltyData.is_tracked(castle):
+			castle_stats_label.text += " · %s" % LoyaltyData.bar_text(castle)
 		var built: Array[String] = []
 		for id: String in BuildingCatalog.ORDER:
 			if castle.building_level(id) > 0:

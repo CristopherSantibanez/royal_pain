@@ -148,6 +148,7 @@ func context() -> Dictionary:
 		"generations": generation, "retinue": RelationsData.retinue.size(),
 		"missions_done": MissionData.completed_count, "unique_items": uniques,
 		"visited_castles": visited_castles.size(), "visited_kingdoms": visited_kingdoms.size(),
+		"stories_done": StoryData.history.size(), "story_titles": StoryData.titles.size(),
 	}
 
 ## {done, current, target, ratio, text} de una hazaña.
@@ -231,14 +232,16 @@ func check_endings() -> Dictionary:
 
 ## Casado con alguien de la casa del señor de ese reino.
 func _married_into(kingdom: int) -> bool:
-	if not RelationsData.is_married() or RelationsData.spouse_family.is_empty():
-		return false
-	var family: Relationship = RelationsData.get_relation(RelationsData.spouse_family)
-	if family != null and family.kingdom == kingdom:
-		return true
-	for c: Castle in MapData.castles:
-		if c.kingdom == kingdom and c.owner_name == RelationsData.spouse_family:
+	for s: Dictionary in RelationsData.spouses:
+		var house := str(s.family)
+		if house.is_empty():
+			continue
+		var family: Relationship = RelationsData.get_relation(house)
+		if family != null and family.kingdom == kingdom:
 			return true
+		for c: Castle in MapData.castles:
+			if c.kingdom == kingdom and c.owner_name == house:
+				return true
 	return false
 
 func _conquest_ending() -> Dictionary:

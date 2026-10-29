@@ -13,6 +13,7 @@ const TRAVEL_DEADLINE := 6            # meses para llegar a donde pide un paso (
 const STALL_MONTHS := 4               # un paso sin respuesta (p. ej. combate abandonado) se da por perdido
 const HISTORY_MAX := 20
 const EVENT_PREFIX := "story_"
+const HIGHLIGHT := "★ "                # los finales destacan en la crónica
 
 signal story_changed
 
@@ -20,6 +21,9 @@ var active: Dictionary = {}           # chain, step, flags[], cast{}, due, await
 var history: Array = []               # [{chain, title, ending, m, y}]
 var done_chains: Array = []           # ids ya jugados en esta partida (no se repiten)
 var last_end_month := -1000
+var modifiers: Array = []            # huella de los finales: [{id, kingdom, left}] (ver StoryCatalog.MODIFIERS)
+var titles: Array = []               # títulos ganados al cerrar historias
+var returns: Array = []              # [{id, npc, due}]: personajes que vuelven (StoryCatalog.RETURNS)
 
 func _ready() -> void:
 	GameManager.game_started.connect(func(_c: Character): reset())
@@ -34,6 +38,9 @@ func reset() -> void:
 	history = []
 	done_chains = []
 	last_end_month = -1000
+	modifiers = []
+	titles = []
+	returns = []
 
 # --- Consultas ---
 
@@ -71,6 +78,7 @@ func summary_line() -> String:
 func _on_month_passed(_month: int, _year: int) -> void:
 	if not GameManager.is_game_active or GameManager.player_character == null:
 		return
+	_tick_lasting()
 	if is_active():
 		_tick()
 	else:
@@ -379,11 +387,13 @@ func _finish(ending_id: String, fallback_text: String = "") -> String:
 	var ending: Dictionary = c.get("endings", {}).get(ending_id, {})
 	var title: String = _fill(ending.get("title", "Sin final"))
 	var text: String = _fill(ending.get("text", fallback_text))
-	var world := _apply_world(ending.get("world", {}))
+	var world_spec: Dictionary = ending.get("world", {}).duplicate()
+	world_spec.merge(StoryCatalog.ENDING_LASTING.get("%s/%s" % [c.get("id", ""), ending_id], {}))
+	var world := _apply_world(world_spec)
 	var full := "%s. %s" % [title, text]
 	if not world.is_empty():
 		full += " (%s)" % world
-	WorldEvents.record("Historia «%s»: %s" % [c.get("title", "?"), full], str(active.get("cast", {}).get("castle", "")), true)
+	WorldEvents.record(HIGHLIGHT + "Historia «%s»: %s" % [c.get("title", "?"), full], str(active.get("cast", {}).get("castle", "")), true)
 	history.append({"chain": c.get("id", ""), "title": c.get("title", "?"), "ending": title,
 		"m": GameManager.current_month, "y": GameManager.current_year})
 	if history.size() > HISTORY_MAX:
@@ -391,6 +401,7 @@ func _finish(ending_id: String, fallback_text: String = "") -> String:
 	if not str(c.get("id", "")).is_empty() and not c.id in done_chains:
 		done_chains.append(c.id)
 	last_end_month = _now()
+	AchievementData.queue_check()
 	var from_event := str(GameManager.pending_event.get("_story", "")) == EVENT_PREFIX + str(c.get("id", ""))
 	active = {}
 	story_changed.emit()
@@ -447,6 +458,7 @@ func _apply_world(world: Dictionary) -> String:
 				gift.kingdom = GameManager.player_kingdom
 				RelationsData.on_castle_taken(gift, was, gift.kingdom)
 			parts.append("%s pasa a tus manos" % gift.castle_name)
+	_apply_lasting(world, castle, parts)
 	if p != null and (world.has("unique") or world.has("unique_chance")):
 		if randf() * 100.0 < float(world.get("unique_chance", 100)):
 			var found: String = load("res://scripts/resources/unique_items.gd").grant(p, str(world.get("unique", "")))
@@ -454,17 +466,93 @@ func _apply_world(world: Dictionary) -> String:
 				parts.append(found)
 	return ", ".join(parts)
 
+# --- Huella duradera: modificadores de reino, títulos, regresos y obras ---
+
+func _apply_lasting(world: Dictionary, castle: Castle, parts: Array[String]) -> void:
+	var kingdom: int = castle.kingdom if castle != null else GameManager.player_kingdom
+	if world.has("lasting") and StoryCatalog.MODIFIERS.has(str(world.lasting)) and kingdom >= 0:
+		var mod: Dictionary = StoryCatalog.MODIFIERS[str(world.lasting)]
+		modifiers.append({"id": str(world.lasting), "kingdom": kingdom, "left": int(mod.months)})
+		parts.append("%s en %s durante %d meses" % [mod.name, KingdomEnums.kingdom_name(kingdom), int(mod.months)])
+	if world.has("title") and not str(world.title) in titles:
+		titles.append(str(world.title))
+		parts.append("Te llaman «%s»" % world.title)
+	if world.has("returns") and StoryCatalog.RETURNS.has(str(world.returns)):
+		var delay: Array = StoryCatalog.RETURNS[str(world.returns)].delay
+		returns.append({"id": str(world.returns), "npc": str(active.get("cast", {}).get("npc", "")),
+			"due": _now() + randi_range(int(delay[0]), int(delay[1]))})
+	if world.has("building") and castle != null:
+		var b := str(world.building)
+		castle.buildings[b] = int(castle.buildings.get(b, 0)) + 1
+		WorldEvents.record("%s amplía su %s tras lo ocurrido." % [castle.castle_name, b], castle.castle_id)
+		parts.append("%s mejora su %s" % [castle.castle_name, b])
+
+## Mes a mes: los modificadores pesan sobre su reino y caducan; quien tenía que volver, vuelve.
+func _tick_lasting() -> void:
+	for m: Dictionary in modifiers.duplicate():
+		var mod: Dictionary = StoryCatalog.MODIFIERS.get(str(m.id), {})
+		for c: Castle in MapData.castles:
+			if c.kingdom != int(m.kingdom):
+				continue
+			if mod.has("garrison_mult"):
+				c.garrison_size = int(c.garrison_size * float(mod.garrison_mult))
+			if mod.has("food"):
+				c.food = maxi(0, c.food + int(mod.food))
+		m.left = int(m.left) - 1
+		if int(m.left) <= 0:
+			modifiers.erase(m)
+			WorldEvents.record("%s remite en %s." % [mod.get("name", "?"), KingdomEnums.kingdom_name(int(m.kingdom))])
+	for r: Dictionary in returns.duplicate():
+		if _now() >= int(r.due) and not _captive():
+			returns.erase(r)
+			var spec: Dictionary = StoryCatalog.RETURNS.get(str(r.id), {})
+			if not spec.is_empty():
+				var e: Dictionary = _fill_npc(spec.event.duplicate(true), str(r.npc))
+				e["id"] = "story_return_" + str(r.id)
+				GameManager.queue_event(e)
+			return
+
+func _fill_npc(v: Variant, npc: String) -> Variant:
+	if v is String:
+		return DialogueCatalog._apply_gender(v.replace("{npc}", npc), null, GameManager.player_character)
+	if v is Array:
+		return v.map(func(x: Variant) -> Variant: return _fill_npc(x, npc))
+	if v is Dictionary:
+		var d := {}
+		for k in v:
+			d[k] = _fill_npc(v[k], npc)
+		return d
+	return v
+
+## Multiplicador de las ganancias de honor (la herejía, por ejemplo, las reduce en tu reino).
+func honor_gain_mult() -> float:
+	var mult := 1.0
+	for m: Dictionary in modifiers:
+		if int(m.kingdom) == GameManager.player_kingdom:
+			mult *= float(StoryCatalog.MODIFIERS.get(str(m.id), {}).get("honor_gain", 1.0))
+	return mult
+
+func active_modifier_names() -> Array[String]:
+	var out: Array[String] = []
+	for m: Dictionary in modifiers:
+		out.append("%s (%s, %d meses)" % [StoryCatalog.MODIFIERS.get(str(m.id), {}).get("name", "?"), KingdomEnums.kingdom_name(int(m.kingdom)), int(m.left)])
+	return out
+
 # --- Guardado ---
 
 func save_state() -> Dictionary:
 	return {"active": active.duplicate(true), "history": history.duplicate(true),
-		"done": done_chains.duplicate(), "last_end": last_end_month}
+		"done": done_chains.duplicate(), "last_end": last_end_month,
+		"modifiers": modifiers.duplicate(true), "titles": titles.duplicate(), "returns": returns.duplicate(true)}
 
 func load_state(data: Dictionary) -> void:
 	active = data.get("active", {}).duplicate(true)
 	history = data.get("history", []).duplicate(true)
 	done_chains = data.get("done", []).duplicate()
 	last_end_month = int(data.get("last_end", -1000))
+	modifiers = data.get("modifiers", []).duplicate(true)
+	titles = data.get("titles", []).duplicate()
+	returns = data.get("returns", []).duplicate(true)
 	# Una historia guardada con un paso que ya no existe se descarta.
 	if not active.is_empty() and _step().is_empty():
 		active = {}

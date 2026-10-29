@@ -50,7 +50,7 @@ func _ready() -> void:
 	role_option.item_selected.connect(func(_i): _refresh_info())
 	castle_option.item_selected.connect(func(_i): _refresh_info())
 	btn_volver_menu.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/main_menu/main_menu.tscn"))
-	btn_crear_personaje.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/character_creation/character_creation.tscn"))
+	btn_crear_personaje.pressed.connect(func(): CreationState.clear_edit(); get_tree().change_scene_to_file("res://scenes/character_creation/character_creation.tscn"))
 	btn_comenzar.pressed.connect(_on_comenzar_pressed)
 
 	_refresh_info()

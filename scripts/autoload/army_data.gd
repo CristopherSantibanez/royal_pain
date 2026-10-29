@@ -474,6 +474,7 @@ func _apply_player_defeat(lines: Array[String]) -> void:
 	var player: Character = GameManager.player_character
 	if player == null:
 		return
+	LoyaltyData.note_all("defeat")
 	player.honor = clamp(player.honor - DEFEAT_HONOR, 0, 100)
 	player.add_fame(FAME_DEFEAT)
 	lines.append("Pierdes %d de honor y algo de fama." % DEFEAT_HONOR)
@@ -723,6 +724,9 @@ func battle_bonds(allies: Array[Character], won: bool, for_liege: bool) -> Strin
 	var liege := RelationsData.get_relation(RelationsData.liege_name)
 	if for_liege and won and liege != null:
 		liege.adjust(LIEGE_BATTLE_AFFINITY)
+	var social := get_node_or_null("/root/SocialEvents")
+	if social != null:
+		social.note_battle(names, won)   # brindis y honores de la facción (ver SocialEvents)
 	if names.is_empty():
 		return ""
 	return "Luchar codo con codo os une: %s (intimidad +%d)." % [", ".join(names), amount]

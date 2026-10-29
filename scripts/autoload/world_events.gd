@@ -171,7 +171,7 @@ func _lord_dies(r: Relationship, forced_cause: String = "") -> void:
 	portrait = RelationsData.take_free_portrait(gender)
 	var heir := CharacterLoader.make_random_character(r.character.role, gender, portrait, heir_name)
 	var was_liege := old_name == RelationsData.liege_name
-	var was_family := old_name == RelationsData.spouse_family
+	var was_family := old_name == RelationsData.spouse_family or RelationsData.spouses.any(func(s: Dictionary) -> bool: return s.family == old_name)
 	married_lords.erase(old_name)
 	RelationsData.replace_lord(old_name, heir)
 	var cause: String = forced_cause if not forced_cause.is_empty() else DEATH_CAUSES.pick_random()

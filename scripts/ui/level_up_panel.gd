@@ -278,10 +278,14 @@ func _rebuild_family() -> void:
 	_clear(_family_box)
 	if _player == null:
 		return
-	var spouse: Relationship = RelationsData.spouse_relation() if RelationsData.is_married() else null
-	if spouse != null:
-		_family_box.add_child(_label("Cónyuge", &"SubheaderLabel"))
-		_family_box.add_child(_person_row(spouse.character, spouse.person_name, ""))
+	var spouses := RelationsData.spouse_relations()
+	if not spouses.is_empty():
+		_family_box.add_child(_label("Cónyuges (%d/%d)" % [spouses.size(), RelationsData.max_spouses(_player)], &"SubheaderLabel"))
+		for spouse: Relationship in spouses:
+			_family_box.add_child(_person_row(spouse.character, spouse.person_name,
+				"Principal · " + LoyaltyData.bar_text(spouse.person_name) if spouse.person_name == RelationsData.spouse_name else LoyaltyData.bar_text(spouse.person_name)))
+		for lover: Relationship in RelationsData.concubine_relations():
+			_family_box.add_child(_person_row(lover.character, lover.person_name, "Amante · " + LoyaltyData.bar_text(lover.person_name)))
 	else:
 		_family_box.add_child(_label("Sin cónyuge." , &"MutedLabel"))
 	_family_box.add_child(HSeparator.new())
@@ -297,6 +301,8 @@ func _rebuild_family() -> void:
 		var fem := c.gender == CharacterEnums.Gender.FEMENINO
 		var status := ("Adulta · puede heredar" if fem else "Adulto · puede heredar") if c.age >= DynastyData.ADULT_AGE \
 			else "Mayor de edad en %d %s" % [DynastyData.ADULT_AGE - c.age, "año" if DynastyData.ADULT_AGE - c.age == 1 else "años"]
+		if DynastyData.is_natural(c):
+			status = "Bastard%s · %s" % ["a" if fem else "o", status]
 		if not DynastyData.is_own_child(c):
 			status = ("Tu hermana · " if fem else "Tu hermano · ") + status
 		_family_box.add_child(_person_row(c, c.full_name(), status))

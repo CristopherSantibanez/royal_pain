@@ -19,6 +19,11 @@ func _free_courtier(RD, gender: int, exclude: Array):
 		if RD.sociable(r) and r.character != null and r.character.gender == gender and not r.person_name in exclude \
 				and r.kind != r.Kind.CONYUGE and RD.presence_blocker(r).is_empty():
 			return r
+	# Mundo aleatorio: si no queda nadie de ese género, sirve cualquiera para las pruebas de lealtad.
+	for r in RD.relations:
+		if RD.sociable(r) and r.character != null and not r.person_name in exclude \
+				and r.kind != r.Kind.CONYUGE and RD.presence_blocker(r).is_empty():
+			return r
 	return null
 
 func _run() -> void:

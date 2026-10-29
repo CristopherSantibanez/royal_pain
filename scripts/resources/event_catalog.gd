@@ -381,6 +381,10 @@ static func _apply_effects(effects: Dictionary, character: Character, castle: Ca
 				character.gold = maxi(0, character.gold + amount)
 				parts.append("Oro %+d" % amount)
 			"honor":
+				if amount > 0:   # huella de una historia (p. ej. la herejía) que rebaja el honor ganado
+					var story_node := (Engine.get_main_loop() as SceneTree).root.get_node_or_null("StoryData")
+					if story_node != null:
+						amount = maxi(1, roundi(amount * float(story_node.honor_gain_mult())))
 				character.honor = clampi(character.honor + amount, 0, 100)
 				parts.append("Honor %+d" % amount)
 			"combat", "leadership", "charisma", "strategy", "defense":

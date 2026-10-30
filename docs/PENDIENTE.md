@@ -1,20 +1,30 @@
 # Royal Pain — Lo que queda pendiente
 
-Resumen de las fases que faltan del plan de revisión. El detalle completo, con cada decisión, está en `docs/plan_revision.md`. Para retomar, pídele a Claude: **«Lee docs/CONTINUAR.md, docs/PENDIENTE.md y docs/plan_revision.md y empecemos la fase 3»**.
+Resumen de las fases que faltan del plan de revisión. El detalle completo, con cada decisión, está en `docs/plan_revision.md`. Para retomar, pídele a Claude: **«Lee docs/CONTINUAR.md, docs/PENDIENTE.md y docs/plan_revision.md y sigamos»**.
 
 | Fase | Estado |
 |---|---|
 | 1. Arreglos y retirada de mercenarios | ✅ Hecha |
 | 2. Vida social | ✅ Hecha (con algunos repasos abajo) |
-| 3. Gestor de grupo y combate RPG | ⏳ Pendiente |
-| 4. Batallas campales con profundidad | 🔶 4A hecha (oficiales, choques RPG, traición, botín); falta 4B (IA y formaciones) |
+| 3. Gestor de grupo y combate RPG | ✅ Hecha |
+| 4. Batallas campales con profundidad | ✅ Hecha (4A: oficiales, choques RPG, traición, botín · 4B: IA, dificultad, flancos y formaciones) |
+
+**Lo que queda:**
+- **Quitar el evento "Celos"**, cuando el usuario lo pida.
+- **Reforzar el árbol del Defensor:** gana un 34% en espejo.
+- **Afinar el equilibrio de las campales jugando:** se midió con pocas simulaciones.
+- **Probar a mano:** "Luchar / Resolver", el encuentro con viajeros y exportar/importar en "Mis personajes".
+- **Arte:** más retratos para los enemigos con 1–2 imágenes y fondos propios de montaña y bosque (`assets/backgrounds/`).
+- **Cierre inesperado de Godot al salir:** conocido, sin efecto en las partidas.
+
+El resto de este documento es el detalle original de las fases (ya hechas), útil como referencia.
 
 ---
 
 ## Repasos pequeños de la fase 2
 - **Celos:** el evento "Celos" (`soc_celos` en `scripts/resources/social_event_catalog.gd`) se mantiene por ahora; el usuario quiere quitarlo más adelante. Cuando se quite, en `tests/phase2b_test.gd` la comprobación "amante: puede haber celos" pasa a "sin celos".
 - **Frecuencia de decisiones:** con todos los sistemas, el 61% de los meses trae alguna decisión (objetivo ≤ 60%). Si se nota pesado, bajar un poco `MONTHLY_EVENT_CHANCE` en `event_catalog.gd` (hoy 0,2).
-- **Botín y lealtad:** repartir el botín sube la lealtad (`LoyaltyData.share_loot()`), pero aún ningún combate reparte botín. Se conecta en la fase 3 o 4.
+- **Botín y lealtad:** ✅ conectado en la fase 4 (las batallas ganadas reparten botín).
 - **Por probar a mano:** el encuentro con un viajero en el juego y las ventanas de exportar e importar de "Mis personajes".
 
 ---

@@ -317,6 +317,45 @@ VictoryRules.gdMeta por rol inicial
 - **Rendimiento**: retratos con compresión de vídeo de alta calidad (empezar partida: de 3,9 s a 0,4 s).
 - **Exportación**: preajuste «Windows Desktop» (`builds/windows/RoyalPain.exe`); faltan las plantillas de exportación de Godot.
 
+### Gran revisión: social, combate RPG y campales (v8)
+
+Plan completo en `docs/plan_revision.md`; lo que queda, en `docs/PENDIENTE.md`.
+
+- **Fase 1 — Arreglos:**
+  - registros de altura fija (duelo, batalla, noticias, crónica);
+  - la gente de un reino caído pasa al vencedor o se refugia en otros reinos;
+  - la tropa elegida se respeta;
+  - fuera la carrera de mercenario (las partidas antiguas pasan a No afiliado; se mantiene "Contratar Mercenarios" para nobles).
+- **Rol No afiliado** y trabajos a jornal; ascenso Campesino → Soldado más caro (150 de oro o Combate 12).
+- **Fase 2 — Vida social:**
+  - varios cónyuges según rango y amantes; los hijos naturales heredan solo sin legítimos adultos;
+  - lealtad (0–100) con avisos, remedios y traiciones (`LoyaltyData`);
+  - más acciones y eventos con siervos y prisioneros;
+  - sucesos sociales por cercanía, rivalidad, señores y facción (`SocialEvents`);
+  - historias con huella duradera;
+  - viajeros en el mapa con su cara (`TravelerData`);
+  - gestor "Mis personajes";
+  - eventos aleatorios filtrados según la situación (gobernar castillo, tener tierras, ir errante).
+- **Fase 3 — Combate RPG** (`scenes/rpg_battle/`, `RpgBattleManager`):
+  - **Pantalla:** vista frontal; hasta 5 enemigos contra tus 4 activos; línea de turnos por Agilidad; menú Atacar, Técnicas, Defender, Objeto, Cambiar y Abandonar.
+  - **Debilidades:** tabla arma × armadura en círculo (×1,4 / ×0,6, solo daño). El turno extra solo llega con "Aprovechar la brecha", el Estoque o la Misericordia de Toledo.
+  - **Habilidades:** 24 árboles (tipo de luchador, personalidad, alineación) con 538 habilidades; 1 punto cada 3 niveles más algunos por logros.
+  - **Personaje:** 6.º atributo, Agilidad. En la creación se elige 1 habilidad básica por rama, 2 ventajas como máximo y 2 desventajas como mínimo (fijas), y un equipo básico (arma, escudo, armadura y un accesorio de +1).
+  - **Grupo:** gestor de grupo (G) con 4 activos y reserva.
+  - **Enemigos:** 17 tipos genéricos, mini jefes incluidos, con retratos al azar por tipo.
+  - **Consumibles:** 10, en la tienda y como botín.
+  - **Fondos:** según el bioma del lugar.
+  - **Final:** al terminar, un cartel con "Continuar" te saca de la pantalla.
+  - El duelo antiguo deja de usarse.
+- **Fase 4 — Batallas campales:**
+  - oficiales en cada pelotón;
+  - cada choque cuerpo a cuerpo es un combate RPG ("Luchar / Resolver"), con tropas que dan estadísticas extra y técnicas que piden tropa o moral;
+  - traición en batalla y botín;
+  - IA que flanquea, protege al general, guarda reservas y se repliega (dificultad Fácil, Normal o Difícil);
+  - orientación con flancos y espalda, y formaciones Línea, Cuña y Cuadro.
+- **Retratos:** 62 de hombre y 111 de mujer (unos 142 personajes por mundo, con 31 de reserva) y retratos de enemigos en `assets/portraits/enemies/<tipo>/`.
+- **Otros:** `.exe` de Windows (`builds/windows/RoyalPain.exe`), pruebas en `tests/` y guía para continuar en `docs/CONTINUAR.md`.
+
 ## Lo pendiente
 
 | Sistema | Estado | Notas |
@@ -324,15 +363,16 @@ VictoryRules.gdMeta por rol inicial
 | Batalla táctica — mejoras | v2 hecha | Hechos: campo abierto, órdenes, clima, habilidades de mando, mapas variados. Pendiente: asedios de varios turnos de mapa y arte de unidades. |
 | Conquista de castillos | Hecha (v1) | Falta: efectos sobre la lealtad/relaciones del reino conquistado y recuperación por el reino original. |
 | Sucesión — ampliación | v2 hecha | Hechos: hijos, vejez, muerte del personaje y elección de heredero. Falta: reclamar el trono como Duque. |
-| Relaciones — ampliación | v1 hecha | Hechos: afinidad con señores, alianzas, hostilidad, rivales de duelo, matrimonio, población del mundo. Faltan: relaciones entre PNJ, efectos en combate y eventos ligados a relaciones. |
+| Relaciones — ampliación | v2 hecha | Hechos: lealtad y traiciones, sucesos por cercanía, rivalidad, señores y facción, viajeros. Pendiente: quitar el evento "Celos" (decisión del usuario, más adelante). |
 | Eventos — ampliación | v1 hecha | Faltan eventos encadenados, eventos ligados a relaciones entre personajes y efectos del alineamiento. |
-| Matrimonios — ampliación | v2 hecha | Hechos: hijos y viudez. Falta: divorcio y matrimonios entre PNJ. |
+| Matrimonios — ampliación | v3 hecha | Hechos: hijos, viudez, varios cónyuges según rango y amantes. Falta: divorcio y matrimonios entre PNJ. |
 | Diplomacia — ampliación | v1 hecha | La IA ya declara guerras, paces y alianzas entre reinos. Falta: que la IA proponga tratados al jugador y más tipos de tratados/edictos. |
-| Equilibrio de la guerra | v1 hecha | Queda: el defensor en campo abierto conserva ~6 puntos de ventaja; la caballería es la mejor escolta del general (61% con mando 4); medir aparte duelos entre jefes, compañeros e IA aliada. |
+| Equilibrio de la guerra | v2 hecha | Con la IA nueva, el ejército mayor gana >90% y las batallas igualadas quedan entre 40–65% (pocas simulaciones): afinar jugando. |
+| Combate RPG — equilibrio | v1 hecha | El Defensor gana ~34% en espejo (los demás tipos, 46–55%); contra 5 enemigos de nivel alto los combates duran 8–11 rondas (aceptado: hay que saber huir). |
 | Versión móvil | Pendiente | Android viable; requiere adaptar la interfaz al tacto (ayudas sin ratón, botones grandes, gestos en mapa y batalla). |
 | Condiciones de victoria/derrota — ampliación | v1 hecha | Victoria por rol inicial y dos derrotas implementadas; falta la victoria del Regente (requiere sucesión) y ajustar metas con el documento de diseño original. |
 | Cierre inesperado al salir | Investigado | Godot se cierra con error a veces al salir (también en el commit anterior y con el proyecto vacío de escenas); depende de los scripts cargados por GameData, sin causa única. No afecta a las partidas: se guardan antes. |
-| Arte y sonido final | SFX y música v1 | Retratos parcialmente integrados. SFX, música por escena y ambientes sintetizados (reemplazables por grabaciones con el mismo nombre). Falta: arte de unidades y sonidos del mapa. |
+| Arte y sonido final | SFX y música v2 | Retratos de personajes y enemigos integrados; fondos de combate por bioma (`assets/backgrounds/<bioma>/`, se pueden añadir más). Falta: más retratos para enemigos con 1–2 imágenes, fondos propios de montaña y bosque, arte de unidades. |
 
 ## Roadmap sugerido
 

@@ -437,20 +437,16 @@ func _upper_body(c: Character) -> TextureRect:
 	rect.texture = atlas
 	return rect
 
+const BiomeBackgrounds = preload("res://scripts/resources/biome_backgrounds.gd")
+
+# Fondo según el bioma del lugar donde estás; torneos y duelos de práctica, en el patio de armas.
 func _pick_background() -> void:
-	var path := "res://assets/TurnFight-Trining_Ground.png"
-	if is_campaign and not CombatSetup.is_tournament() and GameManager.current_castle != null:
-		match GameManager.current_castle.kingdom:
-			KingdomEnums.Kingdom.HIELO, KingdomEnums.Kingdom.CUMBRES, KingdomEnums.Kingdom.GRIS:
-				path = "res://assets/TurnFight-Snow.png"
-			KingdomEnums.Kingdom.DESIERTO, KingdomEnums.Kingdom.AMBAR, KingdomEnums.Kingdom.DORADO:
-				path = "res://assets/TurnFight-Desert.png"
-			KingdomEnums.Kingdom.AZUL, KingdomEnums.Kingdom.NEUTRAL:
-				path = "res://assets/TurnFight-Seaside.png"
-			_:
-				path = "res://assets/TurnFight-Meadow.png"
-	if ResourceLoader.exists(path):
-		background.texture = load(path)
+	var biome := BiomeBackgrounds.TOURNAMENT
+	if is_campaign and not CombatSetup.is_tournament() and not _practice:
+		biome = BiomeBackgrounds.current_biome()
+	var tex := BiomeBackgrounds.texture_for(biome)
+	if tex != null:
+		background.texture = tex
 
 # --- Pintar el estado ---
 

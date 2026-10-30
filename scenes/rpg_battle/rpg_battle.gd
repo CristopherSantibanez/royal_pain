@@ -941,8 +941,45 @@ func _on_battle_ended(result: Dictionary) -> void:
 	_refresh()
 	btn_back.disabled = false
 	btn_back.tooltip_text = ""
-	btn_back.grab_focus.call_deferred()
 	_play_end_sound(won, fled)
+	# Al terminar, el combate te saca de la pantalla: en batalla vuelve solo al tablero;
+	# fuera, un cartel con el resultado y «Continuar».
+	if embedded:
+		await get_tree().create_timer(EMBEDDED_RETURN_DELAY).timeout
+		if is_inside_tree():
+			_on_back_pressed()
+		return
+	await get_tree().create_timer(END_PANEL_DELAY).timeout
+	if is_inside_tree():
+		_show_end_panel(won, fled, text)
+
+const EMBEDDED_RETURN_DELAY := 1.4   # s: deja ver el golpe final antes de volver al tablero
+const END_PANEL_DELAY := 1.2
+
+var _trophy_overlay: Node   # ventana del trofeo abierta: el cartel final espera a que se cierre
+
+func _show_end_panel(won: bool, fled: bool, text: String) -> void:
+	if is_instance_valid(_trophy_overlay) and _trophy_overlay.is_inside_tree():
+		await _trophy_overlay.tree_exited
+	if not is_inside_tree():
+		return
+	var o := _overlay(0.6)
+	var title := Label.new()
+	title.theme_type_variation = &"HeaderLabel"
+	title.text = "¡Victoria!" if won else ("Huida" if fled else "Derrota")
+	title.add_theme_color_override("font_color", CombatFx.CRIT_COLOR if won else CombatFx.DAMAGE_COLOR)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	o[1].add_child(title)
+	if not text.is_empty():
+		_note(o[1], text)
+	var btn := Button.new()
+	btn.text = btn_back.text if _pending_next_round else "Continuar"
+	btn.theme_type_variation = &"PrimaryButton"
+	o[1].add_child(btn)
+	btn.grab_focus.call_deferred()
+	await btn.pressed
+	o[0].queue_free()
+	_on_back_pressed()
 
 func _play_end_sound(won: bool, fled: bool) -> void:
 	if fled:
@@ -1054,6 +1091,7 @@ func _offer_trophy() -> void:
 	if item == null or taker == null or test_auto:
 		return
 	var o := _overlay()
+	_trophy_overlay = o[0]
 	var title := Label.new()
 	title.theme_type_variation = &"HeaderLabel"
 	title.text = "%s lleva %s" % [enemy_character.full_name(), item.equipment_name]

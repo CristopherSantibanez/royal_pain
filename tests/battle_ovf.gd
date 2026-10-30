@@ -121,5 +121,10 @@ func _run() -> void:
 		print("  ", ch.name, " ", ch.get_combined_minimum_size())
 	for ch in side.get_children():
 		print("    side ", ch.name, " ", ch.get_combined_minimum_size())
+	# Cartel de resultado con mucho texto: debe caber (el texto se desplaza dentro).
+	scene.result_title.text = "¡Victoria!"
+	scene.result_label.text = "\n".join(Array(range(30)).map(func(i): return "Línea de resultado %d con un texto bastante largo para ocupar varias líneas en el cartel." % i))
+	scene.result_overlay.visible = true
+	await _shot("ovf_result")
 	print("PANTALLAS CON DESBORDE: ", bad)
 	quit()

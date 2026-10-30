@@ -5,7 +5,7 @@ class_name SaveSystem
 const SAVE_VERSION := 3
 # Autoloads que guardan su propio estado con save_state() -> Dictionary y load_state(d).
 # Deben devolver datos planos (números, textos, arrays, diccionarios), nunca objetos.
-const MODULES := ["RelationsData", "MissionData", "WorldEvents", "DynastyData", "ExplorationData", "TravelData", "AchievementData", "CaptureData", "StoryData", "AmbitionData", "TravelerData", "SocialEvents", "LoyaltyData"]
+const MODULES := ["RelationsData", "MissionData", "WorldEvents", "DynastyData", "ExplorationData", "TravelData", "AchievementData", "CaptureData", "StoryData", "AmbitionData", "TravelerData", "SocialEvents", "LoyaltyData", "PartyData"]
 # Guardado y carga de la partida completa en ranuras: un autoguardado (cada mes) y varias
 # ranuras manuales. Cada ranura es un archivo JSON en <datos>/saves (ver DataCodec y DataPaths).
 # Las partidas .tres de versiones anteriores se convierten a JSON la primera vez que se leen.

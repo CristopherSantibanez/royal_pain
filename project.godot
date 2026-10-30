@@ -41,6 +41,7 @@ SceneFade="*res://scripts/autoload/scene_fade.gd"
 TravelerData="*res://scripts/autoload/traveler_data.gd"
 SocialEvents="*res://scripts/autoload/social_events.gd"
 LoyaltyData="*res://scripts/autoload/loyalty_data.gd"
+PartyData="*res://scripts/autoload/party_data.gd"
 
 [display]
 

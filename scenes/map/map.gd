@@ -11,6 +11,8 @@ const ChroniclePanel = preload("res://scripts/ui/chronicle_panel.gd")
 const AchievementsPanel = preload("res://scripts/ui/achievements_panel.gd")
 const EndingPanel = preload("res://scripts/ui/ending_panel.gd")
 const ACHIEVEMENTS_KEY := KEY_L   # «Libro de hazañas»
+const PARTY_KEY := KEY_G          # gestor de grupo
+const PartyPanel = preload("res://scripts/ui/party_panel.gd")
 const SiteMarkerScript = preload("res://scenes/map/site_marker.gd")
 const SiteCatalog = preload("res://scripts/resources/site_catalog.gd")
 const LEVEL_UP_PANEL := "res://scripts/ui/level_up_panel.gd"
@@ -97,6 +99,7 @@ func _ready() -> void:
 		Sfx.stinger("achievement" if Sfx.variant_count("achievement") > 0 else "victory", ACHIEVEMENT_STINGER_DB, 1.0))
 	_add_player_face()
 	_add_level_button()
+	_add_party_button()
 	camera.setup_bounds(MapData.MAP_WIDTH, MapData.MAP_HEIGHT)
 	# Empieza mirando dónde estás (tu castillo al empezar), no el centro del mapa.
 	var here := TravelData.current_castle() if GameManager.is_game_active else MapData.get_castle_by_id(GameManager.home_castle_id)
@@ -204,6 +207,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		ChroniclePanel.open($UILayer, visible_castle_ids)
 	elif event is InputEventKey and event.pressed and not event.echo and event.keycode == ACHIEVEMENTS_KEY:
 		AchievementsPanel.open($UILayer)
+	elif event is InputEventKey and event.pressed and not event.echo and event.keycode == PARTY_KEY:
+		_open_party()
 	elif event.is_action_pressed("map_toggle_panels"):
 		_toggle_bottom_panels()
 	elif event.is_action_pressed("map_next_castle"):
@@ -835,6 +840,27 @@ func _on_event_close_pressed() -> void:
 
 # --- Nivel del personaje ---
 # Botón «Nivel N» arriba: late cuando hay puntos o habilidades por repartir y abre el panel de nivel.
+
+# Botón «Grupo» arriba (o tecla G): abre el gestor de grupo.
+func _add_party_button() -> void:
+	if GameManager.player_character == null:
+		return
+	var btn := Button.new()
+	btn.name = "BtnParty"
+	btn.text = "Grupo"
+	btn.tooltip_text = "Gestor de grupo: activos y reserva (G)."
+	btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	btn.pressed.connect(_open_party)
+	var bar: HBoxContainer = $UILayer/TopBar/TopHBox
+	bar.add_child(btn)
+	bar.move_child(btn, mini(2, bar.get_child_count() - 1))
+
+func _open_party() -> void:
+	if $UILayer.get_children().any(func(n): return n is Control and n.get_script() == PartyPanel):
+		return
+	PartyPanel.open($UILayer).tree_exited.connect(func():
+		if is_inside_tree():
+			_refresh_turn_ui())
 
 func _add_level_button() -> void:
 	if GameManager.player_character == null:

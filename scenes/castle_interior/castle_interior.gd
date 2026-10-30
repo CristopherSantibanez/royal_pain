@@ -83,6 +83,16 @@ func _ready() -> void:
 		shop.purchased.connect(_refresh_ui))
 	MissionData.missions_changed.connect(_refresh_missions_button)
 	_refresh_missions_button()
+	var btn_grupo := Button.new()
+	btn_grupo.name = "BtnGrupo"
+	btn_grupo.text = "Grupo"
+	btn_grupo.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	btn_grupo.tooltip_text = "Gestor de grupo: activos y reserva."
+	%BtnEncargos.add_sibling(btn_grupo)
+	btn_grupo.pressed.connect(func():
+		load("res://scripts/ui/party_panel.gd").open(self).tree_exited.connect(func():
+			if is_inside_tree():
+				_refresh_ui()))
 	if castle != null and not _is_foreign():
 		var btn_obras := Button.new()
 		btn_obras.name = "BtnObras"

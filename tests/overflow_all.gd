@@ -96,6 +96,7 @@ func _run() -> void:
 			["obras", func(): load("res://scripts/ui/works_panel.gd").open(host, home)],
 			["consejo", func(): load("res://scripts/ui/war_council_panel.gd").open(host)],
 			["audiencia", func(): load("res://scripts/ui/audience_panel.gd").open(host, MD.castles[2])],
+			["grupo", func(): load("res://scripts/ui/party_panel.gd").open(host)],
 		]
 		if some_rel != null:
 			panels.append(["perfil", func(): load("res://scripts/ui/character_profile.gd").open(host, some_rel)])

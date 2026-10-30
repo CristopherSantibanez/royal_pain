@@ -101,6 +101,7 @@ enum Personality {
 @export var general_skills: Array[Skill] = []
 @export var combat_skills: Array[Skill] = []
 @export var battle_skills: Array[Skill] = []
+@export var learned_skills: Array[String] = []   # nodos del árbol del combate RPG (SkillTreeCatalog)
 
 @export_group("Ventajas y Desventajas")
 @export var advantages: Array[CharacterTrait] = []      # mínimo 3, validado en la UI de creación

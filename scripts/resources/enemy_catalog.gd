@@ -11,16 +11,18 @@ extends RefCounted
 
 const ENEMY_DIR := "res://assets/portraits/enemies/%s/"
 const ROLE_FALLBACK := "res://assets/portraits/roles/%s.png"
-const ATTR_PER_LEVEL := 0.6          # Combate/Defensa ganados por nivel
+const ATTR_PER_LEVEL := 0.48         # Combate/Defensa ganados por nivel
 const MINOR_ATTR_PER_LEVEL := 0.2    # Estrategia/Liderazgo/Carisma
 const ATTR_MIN := 1
 const ATTR_MAX := 20
 const RANK_NAMES := ["", "veterano", "de élite"]
 const RANK_ATTR_BONUS := [0, 2, 4]
 const BOSS_ACTIONS := 2
-const BOSS_PV_MULT := 2.2
-const GENERIC_PV_MULT := 1.2        # los genéricos no tienen árbol: algo más de aguante...
-const GENERIC_PV_PER_LEVEL := 0.05  # ...que crece con el nivel (el grupo gana técnicas al subir)
+const BOSS_ATTR_PER_LEVEL := 0.15   # Combate/Defensa extra por nivel de los jefes (a nivel alto el grupo tiene más técnicas)
+const BOSS_PV_MULT := 1.8
+const BOSS_PV_PER_LEVEL := 0.075   # los jefes crecen más deprisa que los genéricos
+const GENERIC_PV_MULT := 1.12       # los genéricos no tienen árbol: algo más de aguante...
+const GENERIC_PV_PER_LEVEL := 0.035 # ...que crece con el nivel (el grupo gana 1 punto de árbol cada 3 niveles)
 const XP_PER_LEVEL := 6              # experiencia que da cada enemigo por nivel
 const BOSS_XP_MULT := 3
 const MAX_LEVEL := 20
@@ -36,7 +38,7 @@ const TYPES := {
 	"bandido": {"name": "Bandido", "armor": A.CUERO, "dmg": DT.TAJO, "role": "daño, robo", "type": FT.BERSERKER, "attrs": [6, 4, 4, 3, 3], "tech": ["ber_tajo", "ber_herida"], "fallback": "bandido", "pers": P.CRUEL, "family": ""},
 	"soldado": {"name": "Soldado", "armor": A.MALLA, "dmg": DT.TAJO, "role": "equilibrado", "type": FT.DUELISTA, "attrs": [6, 6, 4, 4, 3], "tech": ["due_estocada", "com_tajo1"], "fallback": "soldado", "pers": P.LEAL, "family": "infantería"},
 	"infanteria_pesada": {"name": "Infante pesado", "armor": A.PLACAS, "dmg": DT.CONTUNDENTE, "role": "tanque, provocar", "type": FT.TANQUE, "attrs": [5, 8, 3, 4, 3], "tech": ["tan_provocar", "tan_mazazo"], "fallback": "soldado", "pers": P.VALIENTE, "family": "infantería pesada"},
-	"arquero": {"name": "Arquero", "armor": A.CUERO, "dmg": DT.PROYECTIL, "role": "daño a distancia", "type": FT.ASESINO, "attrs": [6, 3, 5, 3, 3], "tech": ["com_proy2"], "fallback": "soldado", "pers": P.ASTUTO, "family": "arqueros"},
+	"arquero": {"name": "Arquero", "armor": A.CUERO, "dmg": DT.PROYECTIL, "role": "daño a distancia", "type": FT.ASESINO, "attrs": [5, 3, 4, 3, 3], "tech": ["com_proy2"], "fallback": "soldado", "pers": P.ASTUTO, "family": "arqueros"},
 	"ballestero": {"name": "Ballestero", "armor": A.MALLA, "dmg": DT.PROYECTIL, "role": "daño alto, lento", "type": FT.ESTRATEGA, "attrs": [7, 5, 3, 3, 3], "tech": ["ene_virote"], "fallback": "soldado", "pers": P.PRUDENTE, "family": "ballesteros"},
 	"piquero": {"name": "Piquero", "armor": A.MALLA, "dmg": DT.ESTOCADA, "role": "castiga cargas, protege", "type": FT.DEFENSOR, "attrs": [5, 6, 4, 4, 3], "tech": ["ene_picas", "def_cubrir"], "fallback": "soldado", "pers": P.LEAL, "family": "piqueros"},
 	"caballero_montado": {"name": "Jinete", "armor": A.MALLA, "dmg": DT.ESTOCADA, "role": "carga inicial, rápido", "type": FT.DUELISTA, "attrs": [7, 5, 5, 5, 4], "tech": ["ene_carga"], "fallback": "caballero", "pers": P.VALIENTE, "family": "caballería"},
@@ -111,7 +113,7 @@ static func make_enemy(type_id: String, level: int, rank: int = 0, used: Diction
 	c.fighter_type = d.type
 	c.personality = d.pers
 	c.role = Character.Role.SOLDADO
-	var grow: float = (lv - 1) * ATTR_PER_LEVEL + RANK_ATTR_BONUS[rank]
+	var grow: float = (lv - 1) * (ATTR_PER_LEVEL + (BOSS_ATTR_PER_LEVEL if d.get("boss", false) else 0.0)) + RANK_ATTR_BONUS[rank]
 	var minor: float = (lv - 1) * MINOR_ATTR_PER_LEVEL + RANK_ATTR_BONUS[rank] * 0.5
 	c.combat = clampi(roundi(d.attrs[0] + grow), ATTR_MIN, ATTR_MAX)
 	c.defense = clampi(roundi(d.attrs[1] + grow), ATTR_MIN, ATTR_MAX)
@@ -123,7 +125,7 @@ static func make_enemy(type_id: String, level: int, rank: int = 0, used: Diction
 	c.set_meta("enemy_type", type_id)
 	if d.get("boss", false):
 		c.set_meta(RpgStats.META_ACTIONS, BOSS_ACTIONS)
-		c.set_meta(RpgStats.META_PV_MULT, BOSS_PV_MULT + GENERIC_PV_PER_LEVEL * lv)
+		c.set_meta(RpgStats.META_PV_MULT, BOSS_PV_MULT + BOSS_PV_PER_LEVEL * lv)
 	else:
 		c.set_meta(RpgStats.META_PV_MULT, GENERIC_PV_MULT + GENERIC_PV_PER_LEVEL * lv)
 	for t in d.tech:

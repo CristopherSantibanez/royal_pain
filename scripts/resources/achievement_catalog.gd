@@ -5,7 +5,7 @@ extends RefCounted
 # Cada hazaña: id, cat (categoría), title, desc, y o bien
 #   stat + target  -> se cumple cuando contexto[stat] >= target (ver AchievementData.context()),
 #   goal_role      -> la antigua meta de ese rol inicial (VictoryRules.evaluate); solo se ve si empezaste con él.
-# reward: {gold, fame, honor, xp, points (de atributo), unique (pieza ★★★★)}.
+# reward: {gold, fame, honor, xp, points (de atributo), skill_points (del árbol, SkillTreeCatalog.grant_points), unique (pieza ★★★★)}.
 # roles (opcional): solo visible si el rol inicial está en la lista. featured: roles que la destacan en Nueva Partida.
 
 const CATEGORIES := ["Destino", "Armas", "Gobierno", "Linaje", "Fama", "Riqueza", "Viaje"]
@@ -32,11 +32,11 @@ const ACHIEVEMENTS := [
 	{"id": "espadachin", "cat": "Armas", "stat": "duels_won", "target": 5, "title": "Espadachín",
 		"desc": "Gana 5 duelos.", "reward": {"fame": 3, "xp": 60}},
 	{"id": "leyenda_armas", "cat": "Armas", "stat": "duels_won", "target": 25, "title": "Leyenda de las armas",
-		"desc": "Gana 25 duelos.", "reward": {"points": 2, "fame": 10, "unique": true}},
+		"desc": "Gana 25 duelos.", "reward": {"points": 2, "skill_points": 1, "fame": 10, "unique": true}},
 	{"id": "veterano", "cat": "Armas", "stat": "level", "target": 5, "title": "Veterano",
 		"desc": "Alcanza el nivel 5.", "reward": {"gold": 60}},
 	{"id": "maestro", "cat": "Armas", "stat": "level", "target": 10, "title": "Maestro de armas",
-		"desc": "Alcanza el nivel 10.", "reward": {"points": 1, "fame": 5}},
+		"desc": "Alcanza el nivel 10.", "reward": {"points": 1, "skill_points": 1, "fame": 5}},
 
 	# --- Gobierno ---
 	{"id": "primer_castillo", "cat": "Gobierno", "stat": "owned_castles", "target": 1, "title": "Señor de un castillo",
@@ -71,7 +71,7 @@ const ACHIEVEMENTS := [
 	{"id": "conocido", "cat": "Fama", "stat": "fame", "target": 25, "title": "De boca en boca",
 		"desc": "Alcanza 25 de fama.", "reward": {"gold": 50}},
 	{"id": "celebre", "cat": "Fama", "stat": "fame", "target": 60, "title": "Célebre",
-		"desc": "Alcanza 60 de fama.", "reward": {"points": 1}},
+		"desc": "Alcanza 60 de fama.", "reward": {"points": 1, "skill_points": 1}},
 	{"id": "intachable", "cat": "Fama", "stat": "honor", "target": 90, "title": "Honor intachable",
 		"desc": "Alcanza 90 de honor.", "reward": {"fame": 5}},
 	{"id": "sequito", "cat": "Fama", "stat": "retinue", "target": 3, "title": "Leales hasta el fin",
@@ -79,7 +79,7 @@ const ACHIEVEMENTS := [
 	{"id": "leyenda_viva", "cat": "Fama", "stat": "story_titles", "target": 1, "title": "Leyenda viva",
 		"desc": "Gana un título al cerrar una historia.", "reward": {"fame": 5, "xp": 30}},
 	{"id": "cronista", "cat": "Fama", "stat": "stories_done", "target": 3, "title": "Materia de crónicas",
-		"desc": "Lleva tres historias hasta su final.", "reward": {"fame": 8, "gold": 100}},
+		"desc": "Lleva tres historias hasta su final.", "reward": {"skill_points": 1, "fame": 8, "gold": 100}},
 
 	# --- Riqueza ---
 	{"id": "bolsa_llena", "cat": "Riqueza", "stat": "gold", "target": 500, "title": "Bolsa llena",
@@ -151,6 +151,8 @@ static func reward_text(reward: Dictionary) -> String:
 		parts.append("+%d exp." % reward.xp)
 	if reward.get("points", 0) > 0:
 		parts.append("+%d %s de atributo" % [reward.points, "punto" if reward.points == 1 else "puntos"])
+	if reward.get("skill_points", 0) > 0:
+		parts.append("+%d de habilidad" % reward.skill_points)
 	if reward.get("unique", false):
 		parts.append("una pieza única")
 	return ", ".join(parts)

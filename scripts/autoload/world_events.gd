@@ -126,7 +126,7 @@ func _player_global_event() -> void:
 		return
 	var e := deferred_event
 	if e.is_empty() and randf() < PLAYER_EVENT_CHANCE:
-		e = WorldEventCatalog.pick_player_event(player.role)
+		e = WorldEventCatalog.pick_player_event(player)
 	if e.is_empty():
 		return
 	if GameManager.pending_event.is_empty():

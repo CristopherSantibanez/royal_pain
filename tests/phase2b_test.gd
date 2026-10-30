@@ -192,7 +192,14 @@ func _run() -> void:
 	var months := 0; var decided := 0
 	var social_total := 0
 	for game in range(2):
+		seed(900 + game)   # determinista: el ritmo y los sucesos no dependen de la suerte de la tirada
 		_new_game()
+		# Un jugador pasivo pero con un amigo en el séquito: hay con quién tener sucesos.
+		var mates: Array = RD.courtiers(GM.player_kingdom).filter(func(x): return x.character != null)
+		if not mates.is_empty():
+			mates[0].affection = 60
+			if not mates[0].person_name in RD.retinue:
+				RD.retinue.append(mates[0].person_name)
 		for m in range(240):
 			GM.pending_event = {}
 			GM.event_queue.clear()

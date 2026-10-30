@@ -884,10 +884,10 @@ func _refresh_level_button() -> void:
 	var p: Character = GameManager.player_character
 	if _btn_level == null or p == null:
 		return
-	var pending: bool = p.unspent_points > 0 or p.pending_skill_choices > 0
+	var pending: bool = p.unspent_points > 0
 	_btn_level.text = "Nivel %d%s" % [p.level, " ●" if pending else ""]
 	_btn_level.tooltip_text = "Experiencia %d/%d.%s" % [p.xp, p.xp_to_next(),
-		"\n¡Tienes %d puntos y %d habilidades por elegir!" % [p.unspent_points, p.pending_skill_choices] if pending else ""]
+		"\n¡Tienes %d puntos por repartir!" % p.unspent_points if pending else ""]
 	_btn_level.theme_type_variation = &"PrimaryButton" if pending else &""
 	if pending and _level_pulse == null:
 		_level_pulse = UiAnim.pulse(_btn_level)

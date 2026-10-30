@@ -66,6 +66,16 @@ enum Personality {
 @export_range(1, 20) var strategy: int = 5
 @export_range(1, 20) var combat: int = 5
 @export_range(1, 20) var defense: int = 5
+## Agilidad: orden de turno y esquiva en el combate RPG. 0 = sin dato (partidas antiguas):
+## se deriva de Combate y Estrategia hasta que se le asigne un valor.
+@export_range(0, 20) var agility: int = 0:
+	get:
+		if agility <= 0:
+			return clampi(roundi((combat + strategy) / 2.0), 1, 20)
+		return agility
+
+## Los seis atributos (clave de propiedad), en el orden en que se muestran.
+const ATTRIBUTES := ["leadership", "charisma", "strategy", "combat", "defense", "agility"]
 
 @export_group("Recursos de combate")
 @export var max_health: int = 100
@@ -78,7 +88,7 @@ enum Personality {
 @export_range(1, 20) var level: int = 1         # nivel de experiencia (ver gain_xp)
 @export var xp: int = 0                          # experiencia acumulada hacia el siguiente nivel
 @export var unspent_points: int = 0              # puntos de atributo por repartir al subir de nivel
-@export var pending_skill_choices: int = 0       # habilidades por elegir (una cada SKILL_EVERY_LEVELS niveles)
+@export var pending_skill_choices: int = 0       # LEGADO: las habilidades ahora se aprenden en los árboles (SkillTreeCatalog)
 @export var age: int = 20                        # años; cada enero se cumple uno más (ver DynastyData)
 @export_range(0, 100) var fame: int = 0   # reconocimiento: duelos, torneos y hazañas; atrae eventos y seguidores
 @export var wound_months: int = 0   # meses que faltan para curar una herida grave (no puede batirse)
@@ -104,8 +114,10 @@ enum Personality {
 @export var learned_skills: Array[String] = []   # nodos del árbol del combate RPG (SkillTreeCatalog)
 
 @export_group("Ventajas y Desventajas")
-@export var advantages: Array[CharacterTrait] = []      # mínimo 3, validado en la UI de creación
-@export var disadvantages: Array[CharacterTrait] = []   # mínimo 2, validado en la UI de creación
+@export var advantages: Array[CharacterTrait] = []      # máximo MAX_ADVANTAGES (se eligen al crear)
+@export var disadvantages: Array[CharacterTrait] = []   # mínimo MIN_DISADVANTAGES (se eligen al crear)
+## Los rasgos se fijan al crear el personaje: durante la partida no se ganan ni se pierden.
+@export var traits_locked: bool = true
 
 @export_group("Equipamiento")
 @export var equipment: Array[Equipment] = []   # máximo 2, validado en la UI de creación
@@ -243,6 +255,7 @@ func apply_trait_and_equipment_modifiers() -> void:
 	var s := 0
 	var cb := 0
 	var d := 0
+	var a := 0
 
 	for t: CharacterTrait in advantages:
 		l += t.leadership_mod
@@ -250,6 +263,7 @@ func apply_trait_and_equipment_modifiers() -> void:
 		s += t.strategy_mod
 		cb += t.combat_mod
 		d += t.defense_mod
+		a += t.agility_mod
 
 	for t: CharacterTrait in disadvantages:
 		l += t.leadership_mod
@@ -257,6 +271,7 @@ func apply_trait_and_equipment_modifiers() -> void:
 		s += t.strategy_mod
 		cb += t.combat_mod
 		d += t.defense_mod
+		a += t.agility_mod
 
 	for e: Equipment in equipment:
 		l += e.leadership_mod
@@ -264,12 +279,14 @@ func apply_trait_and_equipment_modifiers() -> void:
 		s += e.strategy_mod
 		cb += e.combat_mod
 		d += e.defense_mod
+		a += e.agility_mod
 
 	leadership = clampi(leadership + l, 1, 20)
 	charisma = clampi(charisma + c, 1, 20)
 	strategy = clampi(strategy + s, 1, 20)
 	combat = clampi(combat + cb, 1, 20)
 	defense = clampi(defense + d, 1, 20)
+	agility = clampi(agility + a, 1, 20)
 	# Ventajas como Robusto o desventajas como Viejas Heridas cambian la vida máxima.
 	max_health = maxi(40, 100 + roundi(SkillEffects.fx(self, "max_health")))
 	current_health = max_health
@@ -299,33 +316,135 @@ func _apply_item_mods(item: Equipment, sign: int) -> void:
 	strategy = clampi(strategy + item.strategy_mod * sign, 1, 20)
 	combat = clampi(combat + item.combat_mod * sign, 1, 20)
 	defense = clampi(defense + item.defense_mod * sign, 1, 20)
+	agility = clampi(agility + item.agility_mod * sign, 1, 20)
 	var old_max := max_health
 	max_health = maxi(40, 100 + roundi(SkillEffects.fx(self, "max_health")))
 	current_health = clampi(current_health + max_health - old_max, 1, max_health)
 
 # --- Validación de reglas de creación ---
 
+## Reglas: nombre; como mucho MAX_ADVANTAGES ventajas y al menos MIN_DISADVANTAGES desventajas;
+## exactamente un arma, una armadura y un accesorio básicos y, opcionalmente, un escudo básico
+## (ContentCatalog.CREATION_*); y una habilidad básica por rama de cada uno de sus tres árboles.
 func is_creation_valid() -> Dictionary:
 	var errors: Array[String] = []
-
 	if first_name.strip_edges().is_empty():
 		errors.append("El nombre no puede estar vacío.")
-	if advantages.size() < 3:
-		errors.append("Debes elegir al menos 3 ventajas (tienes %d)." % advantages.size())
-	if disadvantages.size() < 2:
-		errors.append("Debes elegir al menos 2 desventajas (tienes %d)." % disadvantages.size())
-	if equipment.size() > MAX_EQUIPMENT:
-		errors.append("No puedes llevar más de %d piezas de equipamiento (tienes %d)." % [MAX_EQUIPMENT, equipment.size()])
-	var slots := {}
-	for e: Equipment in equipment:
-		if e != null and slots.has(e.slot):
-			errors.append("Solo puedes llevar una pieza de tipo %s." % e.slot)
-		elif e != null:
-			slots[e.slot] = true
-
+	if advantages.size() > MAX_ADVANTAGES:
+		errors.append("Como mucho %d ventajas (tienes %d)." % [MAX_ADVANTAGES, advantages.size()])
+	if disadvantages.size() < MIN_DISADVANTAGES:
+		errors.append("Al menos %d desventajas (tienes %d)." % [MIN_DISADVANTAGES, disadvantages.size()])
+	errors.append_array(creation_equipment_errors())
+	errors.append_array(creation_skill_errors())
 	return {"valid": errors.is_empty(), "errors": errors}
 
-const MAX_EQUIPMENT := 3   # una pieza por ranura (arma, armadura, escudo, montura, accesorio)
+const MAX_ADVANTAGES := 2
+const MIN_DISADVANTAGES := 2
+const MAX_EQUIPMENT := 4   # al crear: arma, armadura, accesorio y (opcional) escudo
+const CC = preload("res://scripts/resources/content_catalog.gd")
+
+func creation_equipment_errors() -> Array[String]:
+	var errors: Array[String] = []
+	var allowed := {
+		CC.SLOT_ARMA: CC.CREATION_WEAPONS.values(), CC.SLOT_ESCUDO: CC.CREATION_SHIELDS,
+		CC.SLOT_ARMADURA: CC.CREATION_ARMORS.values(), CC.SLOT_ACCESORIO: CC.CREATION_ACCESSORIES.values(),
+	}
+	var count := {}
+	for e: Equipment in equipment:
+		if e == null:
+			continue
+		count[e.slot] = int(count.get(e.slot, 0)) + 1
+		if not allowed.has(e.slot) or not (e.equipment_name in allowed[e.slot]):
+			errors.append("%s no es equipo inicial." % e.equipment_name)
+	for slot in [CC.SLOT_ARMA, CC.SLOT_ARMADURA, CC.SLOT_ACCESORIO]:
+		if int(count.get(slot, 0)) != 1:
+			errors.append("Elige un(a) %s." % slot.to_lower())
+	if int(count.get(CC.SLOT_ESCUDO, 0)) > 1:
+		errors.append("Solo un escudo.")
+	return errors
+
+## Una habilidad básica por rama de cada árbol (personalidad, alineación y tipo de luchador).
+func creation_skill_errors() -> Array[String]:
+	var errors: Array[String] = []
+	var api: Script = load("res://scripts/resources/skill_tree_catalog.gd")
+	if not Character.tree_api_ready(api):
+		return errors   # árboles aún sin la API nueva: no se exige
+	for tree_id in api.call("trees_for", self):
+		var tree: Dictionary = api.call("tree", tree_id)
+		var branches: Array = tree.get("branches", [])
+		for b in branches.size():
+			var basics: Array = api.call("basic_nodes", tree_id, b)
+			var picked := basics.filter(func(id): return id in learned_skills).size()
+			if picked != 1:
+				errors.append("%s · %s: elige una habilidad básica." % [tree.get("name", "?"), branches[b].get("name", "?")])
+	return errors
+
+## Opciones básicas de sus tres árboles: [{"tree", "branch", "ids"}] (vacío si la API no está lista).
+func basic_tree_options() -> Array:
+	var out: Array = []
+	var api: Script = load("res://scripts/resources/skill_tree_catalog.gd")
+	if not Character.tree_api_ready(api):
+		return out
+	for tree_id in api.call("trees_for", self):
+		var tree: Dictionary = api.call("tree", tree_id)
+		var branches: Array = tree.get("branches", [])
+		for b in branches.size():
+			out.append({"tree": str(tree.get("name", "")), "branch": str(branches[b].get("name", "")),
+				"ids": api.call("basic_nodes", tree_id, b)})
+	return out
+
+## Elige una habilidad básica de una rama (quita la que hubiera elegida en esa misma rama).
+func choose_basic(option: Dictionary, id: String) -> void:
+	for other in option.ids:
+		learned_skills.erase(other)
+	if id.is_empty():
+		return
+	if Character.tree_api_has("learn"):
+		load("res://scripts/resources/skill_tree_catalog.gd").call("learn", self, id)
+	if not (id in learned_skills):
+		learned_skills.append(id)
+
+## Una básica al azar por rama (PNJ y personaje aleatorio).
+func pick_random_basics() -> void:
+	for opt: Dictionary in basic_tree_options():
+		if not (opt.ids as Array).is_empty():
+			choose_basic(opt, str((opt.ids as Array).pick_random()))
+
+static func tree_api_ready(api: Script) -> bool:
+	if api == null:
+		return false
+	var names := {}
+	for m in api.get_script_method_list():
+		names[m.name] = true
+	return names.has("trees_for") and names.has("tree") and names.has("basic_nodes")
+
+static func tree_api_has(fn: String) -> bool:
+	var api: Script = load("res://scripts/resources/skill_tree_catalog.gd")
+	for m in api.get_script_method_list():
+		if m.name == fn:
+			return true
+	return false
+
+# --- Rasgos: fijos tras la creación ---
+
+## Añade un rasgo solo durante la creación (traits_locked = false). Devuelve si se añadió.
+func add_trait(t: CharacterTrait) -> bool:
+	if traits_locked or t == null:
+		return false
+	var list: Array[CharacterTrait] = advantages if t.is_advantage else disadvantages
+	if t in list:
+		return false
+	list.append(t)
+	return true
+
+func remove_trait(t: CharacterTrait) -> bool:
+	if traits_locked or t == null:
+		return false
+	var list: Array[CharacterTrait] = advantages if t.is_advantage else disadvantages
+	if not (t in list):
+		return false
+	list.erase(t)
+	return true
 
 # --- Utilidades ya existentes ---
 
@@ -412,11 +531,19 @@ func gain_xp(amount: int, source: String = "") -> int:
 		level += 1
 		gained += 1
 		unspent_points += POINTS_PER_LEVEL
-		if level % SKILL_EVERY_LEVELS == 0:
-			pending_skill_choices += 1
 	if level >= MAX_LEVEL:
 		xp = 0
 	return gained
+
+## Puntos que da ese nivel (admite points_for_level por nivel o acumulado).
+static func tree_points_at(new_level: int) -> int:
+	if not Character.tree_api_has("points_for_level"):
+		return 1 if new_level % SKILL_EVERY_LEVELS == 0 else 0
+	var api: Script = load("res://scripts/resources/skill_tree_catalog.gd")
+	var cumulative: bool = int(api.call("points_for_level", 4)) >= int(api.call("points_for_level", 3))
+	if cumulative:
+		return maxi(0, int(api.call("points_for_level", new_level)) - int(api.call("points_for_level", new_level - 1)))
+	return int(api.call("points_for_level", new_level))
 
 ## Suma (o resta) fama: duelos, torneos, batallas y encargos cumplidos. 0..100.
 func add_fame(amount: int) -> void:

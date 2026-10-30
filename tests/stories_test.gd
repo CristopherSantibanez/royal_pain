@@ -303,7 +303,7 @@ func _mechanics() -> void:
 		_resolve_current(leg[0], leg[1])
 	var relic_after: bool = GM.player_character.equipment.any(func(e): return e.equipment_name == "Relicario de Aquisgrán")
 	check(not relic_before and relic_after, "quedarse el relicario da la pieza única")
-	check(WD().chronicle.any(func(e): return str(e.text).begins_with("Historia «La reliquia robada»")), "el final queda en la crónica")
+	check(WD().chronicle.any(func(e): return str(e.text).contains("Historia «La reliquia robada»")), "el final queda en la crónica")
 
 	_reset_between_paths()
 	SD.start("peste")

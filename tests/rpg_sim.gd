@@ -5,7 +5,8 @@ extends SceneTree
 
 const N := 60                 # combates por caso (subir para más precisión)
 const MIRROR_LEVEL := 6
-const WEAK_TEST_LEVEL_UP := 1   # soldados veteranos más fuertes: así se nota el arma
+const WEAK_TEST_FOES := 3
+const WEAK_TEST_LEVEL_UP := 1   # soldados un nivel por encima: así se nota el arma
 const LEVELS := [3, 8, 14]
 const ATTR_BASE := 6.0
 const ATTR_PER_LEVEL := 0.4
@@ -29,6 +30,7 @@ func _hero(ft: int, lvl: int) -> Character:
 	c.strategy = a
 	c.leadership = a
 	c.charisma = a
+	c.agility = a
 	return c
 
 func _party(types: Array, lvl: int) -> Array:
@@ -43,9 +45,9 @@ func _run() -> void:
 	seed(11)
 	var F := CharacterEnums.FighterType
 	var all: Array = F.values()
-	print("[duración] grupo de 4 contra 2/4/6 enemigos")
+	print("[duración] grupo de 4 contra 2/3/5 enemigos y un mini jefe (J) con escolta")
 	print("  nivel  enemigos  victorias  rondas")
-	var groups := {2: [["capitan_bandido", "bandido"], 1], 4: [["soldado", "bandido", "arquero", "piquero"], -1], 6: [["bandido", "miliciano", "soldado", "arquero", "miliciano", "explorador"], -1]}
+	var groups := {"2": [["bandido", "soldado"], 0], "3": [["bandido", "soldado", "arquero"], 0], "5": [["bandido", "miliciano", "soldado", "arquero", "explorador"], 0], "J": [["capitan_bandido", "bandido"], 0]}
 	for lvl in LEVELS:
 		for size in groups:
 			var wins := 0
@@ -58,7 +60,7 @@ func _run() -> void:
 				var r := _fight(_party(all.slice(0, 4), lvl), foes)
 				wins += 1 if r.winner == 0 else 0
 				rounds += r.rounds
-			print("  %5d  %8d  %8d%%  %6.1f" % [lvl, size, 100 * wins / N, rounds / N])
+			print("  %5d  %8s  %8d%%  %6.1f" % [lvl, size, 100 * wins / N, rounds / N])
 	print("[espejo] tipo como líder contra los demás (mismos 3 compañeros)")
 	var total_rounds := 0.0
 	var fights := 0
@@ -82,7 +84,7 @@ func _run() -> void:
 				fights += 1
 		print("  %-10s %3d%%" % [CharacterEnums.fighter_type_name(x), 100 * wins / games])
 	print("  rondas medias en espejo: %.1f" % (total_rounds / fights))
-	print("[debilidades] grupo mixto contra 4 soldados (Malla) a nivel %d" % MIRROR_LEVEL)
+	print("[debilidades] grupo mixto contra %d soldados (Malla) a nivel %d" % [WEAK_TEST_FOES, MIRROR_LEVEL])
 	for dt in [RpgStats.DamageType.ESTOCADA, RpgStats.DamageType.CONTUNDENTE, RpgStats.DamageType.TAJO, RpgStats.DamageType.PROYECTIL]:
 		var wins := 0
 		for i in N * 2:
@@ -91,8 +93,8 @@ func _run() -> void:
 			for c: Character in a:
 				c.set_meta(RpgStats.META_DAMAGE, dt)
 			var foes: Array = []
-			for k in 4:
-				foes.append(EnemyCatalog.make_enemy("soldado", MIRROR_LEVEL + WEAK_TEST_LEVEL_UP, 1))
+			for k in WEAK_TEST_FOES:
+				foes.append(EnemyCatalog.make_enemy("soldado", MIRROR_LEVEL + WEAK_TEST_LEVEL_UP))
 			wins += 1 if _fight(a, foes).winner == 0 else 0
 		print("  %-12s %3d%%" % [RpgStats.DAMAGE_NAMES[dt], 100 * wins / (N * 2)])
 	quit()

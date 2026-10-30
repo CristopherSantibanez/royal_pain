@@ -15,6 +15,7 @@ var spent: Dictionary = {
 	"strategy": 0,
 	"combat": 0,
 	"defense": 0,
+	"agility": 0,
 }
 var _has_been_setup: bool = false
 
@@ -63,3 +64,4 @@ func apply_to_character(c: Character) -> void:
 	c.strategy = current_value("strategy")
 	c.combat = current_value("combat")
 	c.defense = current_value("defense")
+	c.agility = current_value("agility")

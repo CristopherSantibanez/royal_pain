@@ -25,7 +25,7 @@ static func list_paths() -> Array[String]:
 	return CharacterLoader.get_saved_character_paths()
 
 static func stats_text(c: Character) -> String:
-	return "Lid %d · Car %d · Est %d · Com %d · Def %d" % [c.leadership, c.charisma, c.strategy, c.combat, c.defense]
+	return "Lid %d · Car %d · Est %d · Com %d · Def %d · Agi %d" % [c.leadership, c.charisma, c.strategy, c.combat, c.defense, c.agility]
 
 ## Copia con nombre de archivo nuevo. Devuelve la ruta nueva o "".
 static func duplicate_character(path: String) -> String:

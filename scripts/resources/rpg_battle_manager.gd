@@ -28,7 +28,14 @@ signal battle_ended(result: Dictionary)
 const MAX_ACTIVE := 4
 const TICK := 100.0
 const START_JITTER := 0.1
-const DMG_SCALE := 2.5
+# PV de los enemigos genéricos según cuántos son (ver _scale_generic_groups).
+const GROUP_PV_EXP := 1.0        # pocos contra muchos
+const GROUP_PV_EXP_CROWD := 0.6  # muchos contra pocos (pierden menos)
+const GROUP_PV_MIN := 0.75
+const GROUP_PV_MAX := 2.3
+const GROUP_STR_EXP := 0.5       # la fuerza escala con la raíz del factor de PV
+const GROUP_BOSS_UNITS := 2.0
+const DMG_SCALE := 2.8
 const DEF_K := 30.0                 # daño × DEF_K / (DEF_K + Defensa)
 const VARIANCE := 0.1
 const HIT_BASE := 0.9
@@ -56,13 +63,16 @@ const OCULTO_HIT_MIN := 0.2
 const CEGADO_HIT := 0.25
 const INSPIRADO_DMG := 0.15
 const INSPIRADO_HIT := 0.08
-const FURIA_DMG := 0.4
-const FURIA_DEF := 0.85
+const FURIA_DMG := 0.3
+const FURIA_DEF := 0.7
 const FORTALEZA_DEF := 1.5
 const DESARMADO_STR := 0.6
 const DEBILITADO_MULT := 0.8
 const MARCADO_TAKEN := 0.25
 const BLEED_FRAC := 0.06
+const SERENO_HEAL := 0.06           # «sereno»: recupera este % de PV al empezar su turno
+const HASTE_FACTOR := 0.5           # fx haste: la espera hasta su turno se reduce a la mitad
+const INIT_MAX := 0.5               # pasiva ally_init: como mucho empieza a mitad de intervalo
 const LOW_HP := 0.3
 const ALLY_TAKEN_CAP := -0.2
 const STATUS_WILL_REF := 10.0
@@ -83,12 +93,13 @@ const XP_LOSS_FRAC := 0.3
 const MAX_ROUNDS := 40
 const MAX_TURNS := 1000
 
-const NEGATIVE := ["derribado", "desequilibrado", "sangrado", "aturdido", "desarmado", "debilitado", "cegado", "provocado", "marcado"]
+const NEGATIVE := ["derribado", "desequilibrado", "sangrado", "aturdido", "desarmado", "debilitado", "cegado", "provocado", "marcado", "analizado"]
 const STATUS_NAMES := {
 	"derribado": "Derribado", "desequilibrado": "Desequilibrado", "sangrado": "Sangrado", "aturdido": "Aturdido",
 	"desarmado": "Desarmado", "debilitado": "Debilitado", "cegado": "Cegado", "provocado": "Provocado",
 	"marcado": "Marcado", "inspirado": "Inspirado", "furia": "Furia", "guardia_esgrima": "Guardia de esgrima",
 	"fortaleza": "Fortaleza", "oculto": "Oculto", "cubierto": "Cubierto", "guardia": "En guardia",
+	"analizado": "Analizado", "sereno": "Sereno",
 }
 
 # IA por personalidad (ideas de DuelAI): agresividad, prudencia, astucia (debilidades y rematar), apoyo.
@@ -107,6 +118,7 @@ const AI_COWARD_FLEE_HP := 0.25
 const AI_COWARD_FLEE_CHANCE := 0.3
 const AI_HEAL_THRESHOLD := 0.6
 const AI_STATUS_VALUE := 0.5        # valor de un estado en «golpes equivalentes»
+const AI_MORALE_VALUE := 0.02       # valor de cada punto de moral (en golpes)
 
 class Fighter extends RefCounted:
 	var c: Character
@@ -130,6 +142,7 @@ class Fighter extends RefCounted:
 	var last_stand_used := false
 	var crit_ward_used := false
 	var first_sure_used := false
+	var advanced := false            # este turno se lo adelantó un aliado (la IA no encadena adelantos)
 	func fx(k: String) -> float:
 		return float(s.fx.get(k, 0.0))
 	func has(st: String) -> bool:
@@ -185,6 +198,10 @@ func setup(side_a: Array, side_b: Array, opts: Dictionary = {}) -> void:
 			f.participated = f.active
 			f.next_time = f.interval() * (1.0 + rng.randf() * START_JITTER)
 			fighters.append(f)
+	_scale_generic_groups()
+	for f: Fighter in fighters:   # pasivas de grupo: iniciativa, moral propia y miedo del rival
+		f.next_time *= 1.0 - minf(INIT_MAX, _side_fx(f.side, "ally_init"))
+		f.morale = clampi(f.morale + roundi(_side_fx(f.side, "ally_morale") - _side_fx(1 - f.side, "fear")), 0, 100)
 	_log("¡Comienza el combate!")
 
 # --- Consultas ---
@@ -231,14 +248,14 @@ func affinity_of(att: Fighter, def: Fighter, dt: int, fx: Dictionary = {}) -> in
 	if def.has("desequilibrado") and dt == RpgStats.DamageType.CONTUNDENTE:
 		return RpgStats.Affinity.DEBIL
 	var a := RpgStats.affinity(dt, def.s.armor, def.s.shield)
-	if a == RpgStats.Affinity.RESISTE and fx.get("pierce", 0):
+	if a == RpgStats.Affinity.RESISTE and (fx.get("pierce", 0) or def.has("analizado")):
 		a = RpgStats.Affinity.NORMAL
 	return a
 
 func hit_chance(att: Fighter, def: Fighter, fx: Dictionary = {}) -> float:
 	if def.has("derribado") or (att.fx("first_sure") > 0 and not att.first_sure_used):
 		return 1.0
-	var h: float = HIT_BASE + (att.s.punteria - def.s.agilidad) * HIT_PER_POINT + float(fx.get("acc", 0.0))
+	var h: float = HIT_BASE + (att.s.punteria - def.s.agilidad) * HIT_PER_POINT + float(fx.get("acc", 0.0)) + _side_fx(att.side, "ally_hit")
 	if att.has("inspirado"):
 		h += INSPIRADO_HIT
 	if att.has("cegado"):
@@ -251,14 +268,14 @@ func hit_chance(att: Fighter, def: Fighter, fx: Dictionary = {}) -> float:
 	return clampf(h - ev, OCULTO_HIT_MIN if def.has("oculto") else HIT_MIN, HIT_MAX)
 
 func crit_chance(att: Fighter, fx: Dictionary = {}) -> float:
-	var c: float = CRIT_BASE + att.s.punteria * CRIT_PER_AIM + att.s.crit + float(fx.get("crit", 0.0))
+	var c: float = CRIT_BASE + att.s.punteria * CRIT_PER_AIM + att.s.crit + float(fx.get("crit", 0.0)) + _side_fx(att.side, "ally_crit")
 	if att.has("oculto"):
 		c += OCULTO_CRIT
 	return clampf(c, 0.0, CRIT_MAX)
 
 ## Daño sin azar (ni crítico ni varianza) de un golpe.
 func base_damage(att: Fighter, def: Fighter, pow: float, dt: int, fx: Dictionary = {}) -> float:
-	var str_: float = att.s.fuerza
+	var str_: float = att.s.fuerza + att.s.agilidad * float(fx.get("agi", 0.0)) + att.c.strategy * float(fx.get("estr", 0.0))
 	if att.has("desarmado"):
 		str_ *= DESARMADO_STR
 	if att.has("debilitado"):
@@ -327,11 +344,28 @@ func valid_targets(f: Fighter, n: Dictionary) -> Array:
 # --- Turnos ---
 
 ## Avanza la línea de turnos y devuelve quién actúa (null si terminó). Si le queda una acción extra, repite.
+## Enemigos genéricos (no jefes): pocos contra muchos aguantan más; muchos contra pocos, menos.
+## PV × (rivales / propios)^GROUP_PV_EXP, acotado; Fuerza × ese factor^GROUP_STR_EXP. Un jefe cuenta como BOSS_UNITS.
+func _scale_generic_groups() -> void:
+	var units := [0.0, 0.0]
+	for f: Fighter in fighters:   # todos, también la reserva: entra cuando cae uno
+		units[f.side] += GROUP_BOSS_UNITS if f.s.actions > 1 else 1.0
+	for f: Fighter in fighters:
+		if not f.c.has_meta("enemy_type") or f.s.actions > 1 or units[f.side] <= 0.0:
+			continue
+		var r: float = units[1 - f.side] / units[f.side]
+		var m := clampf(pow(r, GROUP_PV_EXP if r >= 1.0 else GROUP_PV_EXP_CROWD), GROUP_PV_MIN, GROUP_PV_MAX)
+		f.max_hp = maxi(1, roundi(f.max_hp * m))
+		f.s.fuerza = float(f.s.fuerza) * pow(m, GROUP_STR_EXP)
+		f.hp = f.max_hp
+
 func next_turn() -> Fighter:
 	if ended:
 		return null
 	if current != null and current.actions_left > 0 and current.up() and current.active:
 		return current
+	if current != null:
+		current.advanced = false
 	current = null
 	while not ended:
 		var live := fighters.filter(func(f: Fighter) -> bool: return f.active and f.up())
@@ -358,6 +392,9 @@ func next_turn() -> Fighter:
 			if not f.up():
 				continue
 		f.pt = mini(f.max_pt, f.pt + PT_REGEN + roundi(f.fx("pt_regen")))
+		var regen := f.fx("regen") + (SERENO_HEAL if f.has("sereno") else 0.0)
+		if regen > 0.0 and f.hp < f.max_hp:
+			f.hp = mini(f.max_hp, f.hp + maxi(1, roundi(f.max_hp * regen)))
 		if f.has("aturdido"):
 			f.statuses.erase("aturdido")
 			_log("%s está aturdido y pierde el turno." % f.name())
@@ -550,7 +587,7 @@ func _technique(f: Fighter, n: Dictionary, target: Variant, info: Dictionary) ->
 				else:
 					_try_status(f, t, st[0], float(st[1]), int(st[2]))
 		if n.has("heal") and t.up():
-			var amt := roundi(t.max_hp * float(n.heal) * (1.0 + f.s.voluntad * HEAL_PER_WILL))
+			var amt := roundi(t.max_hp * float(n.heal) * (1.0 + f.s.voluntad * HEAL_PER_WILL) * (1.0 + f.fx("heal_bonus")))
 			t.hp = mini(t.max_hp, t.hp + amt)
 			_log("  %s recupera %d." % [t.name(), amt])
 		if fx.has("cleanse"):
@@ -561,6 +598,11 @@ func _technique(f: Fighter, n: Dictionary, target: Variant, info: Dictionary) ->
 			_add_status(t, "cubierto", 1, f)
 		if fx.has("advance") and t != f:
 			t.next_time = now + 0.001
+			t.advanced = true
+		if fx.has("haste") and t != f:
+			t.next_time = now + (t.next_time - now) * HASTE_FACTOR
+		if fx.has("pt_give") and t.up():
+			t.pt = mini(t.max_pt, t.pt + int(fx.pt_give))
 		if fx.has("revive") and t.down and not t.dead:
 			t.down = false
 			t.hp = maxi(1, roundi(t.max_hp * float(fx.revive)))
@@ -572,7 +614,7 @@ func _technique(f: Fighter, n: Dictionary, target: Variant, info: Dictionary) ->
 			t.pt -= d
 			f.pt = mini(f.max_pt, f.pt + d)
 		if fx.has("morale"):
-			t.morale = mini(100, t.morale + int(fx.morale))
+			t.morale = clampi(t.morale + int(fx.morale), 0, 100)
 	for st in fx.get("self_st", []):
 		_add_status(f, st[0], int(st[1]), f)
 
@@ -749,6 +791,8 @@ func ai_choose(f: Fighter) -> Dictionary:
 				if o.side != f.side:
 					if pow > 0:
 						sc += _score_hit(f, o, pow, dt, fx, cunning)
+					if fx.has("morale"):
+						sc += ref * AI_MORALE_VALUE * absf(float(fx.morale)) * cunning * (1.0 if o.morale > MORALE_LOW else 0.3)
 					for st in n.get("st", []):
 						if not o.has(st[0]):
 							sc += float(st[1]) * ref * AI_STATUS_VALUE * cunning * (2.0 if st[0] in ["aturdido", "derribado"] else 1.0)
@@ -761,11 +805,21 @@ func ai_choose(f: Fighter) -> Dictionary:
 						sc += ref * 3.0 * support
 					if fx.has("cover") and o != f and o.hp_ratio() < 0.4 and not o.has("cubierto"):
 						sc += ref * 0.8 * support
-					if fx.has("advance") and o != f:
+					if fx.has("advance") and (o == f or f.advanced or o.advanced):
+						continue   # sin cadenas de adelantos entre aliados
+					if fx.has("advance"):
 						sc += ref * 0.7 * support
+					if fx.has("haste") and o != f:
+						sc += ref * 0.35 * support
+					if fx.has("pt_give") and o.max_pt - o.pt >= int(fx.pt_give):
+						sc += ref * 0.3 * support
+					if fx.has("morale") and o.morale < 70:
+						sc += ref * AI_MORALE_VALUE * float(fx.morale) * support
 					for st in n.get("st", []):
 						if not o.has(st[0]):
-							var w := caution if st[0] in ["fortaleza", "guardia_esgrima", "oculto"] else aggr
+							if st[0] == "sereno" and o.hp_ratio() > AI_HEAL_THRESHOLD:
+								continue
+							var w := caution if st[0] in ["fortaleza", "guardia_esgrima", "oculto", "sereno"] else aggr
 							sc += ref * AI_STATUS_VALUE * w * (1.5 if o == f else 1.0)
 			if fx.has("self_st") and not f.has("fortaleza"):
 				sc += ref * 0.3 * caution

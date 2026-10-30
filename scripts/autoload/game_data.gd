@@ -22,18 +22,18 @@ const PERSONALITY_STAT_MODS := {
 	Character.Personality.PRUDENTE: {"strategy": 2, "defense": 1},
 	Character.Personality.ARROGANTE: {"combat": 2, "leadership": 1},
 	Character.Personality.PIADOSO: {"charisma": 2, "defense": 1},
-	Character.Personality.ASTUTO: {"strategy": 2, "charisma": 1},
+	Character.Personality.ASTUTO: {"strategy": 2, "agility": 1},
 	Character.Personality.VALIENTE: {"combat": 2, "leadership": 1},
 	Character.Personality.CRUEL: {"combat": 2, "strategy": 1},
 	Character.Personality.GENEROSO: {"charisma": 2, "leadership": 1},
-	Character.Personality.COBARDE: {"defense": 2, "strategy": 1},
-	Character.Personality.ROMANTICO: {"charisma": 2, "combat": 1},
+	Character.Personality.COBARDE: {"agility": 2, "defense": 1},
+	Character.Personality.ROMANTICO: {"charisma": 2, "agility": 1},
 	Character.Personality.HONORABLE: {"defense": 2, "leadership": 1},
 }
 
 const ALIGNMENT_STAT_MODS := {
 	CharacterEnums.Alignment.CONQUISTADOR: {"combat": 2, "leadership": 1},
-	CharacterEnums.Alignment.PACIFISTA: {"charisma": 2, "defense": 1},
+	CharacterEnums.Alignment.PACIFISTA: {"charisma": 2, "agility": 1},
 	CharacterEnums.Alignment.AMBICIOSO: {"leadership": 2, "strategy": 1},
 	CharacterEnums.Alignment.HUMILDE: {"defense": 2, "charisma": 1},
 	CharacterEnums.Alignment.DIPLOMATICO: {"charisma": 2, "strategy": 1},
@@ -41,12 +41,12 @@ const ALIGNMENT_STAT_MODS := {
 }
 
 const FIGHTER_TYPE_STAT_MODS := {
-	CharacterEnums.FighterType.DUELISTA: {"combat": 2, "defense": 1},
+	CharacterEnums.FighterType.DUELISTA: {"combat": 2, "agility": 1},
 	CharacterEnums.FighterType.TANQUE: {"defense": 2, "combat": 1},
 	CharacterEnums.FighterType.ESTRATEGA: {"strategy": 2, "leadership": 1},
 	CharacterEnums.FighterType.BERSERKER: {"combat": 3},
 	CharacterEnums.FighterType.DEFENSOR: {"defense": 3},
-	CharacterEnums.FighterType.ASESINO: {"combat": 2, "strategy": 1},
+	CharacterEnums.FighterType.ASESINO: {"agility": 2, "combat": 1},
 }
 
 func get_base_stats(personality: int, alignment: int, fighter_type: int) -> Dictionary:
@@ -56,6 +56,7 @@ func get_base_stats(personality: int, alignment: int, fighter_type: int) -> Dict
 		"strategy": BASE_STAT_VALUE,
 		"combat": BASE_STAT_VALUE,
 		"defense": BASE_STAT_VALUE,
+		"agility": BASE_STAT_VALUE,
 	}
 	_add_mods(stats, PERSONALITY_STAT_MODS.get(personality, {}))
 	_add_mods(stats, ALIGNMENT_STAT_MODS.get(alignment, {}))
@@ -89,6 +90,7 @@ func _make_trait(n: String, d: String, is_adv: bool, mods: Dictionary) -> Charac
 	t.strategy_mod = mods.get("strategy", 0)
 	t.combat_mod = mods.get("combat", 0)
 	t.defense_mod = mods.get("defense", 0)
+	t.agility_mod = mods.get("agility", 0)
 	return t
 
 func _traits_from(data: Array, is_adv: bool) -> Array[CharacterTrait]:
@@ -110,6 +112,7 @@ func _make_equipment(e: Dictionary) -> Equipment:
 	item.leadership_mod = mods.get("leadership", 0)
 	item.charisma_mod = mods.get("charisma", 0)
 	item.strategy_mod = mods.get("strategy", 0)
+	item.agility_mod = mods.get("agility", 0)
 	return item
 
 ## Texto breve con lo que hace una entrada del catálogo (para listas y tooltips).
@@ -127,7 +130,7 @@ func effect_summary(entry_name: String) -> String:
 				return ", ".join(parts)
 	return ""
 
-const STAT_LABELS := {"leadership": "Liderazgo", "charisma": "Carisma", "strategy": "Estrategia", "combat": "Combate", "defense": "Defensa"}
+const STAT_LABELS := {"leadership": "Liderazgo", "charisma": "Carisma", "strategy": "Estrategia", "combat": "Combate", "defense": "Defensa", "agility": "Agilidad"}
 
 func _ready() -> void:
 	general_skills = _skills_from(ContentCatalog.GENERAL_SKILLS, CharacterEnums.SkillCategory.GENERAL)

@@ -159,14 +159,12 @@ Crea uno y guárdalo para poder comenzar una partida."
 	character_info.text = "%s
 Comienza como %s, con %d años
 
-Liderazgo %d
-Carisma %d
-Estrategia %d
-Combate %d
-Defensa %d
+Liderazgo %d · Carisma %d
+Estrategia %d · Combate %d
+Defensa %d · Agilidad %d
 
 Honor %d · Oro %d" % [
-		c.full_name(), Character.role_name_for(role), DynastyData.START_AGE_BY_ROLE.get(role, 20), c.leadership, c.charisma, c.strategy, c.combat, c.defense, c.honor, c.gold]
+		c.full_name(), Character.role_name_for(role), DynastyData.START_AGE_BY_ROLE.get(role, 20), c.leadership, c.charisma, c.strategy, c.combat, c.defense, c.agility, c.honor, c.gold]
 	btn_comenzar.disabled = castle == null
 
 func _on_comenzar_pressed() -> void:

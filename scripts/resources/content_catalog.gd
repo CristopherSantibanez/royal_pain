@@ -227,7 +227,29 @@ const EQUIPMENT := [
 	{"name": "Bardas de Acero", "slot": SLOT_MONTURA, "tier": 3, "price": 480, "desc": "Caballo acorazado: +20% a tu caballería y tu pelotón recibe menos bajas si eres el general.", "fx": {"cav_power": 0.2, "general_def": 0.1}},
 	{"name": "Estandarte de Campaña", "slot": SLOT_ACCESORIO, "tier": 2, "price": 160, "desc": "Tu enseña en lo alto: los señores te prefieren como general y tus tropas empiezan con +4 de moral.", "fx": {"general_score": 8, "morale_start": 4}},
 	{"name": "Epitoma de Vegecio", "slot": SLOT_ACCESORIO, "tier": 2, "price": 130, "desc": "El tratado militar de los romanos: +20% de experiencia de mando y lees mejor al enemigo.", "mods": {"strategy": 1}, "fx": {"mastery_xp": 0.2, "intent": 1}},
+	# Equipo inicial básico (creación del personaje)
+	{"name": "Garrote", "slot": SLOT_ARMA, "tier": 1, "price": 25, "desc": "Madera dura: golpe contundente.", "mods": {"combat": 1}},
+	{"name": "Arco Corto", "slot": SLOT_ARMA, "tier": 1, "price": 45, "desc": "Arco de caza: ataca a distancia.", "mods": {"combat": 1}},
+	{"name": "Escudo Redondo", "slot": SLOT_ESCUDO, "tier": 1, "price": 40, "desc": "Madera y cuero: cubre bien.", "mods": {"defense": 1}},
+	{"name": "Ropas de Viaje", "slot": SLOT_ARMADURA, "tier": 1, "price": 5, "desc": "Sin armadura: nada estorba tus movimientos."},
+	{"name": "Cota Ligera", "slot": SLOT_ARMADURA, "tier": 1, "price": 70, "desc": "Malla corta: protege y pesa algo."},
+	{"name": "Peto de Placas", "slot": SLOT_ARMADURA, "tier": 1, "price": 110, "desc": "Placas sobre el pecho: protege mucho y pesa."},
+	{"name": "Bastón de Mando", "slot": SLOT_ACCESORIO, "tier": 1, "price": 30, "desc": "Señal de autoridad.", "mods": {"leadership": 1}},
+	{"name": "Broche de Plata", "slot": SLOT_ACCESORIO, "tier": 1, "price": 30, "desc": "Un detalle que agrada.", "mods": {"charisma": 1}},
+	{"name": "Tablillas de Cera", "slot": SLOT_ACCESORIO, "tier": 1, "price": 30, "desc": "Para trazar planes.", "mods": {"strategy": 1}},
+	{"name": "Muñequeras de Cuero", "slot": SLOT_ACCESORIO, "tier": 1, "price": 30, "desc": "Firmes al golpear.", "mods": {"combat": 1}},
+	{"name": "Amuleto de Hierro", "slot": SLOT_ACCESORIO, "tier": 1, "price": 30, "desc": "Da aplomo ante el golpe.", "mods": {"defense": 1}},
+	{"name": "Botas Ligeras", "slot": SLOT_ACCESORIO, "tier": 1, "price": 30, "desc": "Pies rápidos.", "mods": {"agility": 1}},
 ]
+
+# Equipo que se elige al crear el personaje (un arma, una armadura, un accesorio y, si quiere, un escudo).
+const CREATION_WEAPONS := {"Tajo": "Espada Corta", "Estocada": "Lanza", "Contundente": "Garrote", "Proyectil": "Arco Corto"}
+const CREATION_SHIELDS := ["Rodela", "Escudo Redondo"]
+const CREATION_ARMORS := {"Sin armadura": "Ropas de Viaje", "Cuero": "Gambesón", "Malla": "Cota Ligera", "Placas": "Peto de Placas"}
+const CREATION_ACCESSORIES := {
+	"leadership": "Bastón de Mando", "charisma": "Broche de Plata", "strategy": "Tablillas de Cera",
+	"combat": "Muñequeras de Cuero", "defense": "Amuleto de Hierro", "agility": "Botas Ligeras",
+}
 
 # Calidad del equipo inicial de los PNJ según su rango: niveles permitidos y piezas.
 const NPC_EQUIPMENT_BY_ROLE := {

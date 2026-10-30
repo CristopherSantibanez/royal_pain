@@ -47,6 +47,7 @@ const STAT_LABELS := {
 	"strategy": "Estrategia",
 	"combat": "Combate",
 	"defense": "Defensa",
+	"agility": "Agilidad",
 }
 
 var stat_value_labels: Dictionary = {}
@@ -56,6 +57,7 @@ func _ready() -> void:
 	_setup_tabs()
 
 	character = Character.new()
+	character.traits_locked = false   # los rasgos solo se eligen aquí
 	character.gender = CharacterEnums.Gender.MASCULINO
 	btn_male.button_pressed = true
 
@@ -79,7 +81,6 @@ func _ready() -> void:
 	_populate_fighter_type_options()
 	_build_stats_grid()
 	_build_traits_lists()
-	_build_skills_lists()
 	_build_equipment_list()
 	
 
@@ -89,6 +90,7 @@ func _ready() -> void:
 
 	_refresh_portrait_preview()
 	_recalculate_points()
+	_build_skills_lists()
 	_update_continue_button()
 	if CreationState.edit_character != null:
 		_load_for_edit(CreationState.edit_character)
@@ -122,18 +124,27 @@ func _load_for_edit(c: Character) -> void:
 		while allocator.current_value(key) < target and allocator.can_increase(key):
 			allocator.increase(key)
 	var wanted := {}
-	for item in c.advantages + c.disadvantages + c.general_skills + c.combat_skills + c.battle_skills:
-		wanted[item.trait_name if item is CharacterTrait else item.skill_name] = true
-	for list: Container in [advantages_list, disadvantages_list, general_skills_list, combat_skills_list, battle_skills_list]:
+	for item in c.advantages + c.disadvantages:
+		wanted[item.trait_name] = true
+	for list: Container in [advantages_list, disadvantages_list]:
 		for cb: CheckBox in list.find_children("*", "CheckBox", true, false):
 			if wanted.has(cb.text) and not cb.button_pressed:
 				cb.button_pressed = true
-	var gear := {}
+	_build_skills_lists()
+	for i in _tree_options.size():
+		var opt: Dictionary = _tree_options[i]
+		for id in opt.ids:
+			if id in c.learned_skills:
+				_select_basic(i, str(id))
+	var names := {}
 	for e: Equipment in c.equipment:
-		gear[e.equipment_name] = true
-	for e: Equipment in equipment_checkboxes:
-		if gear.has(e.equipment_name) and not equipment_checkboxes[e].button_pressed:
-			equipment_checkboxes[e].button_pressed = true
+		names[e.equipment_name] = true
+	for slot: String in _gear_buttons:
+		var ob: OptionButton = _gear_buttons[slot]
+		for k in ob.item_count:
+			if names.has(str(ob.get_item_metadata(k))):
+				ob.select(k)
+	_apply_gear()
 	edit_bio.text = c.biography
 	_on_bio_changed()
 	character.role = c.role
@@ -144,7 +155,7 @@ func _setup_tabs() -> void:
 	pages_tab.set_tab_title(1, "Rasgos")
 	pages_tab.set_tab_title(2, "Estadísticas e identidad")
 	pages_tab.set_tab_title(3, "Habilidades")
-	pages_tab.set_tab_title(4, "Equipamientos")
+	pages_tab.set_tab_title(4, "Equipo")
 
 # --- Identidad ---
 
@@ -237,6 +248,7 @@ func _populate_fighter_type_options() -> void:
 
 func _on_personality_or_alignment_changed(_index: int) -> void:
 	_recalculate_points()
+	_build_skills_lists()   # cambian los árboles: se vuelven a elegir las básicas
 
 func _recalculate_points() -> void:
 	character.personality = opt_personality.get_selected_id()
@@ -254,7 +266,7 @@ func _build_stats_grid() -> void:
 		child.queue_free()
 	stat_value_labels.clear()
 
-	for stat_key in ["leadership", "charisma", "strategy", "combat", "defense"]:
+	for stat_key in Character.ATTRIBUTES:
 		var name_label := Label.new()
 		name_label.text = STAT_LABELS[stat_key]
 		name_label.custom_minimum_size = Vector2(100, 0)
@@ -350,23 +362,27 @@ func _add_header(container: Container, text: String) -> void:
 
 func _on_advantage_toggled(t: CharacterTrait, pressed: bool) -> void:
 	if pressed:
-		if t not in character.advantages:
-			character.advantages.append(t)
+		if character.advantages.size() >= Character.MAX_ADVANTAGES or not character.add_trait(t):
+			_uncheck(advantages_list, t.trait_name)
 	else:
-		character.advantages.erase(t)
+		character.remove_trait(t)
 	_refresh_traits_count()
+
+func _uncheck(list: Container, trait_name: String) -> void:
+	for cb: CheckBox in list.find_children("*", "CheckBox", true, false):
+		if cb.text == trait_name:
+			cb.set_pressed_no_signal(false)
 
 func _on_disadvantage_toggled(t: CharacterTrait, pressed: bool) -> void:
 	if pressed:
-		if t not in character.disadvantages:
-			character.disadvantages.append(t)
+		character.add_trait(t)
 	else:
-		character.disadvantages.erase(t)
+		character.remove_trait(t)
 	_refresh_traits_count()
 
 func _refresh_traits_count() -> void:
-	lbl_advantages_count.text = "Seleccionadas: %d / mínimo 3" % character.advantages.size()
-	lbl_disadvantages_count.text = "Seleccionadas: %d / mínimo 2" % character.disadvantages.size()
+	lbl_advantages_count.text = "Elegidas: %d / máximo %d" % [character.advantages.size(), Character.MAX_ADVANTAGES]
+	lbl_disadvantages_count.text = "Elegidas: %d / mínimo %d" % [character.disadvantages.size(), Character.MIN_DISADVANTAGES]
 	_update_continue_button()
 
 # --- Validación general ---
@@ -380,96 +396,113 @@ func _on_volver_menu_pressed() -> void:
 	CreationState.clear_edit()
 	get_tree().change_scene_to_file("res://scenes/main_menu/main_menu.tscn")
 
-# --- Habilidades ---
+# --- Habilidades: una básica por rama de cada árbol (personalidad, alineación y tipo de luchador) ---
+
+var _tree_options: Array = []      # [{"tree", "branch", "ids"}] en orden: árbol por árbol
+var _basic_buttons: Array = []     # OptionButton por rama (mismo índice que _tree_options)
 
 func _build_skills_lists() -> void:
-	_populate_skill_checkboxes(general_skills_list, GameData.general_skills, character.general_skills)
-	_populate_skill_checkboxes(combat_skills_list, GameData.combat_skills, character.combat_skills)
-	_populate_skill_checkboxes(battle_skills_list, GameData.battle_skills, character.battle_skills)
+	var lists: Array = [general_skills_list, combat_skills_list, battle_skills_list]
+	for list: Container in lists:
+		for child in list.get_children():
+			child.queue_free()
+	character.learned_skills.clear()
+	_basic_buttons.clear()
+	_tree_options = character.basic_tree_options()
+	if _tree_options.is_empty():
+		_add_header(general_skills_list, "Árboles no disponibles")
+		_update_continue_button()
+		return
+	var tree_index := -1
+	var last_tree := ""
+	for i in _tree_options.size():
+		var opt: Dictionary = _tree_options[i]
+		if opt.tree != last_tree:
+			last_tree = opt.tree
+			tree_index = mini(tree_index + 1, lists.size() - 1)
+			var title := (lists[tree_index] as Node).get_parent().get_parent().get_child(0)
+			if title is Label:
+				title.text = opt.tree
+		var list: Container = lists[tree_index]
+		var lbl := Label.new()
+		lbl.theme_type_variation = &"InkLabel"
+		lbl.text = opt.branch
+		list.add_child(lbl)
+		var ob := OptionButton.new()
+		ob.add_item("—")
+		ob.set_item_metadata(0, "")
+		for id in opt.ids:
+			var n: Dictionary = SkillTreeCatalog.node(str(id))
+			ob.add_item(str(n.get("name", id)))
+			ob.set_item_metadata(ob.item_count - 1, str(id))
+			ob.set_item_tooltip(ob.item_count - 1, str(n.get("desc", "")))
+		ob.item_selected.connect(func(k: int): _on_basic_selected(i, str(ob.get_item_metadata(k))))
+		list.add_child(ob)
+		_basic_buttons.append(ob)
+	_update_continue_button()
 
-func _populate_skill_checkboxes(container: VBoxContainer, catalog: Array[Skill], selected: Array[Skill]) -> void:
-	for child in container.get_children():
-		child.queue_free()
+func _on_basic_selected(index: int, id: String) -> void:
+	character.choose_basic(_tree_options[index], id)
+	_update_continue_button()
 
-	for s: Skill in catalog:
-		var cb := CheckBox.new()
-		cb.text = s.skill_name
-		cb.tooltip_text = s.description
-		cb.add_theme_color_override("font_color", Color.BLACK)
-		cb.toggled.connect(func(pressed: bool): _on_skill_toggled(s, selected, pressed))
-		_add_entry(container, cb, s.description)
+func _select_basic(index: int, id: String) -> void:
+	var ob: OptionButton = _basic_buttons[index]
+	for k in ob.item_count:
+		if str(ob.get_item_metadata(k)) == id:
+			ob.select(k)
+	_on_basic_selected(index, id)
 
-func _on_skill_toggled(s: Skill, selected: Array[Skill], pressed: bool) -> void:
-	if pressed:
-		if s not in selected:
-			selected.append(s)
-	else:
-		selected.erase(s)
-		
-# --- Equipamiento ---
+# --- Equipo inicial: un arma (tipo de daño), un escudo o ninguno, una armadura y un accesorio (+1) ---
 
-var equipment_checkboxes: Dictionary = {}   # Equipment -> CheckBox
+var _gear_buttons: Dictionary = {}   # ranura -> OptionButton (metadata: nombre de la pieza)
 
 func _build_equipment_list() -> void:
 	for child in equipment_list.get_children():
 		child.queue_free()
-	equipment_checkboxes.clear()
+	_gear_buttons.clear()
+	var CC = GameData.ContentCatalog
+	var accessories := {}
+	for stat: String in CC.CREATION_ACCESSORIES:
+		accessories["%s +1" % STAT_LABELS.get(stat, stat)] = CC.CREATION_ACCESSORIES[stat]
+	var shields := {"Sin escudo": ""}
+	for n: String in CC.CREATION_SHIELDS:
+		shields[n] = n
+	for row in [["Arma", CC.SLOT_ARMA, CC.CREATION_WEAPONS], ["Escudo", CC.SLOT_ESCUDO, shields],
+			["Armadura", CC.SLOT_ARMADURA, CC.CREATION_ARMORS], ["Accesorio", CC.SLOT_ACCESORIO, accessories]]:
+		_add_header(equipment_list, row[0])
+		var ob := OptionButton.new()
+		var choices: Dictionary = row[2]
+		for label: String in choices:
+			var item_name: String = choices[label]
+			ob.add_item(label if item_name.is_empty() or label == item_name else "%s · %s" % [label, item_name])
+			ob.set_item_metadata(ob.item_count - 1, item_name)
+			var e := _catalog_item(item_name)
+			if e != null:
+				ob.set_item_tooltip(ob.item_count - 1, e.description)
+		ob.item_selected.connect(func(_k: int): _apply_gear())
+		equipment_list.add_child(ob)
+		_gear_buttons[row[1]] = ob
+	(_gear_buttons[CC.SLOT_ARMADURA] as OptionButton).select(1)   # Cuero por defecto
+	_apply_gear()
 
-	# Agrupado por ranura: una pieza por ranura.
-	for slot in GameData.ContentCatalog.SLOTS:
-		_add_header(equipment_list, slot)
-		for e: Equipment in GameData.equipment_catalog:
-			if e.slot != slot or SkillEffects.is_unique_item(e):   # las piezas únicas se ganan jugando
-				continue
-			var cb := CheckBox.new()
-			cb.text = _equipment_label(e)
-			cb.tooltip_text = e.description
-			cb.add_theme_color_override("font_color", Color.BLACK)
-			cb.toggled.connect(func(pressed: bool): _on_equipment_toggled(e, cb, pressed))
-			_add_entry(equipment_list, cb, "%s · %d de oro" % [e.description, e.price])
-			equipment_checkboxes[e] = cb
+func _catalog_item(item_name: String) -> Equipment:
+	for e: Equipment in GameData.equipment_catalog:
+		if e.equipment_name == item_name:
+			return e
+	return null
 
+func _apply_gear() -> void:
+	character.equipment.clear()
+	for slot: String in _gear_buttons:
+		var ob: OptionButton = _gear_buttons[slot]
+		var e := _catalog_item(str(ob.get_item_metadata(ob.selected)))
+		if e != null:
+			character.equipment.append(e)
 	_refresh_equipment_count()
-
-func _equipment_label(e: Equipment) -> String:
-	var bonuses: Array[String] = []
-	if e.combat_mod != 0: bonuses.append("Combate %+d" % e.combat_mod)
-	if e.defense_mod != 0: bonuses.append("Defensa %+d" % e.defense_mod)
-	if e.leadership_mod != 0: bonuses.append("Liderazgo %+d" % e.leadership_mod)
-	if e.charisma_mod != 0: bonuses.append("Carisma %+d" % e.charisma_mod)
-	if e.strategy_mod != 0: bonuses.append("Estrategia %+d" % e.strategy_mod)
-	var bonus_text := ", ".join(bonuses)
-	var stars := "★".repeat(e.tier)
-	return "%s %s (%s)" % [e.equipment_name, stars, bonus_text] if not bonus_text.is_empty() else "%s %s" % [e.equipment_name, stars]
-
-func _on_equipment_toggled(e: Equipment, cb: CheckBox, pressed: bool) -> void:
-	if pressed:
-		# Otra pieza de la misma ranura se cambia por esta.
-		for other: Equipment in character.equipment.duplicate():
-			if other.slot == e.slot:
-				character.equipment.erase(other)
-				equipment_checkboxes[other].set_pressed_no_signal(false)
-		if character.equipment.size() >= Character.MAX_EQUIPMENT:
-			# Ya está el máximo: revierte visualmente esta casilla sin agregarla.
-			cb.set_pressed_no_signal(false)
-			return
-		character.equipment.append(e)
-	else:
-		character.equipment.erase(e)
-
-	_refresh_equipment_count()
-	_update_equipment_lock_state()
+	_update_continue_button()
 
 func _refresh_equipment_count() -> void:
-	lbl_equipment_count.text = "Equipados: %d / máximo %d (una pieza por ranura)" % [character.equipment.size(), Character.MAX_EQUIPMENT]
-
-func _update_equipment_lock_state() -> void:
-	var maxed_out := character.equipment.size() >= Character.MAX_EQUIPMENT
-	for e: Equipment in equipment_checkboxes.keys():
-		var cb: CheckBox = equipment_checkboxes[e]
-		cb.add_theme_color_override("font_color", Color.BLACK)
-		if not cb.button_pressed:
-			cb.disabled = maxed_out
+	lbl_equipment_count.text = "Un arma, una armadura, un accesorio y, si quieres, un escudo."
 
 func _on_bio_changed() -> void:
 	character.biography = edit_bio.text
@@ -477,6 +510,7 @@ func _on_bio_changed() -> void:
 func _on_continuar_pressed() -> void:
 	allocator.apply_to_character(character)
 	character.apply_trait_and_equipment_modifiers()
+	character.traits_locked = true   # desde aquí, los rasgos no cambian
 	CreationState.pending_character = character
 	get_tree().change_scene_to_file("res://scenes/character_summary/character_summary.tscn")
 
@@ -521,12 +555,16 @@ func _randomize_all() -> void:
 		allocator.increase(possible.pick_random())
 
 	# Rasgos, habilidades y equipo
-	_randomize_checkboxes(advantages_list, 3)
-	_randomize_checkboxes(disadvantages_list, 2)
-	_randomize_checkboxes(general_skills_list, 1)
-	_randomize_checkboxes(combat_skills_list, 1)
-	_randomize_checkboxes(battle_skills_list, 1)
-	_randomize_checkboxes(equipment_list, randi_range(1, Character.MAX_EQUIPMENT))
+	_randomize_checkboxes(advantages_list, Character.MAX_ADVANTAGES)
+	_randomize_checkboxes(disadvantages_list, Character.MIN_DISADVANTAGES)
+	_build_skills_lists()   # el árbol depende de personalidad, alineación y tipo
+	for i in _tree_options.size():
+		var ids: Array = _tree_options[i].ids
+		if not ids.is_empty():
+			_select_basic(i, str(ids.pick_random()))
+	for ob: OptionButton in _gear_buttons.values():
+		ob.select(randi() % ob.item_count)
+	_apply_gear()
 
 	edit_bio.text = RANDOM_BIOS.pick_random()
 	_on_bio_changed()

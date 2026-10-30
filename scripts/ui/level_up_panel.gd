@@ -4,7 +4,7 @@ extends Control
 #   Familia: cónyuge e hijos (edad, rasgos heredados; los adultos pueden heredar).
 # Uso: const LevelUpPanel = preload("res://scripts/ui/level_up_panel.gd"); LevelUpPanel.open(nodo)
 
-const STATS := ["leadership", "charisma", "strategy", "combat", "defense"]
+const STATS := Character.ATTRIBUTES
 const STAT_MIN := 1
 const STAT_MAX := 20
 const SKILL_OFFER_SIZE := 3
@@ -175,19 +175,29 @@ func _rebuild_level() -> void:
 		confirm.pressed.connect(_confirm_points)
 		_level_box.add_child(confirm)
 
-	if _player.pending_skill_choices > 0:
-		_level_box.add_child(HSeparator.new())
-		_level_box.add_child(_label("Elige una habilidad nueva (%d por elegir):" % _player.pending_skill_choices, &"BodyBoldLabel"))
-		for s: Skill in _skill_offer():
-			var b := Button.new()
-			var fx := GameData.effect_summary(s.skill_name)
-			b.text = "%s · %s%s" % [s.skill_name, _category_name(s.category), " — " + fx if not fx.is_empty() else ""]
-			b.tooltip_text = s.description
-			b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-			b.pressed.connect(_pick_skill.bind(s))
-			_level_box.add_child(b)
+	# Habilidades: se aprenden en los árboles (un punto cada SKILL_EVERY_LEVELS niveles).
+	_level_box.add_child(HSeparator.new())
+	if ResourceLoader.exists(SKILL_TREE_PANEL):
+		var trees := Button.new()
+		trees.text = "Árbol de habilidades"
+		trees.tooltip_text = "Un punto de habilidad cada %d niveles." % Character.SKILL_EVERY_LEVELS
+		trees.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		trees.pressed.connect(_open_skill_tree)
+		_level_box.add_child(trees)
 	else:
-		_level_box.add_child(_label("Cada %d niveles eliges una habilidad nueva." % Character.SKILL_EVERY_LEVELS, &"MutedLabel", 15))
+		_level_box.add_child(_label("Un punto de habilidad cada %d niveles." % Character.SKILL_EVERY_LEVELS, &"MutedLabel", 15))
+
+const SKILL_TREE_PANEL := "res://scripts/ui/skill_tree_panel.gd"
+
+func _open_skill_tree() -> void:
+	var script: Script = load(SKILL_TREE_PANEL)
+	if script == null:
+		return
+	if script.get_script_method_list().any(func(m): return m.name == "open"):
+		script.call("open", get_parent())
+	else:
+		var panel: Node = script.new()
+		get_parent().add_child(panel)
 
 func _change(stat: String, delta: int) -> void:
 	var now: int = _added.get(stat, 0) + delta
@@ -323,8 +333,8 @@ func _person_row(c: Character, display_name: String, status: String) -> Control:
 		var traits: Array[String] = []
 		for t: CharacterTrait in c.advantages:
 			traits.append(t.trait_name)
-		var line := "%s · Liderazgo %d · Carisma %d · Estrategia %d · Combate %d · Defensa %d" % [
-			_personality(c), c.leadership, c.charisma, c.strategy, c.combat, c.defense]
+		var line := "%s · Liderazgo %d · Carisma %d · Estrategia %d · Combate %d · Defensa %d · Agilidad %d" % [
+			_personality(c), c.leadership, c.charisma, c.strategy, c.combat, c.defense, c.agility]
 		if not traits.is_empty():
 			line += "\nVentajas: " + ", ".join(traits)
 		info.add_child(_label(line, &"MutedLabel", 14))

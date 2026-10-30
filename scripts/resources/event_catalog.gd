@@ -16,6 +16,9 @@ class_name EventCatalog
 #   affinity, grudge, affection, clear_suitor, que se aplican a la relación con ese personaje.
 # fame: fama del jugador. Las pérdidas (números negativos) se multiplican por PENALTY_SCALE.
 # Requisitos: gold, castle_gold, healthy (poder batirse en duelo).
+# Premisa del suceso (opcional): "premise": {governs, has_liege, landed, wanderer: true|false}; ver situation().
+#   Así un no afiliado no abre graneros ni un campesino gobierna un castillo. La usan también
+#   WorldEventCatalog.pick_player_event y SocialEvents.lord_event.
 
 const MONTHLY_EVENT_CHANCE := 0.2   # bajó de 0.3: historias, complots y capturas ya aportan decisiones
 const FAME_EVENT_BONUS := 0.003       # +0,3% de probabilidad de evento por punto de fama (la fama atrae sucesos)
@@ -31,7 +34,7 @@ const EVENTS := [
 	{
 		"id": "caballero_errante", "title": "Un caballero errante",
 		"text": "Un caballero sin señor planta su tienda junto al camino y reta a quien se atreva a cruzar lanzas con él. Dicen que nadie lo ha vencido en todo el invierno.",
-		"roles": [R.SOLDADO, R.CABALLERO, R.NOBLEZA_BAJA], "bias": {P.ARROGANTE: 1.5, P.VALIENTE: 1.8, P.COBARDE: 0.4},
+		"roles": [R.SOLDADO, R.CABALLERO, R.NOBLEZA_BAJA, R.INAFILIADO], "bias": {P.ARROGANTE: 1.5, P.VALIENTE: 1.8, P.COBARDE: 0.4},
 		"options": [
 			{"label": "Aceptar el desafío", "requires": {"healthy": true}, "effects": {},
 				"result": "Saludas con la espada. El caballero errante sonríe bajo el yelmo.",
@@ -58,7 +61,7 @@ const EVENTS := [
 	{
 		"id": "juicio_combate", "title": "Juicio por combate",
 		"text": "Un vecino te acusa de robarle tierras y, como manda la costumbre, exige que Dios lo decida en un juicio por combate.",
-		"roles": [R.SOLDADO, R.CABALLERO, R.NOBLEZA_BAJA], "bias": {P.PIADOSO: 1.4},
+		"roles": [R.SOLDADO, R.CABALLERO, R.NOBLEZA_BAJA], "premise": {"landed": true}, "bias": {P.PIADOSO: 1.4},
 		"options": [
 			{"label": "Aceptar el juicio", "requires": {"healthy": true}, "effects": {},
 				"result": "El tribunal fija el día. Que gane quien tenga la razón… o la mejor espada.",
@@ -72,7 +75,7 @@ const EVENTS := [
 	{
 		"id": "saqueadores", "title": "Saqueadores en tus aldeas",
 		"text": "Una banda de saqueadores quema granjas en tus tierras. Los campesinos piden protección.",
-		"roles": [R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.DUQUE, R.REGENTE], "bias": {P.GENEROSO: 1.4, P.CRUEL: 0.7},
+		"roles": [R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.DUQUE, R.REGENTE], "premise": {"governs": true}, "bias": {P.GENEROSO: 1.4, P.CRUEL: 0.7},
 		"options": [
 			{"label": "Salir a su encuentro (escaramuza)", "requires": {"garrison": 30}, "effects": {},
 				"result": "Tus jinetes salen del castillo al amanecer.",
@@ -87,7 +90,7 @@ const EVENTS := [
 	{
 		"id": "recaudador", "title": "El recaudador abusivo",
 		"text": "Un recaudador del señor exige un tributo extra, alegando deudas que nunca contrajiste.",
-		"roles": [R.CAMPESINO, R.SOLDADO], "bias": {},
+		"roles": [R.CAMPESINO, R.SOLDADO], "premise": {"landed": true, "governs": false}, "bias": {},
 		"options": [
 			{"label": "Pagar sin protestar", "effects": {"gold": -15},
 				"result": "Pagas. El recaudador se marcha satisfecho."},
@@ -99,7 +102,7 @@ const EVENTS := [
 	{
 		"id": "bandidos", "title": "Bandidos en el camino",
 		"text": "Una partida de bandidos asalta a unos viajeros cerca de las murallas.",
-		"roles": [R.SOLDADO, R.CABALLERO, R.NOBLEZA_BAJA, R.NOBLEZA_ALTA], "bias": {P.ARROGANTE: 1.5},
+		"roles": [R.SOLDADO, R.CABALLERO, R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.INAFILIADO], "bias": {P.ARROGANTE: 1.5},
 		"options": [
 			{"label": "Retar al cabecilla (duelo)", "requires": {"healthy": true}, "effects": {},
 				"result": "Te abres paso hasta el cabecilla y le exiges que pelee.",
@@ -118,19 +121,19 @@ const EVENTS := [
 	},
 	{
 		"id": "peregrino", "title": "Un peregrino enfermo",
-		"text": "Un peregrino exhausto pide refugio y algo de comida a tu puerta.",
+		"text": "Un peregrino exhausto se cruza en tu camino y te pide ayuda y algo de comida.",
 		"roles": [], "bias": {P.PIADOSO: 2.0},
 		"options": [
 			{"label": "Acogerlo y cuidarlo", "requires": {"gold": 10}, "effects": {"gold": -10, "honor": 5},
 				"result": "El peregrino se recupera y bendice tu nombre allá donde va."},
-			{"label": "Cerrarle la puerta", "effects": {"honor": -2},
+			{"label": "Negarle la ayuda", "effects": {"honor": -2},
 				"result": "El peregrino sigue su camino. Nadie lo olvida del todo."},
 		],
 	},
 	{
 		"id": "maestro_armas", "title": "Un maestro de armas errante",
 		"text": "Un veterano de muchas campañas ofrece adiestrarte a cambio de una buena paga.",
-		"roles": [R.SOLDADO, R.CABALLERO, R.NOBLEZA_BAJA], "bias": {P.ARROGANTE: 1.5, P.AMBICIOSO: 1.3},
+		"roles": [R.SOLDADO, R.CABALLERO, R.NOBLEZA_BAJA, R.INAFILIADO], "bias": {P.ARROGANTE: 1.5, P.AMBICIOSO: 1.3},
 		"options": [
 			{"label": "Pagar el adiestramiento (40 de oro)", "requires": {"gold": 40}, "effects": {"gold": -40, "combat": 1},
 				"result": "Semanas de práctica dura mejoran tu manejo de la espada."},
@@ -152,7 +155,7 @@ const EVENTS := [
 	{
 		"id": "insulto", "title": "Un insulto en la taberna",
 		"text": "Un rival te humilla en público, poniendo en duda tu valor.",
-		"roles": [R.SOLDADO, R.CABALLERO], "bias": {P.ARROGANTE: 2.0, P.PRUDENTE: 0.6},
+		"roles": [R.SOLDADO, R.CABALLERO, R.INAFILIADO], "bias": {P.ARROGANTE: 2.0, P.PRUDENTE: 0.6},
 		"options": [
 			{"label": "Responder con firmeza", "chance": 0.6, "chance_stat": "charisma",
 				"success": {"effects": {"honor": 5}, "result": "Tus palabras dejan en ridículo al provocador."},
@@ -169,7 +172,7 @@ const EVENTS := [
 	{
 		"id": "disputa", "title": "Disputa de tierras",
 		"text": "Dos familias se disputan un campo. Una de ellas es rica y te ofrece un regalo si fallas a su favor.",
-		"roles": [R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.DUQUE, R.REGENTE], "bias": {P.LEAL: 1.3, P.ASTUTO: 1.3},
+		"roles": [R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.DUQUE, R.REGENTE], "premise": {"governs": true}, "bias": {P.LEAL: 1.3, P.ASTUTO: 1.3},
 		"options": [
 			{"label": "Juzgar con justicia", "effects": {"honor": 6},
 				"result": "Tu fallo es justo y el pueblo lo celebra."},
@@ -180,7 +183,7 @@ const EVENTS := [
 	{
 		"id": "incendio", "title": "Incendio en el granero",
 		"text": "Un incendio arrasa parte de los graneros del castillo.",
-		"roles": [R.CABALLERO, R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.DUQUE, R.REGENTE], "bias": {},
+		"roles": [R.CABALLERO, R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.DUQUE, R.REGENTE], "premise": {"governs": true}, "bias": {},
 		"options": [
 			{"label": "Pagar la reconstrucción (60 de oro del castillo)", "requires": {"castle_gold": 60},
 				"effects": {"castle_gold": -60, "honor": 2}, "result": "Los graneros se reconstruyen antes del invierno."},
@@ -215,7 +218,7 @@ const EVENTS := [
 	{
 		"id": "voluntarios", "title": "Jóvenes voluntarios",
 		"text": "Un grupo de jóvenes de las aldeas se ofrece para servir en la guarnición.",
-		"roles": [R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.DUQUE, R.REGENTE], "bias": {},
+		"roles": [R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.DUQUE, R.REGENTE], "premise": {"governs": true}, "bias": {},
 		"options": [
 			{"label": "Equiparlos (30 de oro del castillo)", "requires": {"castle_gold": 30},
 				"effects": {"castle_gold": -30, "garrison": 15}, "result": "La guarnición crece con quince nuevos soldados."},
@@ -237,7 +240,7 @@ const EVENTS := [
 	{
 		"id": "cosecha_parcela", "title": "Buena cosecha en tu parcela",
 		"text": "Tu pequeña parcela ha dado más de lo esperado este mes.",
-		"roles": [R.CAMPESINO], "bias": {},
+		"roles": [R.CAMPESINO], "premise": {"landed": true}, "bias": {},
 		"options": [
 			{"label": "Venderla en el mercado", "effects": {"gold": 20},
 				"result": "Vuelves del mercado con la bolsa más pesada."},
@@ -257,6 +260,54 @@ const EVENTS := [
 				"result": "Los rumores no cesan del todo."},
 		],
 	},
+	# --- El no afiliado: la vida en los caminos ---
+	{
+		"id": "jornal_siega", "title": "Jornaleros para la siega",
+		"text": "Un labrador busca brazos para segar antes de que lleguen las lluvias. Paga poco, pero paga.",
+		"roles": [R.INAFILIADO], "premise": {"wanderer": true}, "bias": {},
+		"options": [
+			{"label": "Doblar el lomo una semana", "effects": {"gold": 15, "health": -5},
+				"result": "Acabas con las manos en carne viva y unas monedas en la bolsa."},
+			{"label": "Seguir tu camino", "effects": {},
+				"result": "Otros se ganarán ese jornal."},
+		],
+	},
+	{
+		"id": "dados_posada", "title": "Dados en la posada",
+		"text": "En una posada del camino unos arrieros te invitan a una partida de dados. Las apuestas suben con el vino.",
+		"roles": [R.INAFILIADO], "premise": {"wanderer": true}, "bias": {P.AMBICIOSO: 1.5, P.PRUDENTE: 0.5},
+		"options": [
+			{"label": "Apostar (20)", "requires": {"gold": 20}, "chance": 0.5, "chance_stat": "strategy",
+				"success": {"effects": {"gold": 25}, "result": "Los arrieros pagan entre maldiciones."},
+				"failure": {"effects": {"gold": -20}, "result": "Los dados no te quieren esta noche."}},
+			{"label": "Mirar y beber", "effects": {},
+				"result": "Una noche tranquila, que no es poco."},
+		],
+	},
+	{
+		"id": "escolta_caravana", "title": "Una caravana sin escolta",
+		"text": "Un mercader ha perdido a sus guardias y ofrece una paga a quien le acompañe hasta la próxima villa.",
+		"roles": [R.INAFILIADO], "premise": {"wanderer": true}, "bias": {P.VALIENTE: 1.5, P.COBARDE: 0.5},
+		"options": [
+			{"label": "Escoltarla", "chance": 0.6, "chance_stat": "combat",
+				"success": {"effects": {"gold": 45, "fame": 2}, "result": "Llegáis sin percances y el mercader paga lo prometido."},
+				"failure": {"effects": {"gold": 10, "health": -25}, "result": "Os asaltan en un vado; salvas la carga, pero no sales entero."}},
+			{"label": "Rechazar el trabajo", "effects": {},
+				"result": "El mercader busca a otro."},
+		],
+	},
+	{
+		"id": "noche_al_raso", "title": "Noche al raso",
+		"text": "La noche te sorprende lejos de cualquier techo. Entre los árboles brillan ojos de lobo.",
+		"roles": [R.INAFILIADO], "premise": {"wanderer": true}, "bias": {},
+		"options": [
+			{"label": "Avivar el fuego y velar", "chance": 0.6, "chance_stat": "combat",
+				"success": {"effects": {"fame": 1}, "result": "Los lobos rondan hasta el alba y se van."},
+				"failure": {"effects": {"health": -20}, "result": "Uno de ellos te alcanza antes de que lo espantes."}},
+			{"label": "Huir hacia el pueblo más cercano", "effects": {"gold": -10},
+				"result": "Pierdes parte de tus provisiones en la carrera."},
+		],
+	},
 ]
 
 const ANNUAL_EVENTS := [
@@ -269,15 +320,17 @@ const ANNUAL_EVENTS := [
 
 # --- Eventos mensuales ---
 
-static func roll_monthly(character: Character) -> Dictionary:
+## ctx: situación del jugador (ver situation); vacío = se calcula ahora.
+static func roll_monthly(character: Character, ctx: Dictionary = {}) -> Dictionary:
 	if character == null or randf() >= event_chance(character):
 		return {}
+	if ctx.is_empty():
+		ctx = situation(character)
 	var pool: Array = []
 	var weights: Array[float] = []
 	var total := 0.0
 	for e: Dictionary in EVENTS:
-		var roles: Array = e.roles
-		if not roles.is_empty() and not character.role in roles and not character.ladder_role() in roles:
+		if not fits_role(e, character) or not fits_situation(e, ctx):
 			continue
 		var w: float = e.bias.get(character.personality, 1.0)
 		pool.append(e)
@@ -291,6 +344,55 @@ static func roll_monthly(character: Character) -> Dictionary:
 		if pick <= 0.0:
 			return pool[i].duplicate(true)
 	return pool[pool.size() - 1].duplicate(true)
+
+## Sucesos mensuales que este personaje podría recibir (rol y premisa). Para pruebas y depuración.
+static func eligible_events(character: Character, ctx: Dictionary = {}) -> Array:
+	if ctx.is_empty():
+		ctx = situation(character)
+	return EVENTS.filter(func(e: Dictionary) -> bool: return fits_role(e, character) and fits_situation(e, ctx))
+
+## El suceso admite el rol del personaje ([] = cualquiera; también vale el peldaño equivalente).
+## El no afiliado solo recibe sucesos de campesino si no exigen tierra (lo filtra la premisa).
+static func fits_role(e: Dictionary, character: Character) -> bool:
+	var roles: Array = e.get("roles", [])
+	return roles.is_empty() or character.role in roles or character.ladder_role() in roles
+
+## La premisa del suceso ("premise": {clave: bool}) encaja con la situación del jugador.
+static func fits_situation(e: Dictionary, ctx: Dictionary) -> bool:
+	var premise: Dictionary = e.get("premise", {})
+	for k in premise:
+		if bool(ctx.get(k, false)) != bool(premise[k]):
+			return false
+	return true
+
+## Situación del jugador para las premisas de los sucesos:
+##   governs: posee un castillo, o es noble (Nobleza Baja o más) en su castillo de origen.
+##   has_liege: sirve a un señor. landed: vive en las tierras de un castillo (no vaga por los caminos).
+##   wanderer: no afiliado (sin tierra ni señor).
+static func situation(character: Character) -> Dictionary:
+	var ctx := {"governs": false, "has_liege": false, "landed": false, "wanderer": false}
+	if character == null:
+		return ctx
+	var tree := Engine.get_main_loop() as SceneTree
+	var root: Node = tree.root if tree != null else null
+	var gm: Node = root.get_node_or_null("GameManager") if root != null else null
+	var md: Node = root.get_node_or_null("MapData") if root != null else null
+	var rd: Node = root.get_node_or_null("RelationsData") if root != null else null
+	var wanderer := character.role == R.INAFILIADO
+	var owns := false
+	if md != null:
+		for c: Castle in md.castles:
+			if c.owner_name == character.full_name():
+				owns = true
+				break
+	var home: Castle = null
+	if gm != null and md != null and not wanderer and not str(gm.home_castle_id).is_empty():
+		home = md.get_castle_by_id(gm.home_castle_id)
+	ctx.wanderer = wanderer
+	ctx.governs = owns or (home != null and character.rank() >= Character.rank_of(R.NOBLEZA_BAJA))
+	ctx.has_liege = rd != null and not str(rd.liege_name).is_empty()
+	ctx.landed = owns or home != null
+	return ctx
 
 ## Probabilidad de evento mensual: crece con la fama.
 static func event_chance(character: Character) -> float:
@@ -387,7 +489,7 @@ static func _apply_effects(effects: Dictionary, character: Character, castle: Ca
 						amount = maxi(1, roundi(amount * float(story_node.honor_gain_mult())))
 				character.honor = clampi(character.honor + amount, 0, 100)
 				parts.append("Honor %+d" % amount)
-			"combat", "leadership", "charisma", "strategy", "defense":
+			"combat", "leadership", "charisma", "strategy", "defense", "agility":
 				character.set(key, clampi(int(character.get(key)) + amount, 1, 20))
 				parts.append("%s %+d" % [_stat_label(key), amount])
 			"castle_gold":
@@ -471,6 +573,7 @@ static func _stat_label(key: String) -> String:
 		"charisma": return "Carisma"
 		"strategy": return "Estrategia"
 		"defense": return "Defensa"
+		"agility": return "Agilidad"
 	return key
 
 # --- Eventos anuales (se aplican solos a todos los castillos) ---

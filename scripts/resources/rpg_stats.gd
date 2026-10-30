@@ -1,7 +1,7 @@
 class_name RpgStats
 extends RefCounted
-# Estadísticas del combate RPG, derivadas de los 5 atributos (Liderazgo, Carisma, Estrategia,
-# Combate, Defensa) + nivel + equipo + tipo de luchador + pasivas del árbol (SkillTreeCatalog).
+# Estadísticas del combate RPG, derivadas de los 6 atributos (Liderazgo, Carisma, Estrategia,
+# Combate, Defensa, Agilidad) + nivel + equipo + tipo de luchador + pasivas del árbol (SkillTreeCatalog).
 # Los atributos ya incluyen los bonos del equipo (Character.apply_trait_and_equipment_modifiers).
 #
 # Fórmulas (L = nivel - 1; luego se multiplica/suma según el tipo de luchador, TYPE_MODS):
@@ -9,7 +9,7 @@ extends RefCounted
 #   PT       = (20 + 2·Estrategia + 1·Liderazgo + 2·L) × tipo.pt × (1 + pasivas pt_pct)
 #   Fuerza   = (5 + 1,5·Combate + 1·L) × tipo.fuerza × (1 + dmg del equipo/ventajas + fuerza_pct)
 #   Defensa  = (3 + 1·Defensa + 0,6·L) × tipo.defensa + armadura (ARMOR_DEF) + escudo (SHIELD_DEF)
-#   Agilidad = 6 + 0,4·Combate + 0,4·Estrategia + 0,3·L + armadura (ARMOR_AGI) + tipo.agilidad
+#   Agilidad = 12 + 0,8·Agilidad (atributo) + 0,3·L + armadura (ARMOR_AGI: el peso resta) + tipo.agilidad
 #   Puntería = 6 + 0,5·Combate + 0,5·Estrategia + 0,4·L + tipo.punteria
 #   Voluntad = 6 + 0,6·Liderazgo + 0,4·Carisma + 0,4·L + tipo.voluntad
 # Agilidad: orden de turno (línea de turnos) y esquiva. Puntería: acierto y crítico.
@@ -54,7 +54,7 @@ const DEF_BASE := 3.0
 const DEF_PER_DEFENSE := 1.0
 const DEF_PER_LEVEL := 0.6
 const AGI_BASE := 12.0
-const AGI_PER_ATTR := 0.4      # Combate y Estrategia
+const AGI_PER_ATTR := 0.8      # atributo Agilidad
 const AGI_PER_LEVEL := 0.3
 const AIM_BASE := 10.0
 const AIM_PER_ATTR := 0.5      # Combate y Estrategia
@@ -66,17 +66,17 @@ const WILL_PER_LEVEL := 0.4
 
 # Armadura: defensa extra y agilidad perdida por el peso.
 const ARMOR_DEF := [0, 2, 4, 7]
-const ARMOR_AGI := [1, 0, -1, -3]
+const ARMOR_AGI := [2, 0, -2, -4]   # cuanto más pesa la armadura, menos agilidad
 const SHIELD_DEF_BY_TIER := {1: 1, 2: 2, 3: 3, 4: 3}
 
 # Tipo de luchador: multiplicadores (pv, pt, fuerza, defensa) y sumas (agilidad, punteria, voluntad).
 const F := CharacterEnums.FighterType
 const TYPE_MODS := {
-	F.DUELISTA:  {"pv": 1.0,  "pt": 1.0,  "fuerza": 1.0 , "defensa": 1.0,  "agilidad": 1,  "punteria": 2, "voluntad": 0},
-	F.TANQUE:    {"pv": 1.3,  "pt": 0.9,  "fuerza": 0.9,  "defensa": 1.3, "agilidad": -2, "punteria": 0, "voluntad": 2},
+	F.DUELISTA:  {"pv": 1.0,  "pt": 1.0,  "fuerza": 1.0,  "defensa": 1.0,  "agilidad": 2,  "punteria": 3, "voluntad": 0},
+	F.TANQUE:    {"pv": 1.3,  "pt": 0.9,  "fuerza": 1.0,  "defensa": 1.3, "agilidad": -2, "punteria": 0, "voluntad": 2},
 	F.ESTRATEGA: {"pv": 1.1,  "pt": 1.35, "fuerza": 1.1,  "defensa": 1.0,  "agilidad": 1,  "punteria": 2, "voluntad": 3},
-	F.BERSERKER: {"pv": 1.2,  "pt": 0.9,  "fuerza": 1.35, "defensa": 0.85, "agilidad": 0,  "punteria": 0, "voluntad": 1},
-	F.DEFENSOR:  {"pv": 1.15, "pt": 1.15, "fuerza": 0.9,  "defensa": 1.15, "agilidad": -1, "punteria": 0, "voluntad": 3},
+	F.BERSERKER: {"pv": 1.1,  "pt": 0.9,  "fuerza": 1.07, "defensa": 0.85, "agilidad": 0,  "punteria": 0, "voluntad": 1},
+	F.DEFENSOR:  {"pv": 1.3,  "pt": 1.15, "fuerza": 0.95, "defensa": 1.2,  "agilidad": -1, "punteria": 0, "voluntad": 3},
 	F.ASESINO:   {"pv": 0.85, "pt": 1.0,  "fuerza": 1.1,  "defensa": 0.9,  "agilidad": 2,  "punteria": 3, "voluntad": 0},
 }
 
@@ -85,6 +85,7 @@ const ARMOR_BY_ITEM := {
 	"Gambesón": ArmorClass.CUERO, "Cuero Endurecido": ArmorClass.CUERO,
 	"Cota de Malla": ArmorClass.MALLA, "Brigantina": ArmorClass.MALLA, "Loriga de Covadonga": ArmorClass.MALLA,
 	"Armadura Completa": ArmorClass.PLACAS,
+	"Ropas de Viaje": ArmorClass.SIN, "Cota Ligera": ArmorClass.MALLA, "Peto de Placas": ArmorClass.PLACAS,
 }
 const WEAPON_BY_ITEM := {
 	"Espada Corta": DamageType.TAJO, "Espada Larga": DamageType.TAJO, "Mandoble": DamageType.TAJO,
@@ -93,6 +94,7 @@ const WEAPON_BY_ITEM := {
 	"Daga de Misericordia": DamageType.ESTOCADA, "Misericordia de Toledo": DamageType.ESTOCADA,
 	"Pica de Fresno": DamageType.ESTOCADA,
 	"Maza de Armas": DamageType.CONTUNDENTE,
+	"Garrote": DamageType.CONTUNDENTE, "Arco Corto": DamageType.PROYECTIL,
 	"Arco Largo": DamageType.PROYECTIL, "Ballesta de Cranequín": DamageType.PROYECTIL,
 }
 # Sin pieza de armadura: según el rol social.
@@ -183,7 +185,7 @@ static func compute(c: Character) -> Dictionary:
 	fuerza *= 1.0 + _fx(c, LEGACY_FX_DMG) + p.get("fuerza_pct", 0.0)
 	var defensa: float = (DEF_BASE + DEF_PER_DEFENSE * c.defense + DEF_PER_LEVEL * lv) * t.defensa
 	defensa += ARMOR_DEF[armor] + (SHIELD_DEF_BY_TIER.get(sh.tier, 1) if sh else 0) + p.get("defensa", 0.0)
-	var agi: float = AGI_BASE + AGI_PER_ATTR * (c.combat + c.strategy) + AGI_PER_LEVEL * lv + ARMOR_AGI[armor] + t.agilidad
+	var agi: float = AGI_BASE + AGI_PER_ATTR * c.agility + AGI_PER_LEVEL * lv + ARMOR_AGI[armor] + t.agilidad
 	agi += p.get("agilidad", 0.0) + _fx(c, "initiative") * LEGACY_INITIATIVE_TO_AGI
 	var aim: float = AIM_BASE + AIM_PER_ATTR * (c.combat + c.strategy) + AIM_PER_LEVEL * lv + t.punteria + p.get("punteria", 0.0)
 	var will: float = WILL_BASE + WILL_PER_LEADERSHIP * c.leadership + WILL_PER_CHARISMA * c.charisma + WILL_PER_LEVEL * lv

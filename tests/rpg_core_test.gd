@@ -22,11 +22,12 @@ func _char(ft: int, lvl: int = 1, attr: int = 5) -> Character:
 	c.strategy = attr
 	c.leadership = attr
 	c.charisma = attr
+	c.agility = attr
 	return c
 
 func _learn_chain(c: Character, id: String) -> bool:
 	var n := SkillTreeCatalog.node(id)
-	for r in n.req:
+	for r in n.req + n.req_any.slice(0, 1):
 		if not SkillTreeCatalog.knows(c, r):
 			_learn_chain(c, r)
 	return SkillTreeCatalog.knows(c, id) or SkillTreeCatalog.learn(c, id)
@@ -47,7 +48,7 @@ func _run() -> void:
 	var d := _char(F.DUELISTA)
 	var s := RpgStats.compute(d)
 	check(s.pv == 70 and is_equal_approx(s.fuerza, 12.5) and is_equal_approx(s.defensa, 8.0), "fórmulas PV/Fuerza/Defensa nivel 1 (%d, %.2f, %.1f)" % [s.pv, s.fuerza, s.defensa])
-	check(is_equal_approx(s.agilidad, 18.0) and s.armor == AC.SIN and s.weapon == DT.ESTOCADA, "Agilidad, armadura por rol y arma por tipo")
+	check(is_equal_approx(s.agilidad, RpgStats.AGI_BASE + RpgStats.AGI_PER_ATTR * 5 + RpgStats.AGI_PER_LEVEL * 0 + RpgStats.ARMOR_AGI[AC.SIN] + RpgStats.TYPE_MODS[F.DUELISTA].agilidad) and s.armor == AC.SIN and s.weapon == DT.ESTOCADA, "Agilidad, armadura por rol y arma por tipo")
 	var t := _char(F.TANQUE)
 	check(RpgStats.compute(t).pv > s.pv and RpgStats.compute(_char(F.DUELISTA, 10)).pv > s.pv, "tanque y nivel suben los PV")
 	print("[debilidades]")
@@ -119,24 +120,24 @@ func _run() -> void:
 	check(bm3.next_turn().c == fast, "next_turn sigue la línea")
 	print("[árbol]")
 	var bad := []
-	for n: Dictionary in SkillTreeCatalog.NODES:
-		if n.tree == SkillTreeCatalog.TREE_BOSS:
+	for n: Dictionary in SkillTreeCatalog.all_nodes():
+		if not n.tree in SkillTreeCatalog.FIGHTER_TREES:
 			continue
-		var c := _char(F.DUELISTA if n.tree == SkillTreeCatalog.TREE_COMMON else n.tree, 20)
-		SkillTreeCatalog.ensure_kit(c)
+		var c := _char(SkillTreeCatalog.FIGHTER_TREES.find(n.tree), 20)
+		SkillTreeCatalog.grant_points(c, 20, "prueba")
 		var has_effect: bool = float(n.get("pow", 0)) > 0 or not n.get("st", []).is_empty() or n.has("heal") or not n.get("fx", {}).is_empty()
 		if not _learn_chain(c, n.id) or not has_effect:
 			bad.append(n.id)
-	check(bad.is_empty(), "todos los nodos se aprenden y tienen efecto %s" % [bad])
+	check(bad.is_empty(), "todos los nodos de los tipos se aprenden y tienen efecto %s" % [bad])
 	for ft in F.values():
-		check(SkillTreeCatalog.nodes_of_tree(ft).size() in [15, 16], "%s: 15-16 nodos" % CharacterEnums.fighter_type_name(ft))
+		check(SkillTreeCatalog.nodes_of_tree(SkillTreeCatalog.fighter_tree(ft)).size() in range(10, 16), "%s: 10-15 nodos" % CharacterEnums.fighter_type_name(ft))
 	var low := _char(F.DUELISTA, 1)
 	check(not SkillTreeCatalog.can_learn(low, "due_corazon") and not SkillTreeCatalog.can_learn(low, "tan_mazazo"), "requisitos de nivel/árbol")
-	var npc := _char(F.ASESINO, 8)
+	var npc := _char(F.ASESINO, 9)
 	SkillTreeCatalog.auto_learn(npc)
 	check(SkillTreeCatalog.points_free(npc) == 0 and SkillTreeCatalog.available_techniques(npc).size() >= 3, "auto_learn gasta los puntos (%d técnicas)" % SkillTreeCatalog.available_techniques(npc).size())
 	var p0: int = RpgStats.compute(npc).pv
-	npc.learned_skills.append("com_aguante")
+	npc.learned_skills.append("tan_coloso")
 	check(RpgStats.compute(npc).pv > p0, "una pasiva cambia las estadísticas")
 	print("[enemigos]")
 	var bandit := EnemyCatalog.make_enemy("bandido", 5)

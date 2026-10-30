@@ -46,7 +46,7 @@ func _run() -> void:
 	print("[niveles]")
 	var lv: int = player.gain_xp(100 + 200 + 300)
 	check(lv == 3 and player.level == 4, "600 xp → nivel 4 (subió %d)" % lv)
-	check(player.unspent_points == 6 and player.pending_skill_choices == 1, "6 puntos y 1 habilidad por elegir")
+	check(player.unspent_points == 6 and player.pending_skill_choices == 0, "6 puntos (las habilidades van por el árbol)")
 	var Panel = load("res://scripts/ui/level_up_panel.gd")
 	var panel = Panel.open(root)
 	await process_frame
@@ -57,13 +57,6 @@ func _run() -> void:
 	check(player.combat == combat_before, "sin confirmar no cambia el atributo")
 	panel._confirm_points()
 	check(player.combat == combat_before + 1 and player.unspent_points == 5, "confirmar aplica +1 combate y gasta 1 punto")
-	var offer: Array = panel._skill_offer()
-	check(offer.size() == 3, "ofrece 3 habilidades (%d)" % offer.size())
-	var offer2: Array = panel._skill_offer()
-	check(offer == offer2, "la oferta no cambia al volver a abrir")
-	var n_skills: int = player.general_skills.size() + player.combat_skills.size() + player.battle_skills.size()
-	panel._pick_skill(offer[0])
-	check(player.pending_skill_choices == 0 and player.general_skills.size() + player.combat_skills.size() + player.battle_skills.size() == n_skills + 1, "elegir habilidad la añade")
 	panel._tabs.current_tab = 1
 	await process_frame
 	panel.queue_free()

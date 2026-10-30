@@ -78,7 +78,7 @@ func _rebuild() -> void:
 	head.add_child(info)
 	_label(info, c.full_name(), "HeaderLabel")
 	_label(info, "%s · %s · %s · Nivel %d (%d/%d exp.) · %s" % [c.role_title(), RelationsData.intimacy_label(relation), LoyaltyData.bar_text(relation.person_name), c.level, c.xp, c.xp_to_next(), c.health_text()], "MutedLabel")
-	_label(info, "Combate %d · Defensa %d · Liderazgo %d · Carisma %d · Estrategia %d" % [c.combat, c.defense, c.leadership, c.charisma, c.strategy], "BodyBoldLabel")
+	_label(info, "Combate %d · Defensa %d · Agilidad %d · Liderazgo %d · Carisma %d · Estrategia %d" % [c.combat, c.defense, c.agility, c.leadership, c.charisma, c.strategy], "BodyBoldLabel")
 
 	# Ocupación del mes.
 	_label(_body, "Ocupación este mes", "SubheaderLabel")

@@ -194,13 +194,13 @@ const LORD := [
 			{"label": "Obedecer", "effects": {"affinity": 8, "fame": 2, "health": -5}, "result": "Dos semanas de barro, pero el camino queda limpio."},
 			{"label": "Excusarte", "effects": {"affinity": -6}, "result": "{name} toma nota de tu excusa."},
 		]},
-	{"id": "soc_peticion_grano", "title": "Petición de grano", "deed": "", "liege": false,
+	{"id": "soc_peticion_grano", "title": "Petición de grano", "deed": "", "liege": false, "premise": {"governs": true},
 		"text": "{name} pide ayuda: una plaga ha arruinado sus cosechas y su gente pasa hambre. Ofrece pagar el grano en cuanto pueda, aunque ambos sabéis que tardará.",
 		"options": [
 			{"label": "Enviar grano", "effects": {"castle_food": -30, "affinity": 10, "honor": 2}, "result": "{name} no olvidará quién le ayudó."},
 			{"label": "Negarte", "effects": {"affinity": -5}, "result": "Cada cual cuida de los suyos."},
 		]},
-	{"id": "soc_visita", "title": "Una visita de alcurnia", "deed": "", "liege": false,
+	{"id": "soc_visita", "title": "Una visita de alcurnia", "deed": "", "liege": false, "premise": {"governs": true},
 		"text": "{name} se presenta en tu castillo con su séquito, de paso hacia otras tierras. Cómo le recibas se comentará en todas las cortes vecinas.",
 		"options": [
 			{"label": "Agasajarl{s:o|a}", "requires": {"gold": 30}, "effects": {"gold": -30, "affinity": 10, "fame": 3}, "result": "{name} parte hablando bien de tu casa."},
@@ -255,7 +255,7 @@ const FACTION := [
 ## Plantilla rellena: textos con nombres y género, sin claves de catálogo que el mapa no entiende.
 static func build(t: Dictionary, speaker: Character, player: Character, names: Dictionary) -> Dictionary:
 	var e: Dictionary = _fill(t.duplicate(true), speaker, player, names)
-	for k in ["min_tier", "kinds", "stages", "deed", "bias", "liege", "after_battle", "needs"]:
+	for k in ["min_tier", "kinds", "stages", "deed", "bias", "liege", "after_battle", "needs", "premise"]:
 		e.erase(k)
 	return e
 

@@ -273,8 +273,9 @@ func neighbor_lords() -> Array[Relationship]:
 func lord_event(deed: String, id: String = "") -> Dictionary:
 	var liege := RelationsData.get_relation(RelationsData.liege_name)
 	var neighbors := neighbor_lords()
+	var ctx := EventCatalog.situation(GameManager.player_character)
 	var pool: Array = SocialEventCatalog.LORD.filter(func(t: Dictionary) -> bool:
-		if str(t.deed) != deed or (not id.is_empty() and t.id != id):
+		if str(t.deed) != deed or (not id.is_empty() and t.id != id) or not EventCatalog.fits_situation(t, ctx):
 			return false
 		return _lord_ok(liege) if t.liege else not neighbors.is_empty())
 	if pool.is_empty():

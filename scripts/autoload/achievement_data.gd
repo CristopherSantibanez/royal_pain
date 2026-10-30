@@ -104,6 +104,8 @@ func _unlock(a: Dictionary, player: Character) -> void:
 	if reward.get("xp", 0) > 0:
 		player.gain_xp(int(reward.xp))
 	player.unspent_points += int(reward.get("points", 0))
+	if reward.get("skill_points", 0) > 0:
+		SkillTreeCatalog.grant_points(player, int(reward.skill_points), "logro:" + str(a.id))
 	if reward.get("unique", false):
 		var item_text := UniqueItems.grant(player)
 		if not item_text.is_empty():

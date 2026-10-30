@@ -331,7 +331,7 @@ static func _dynamic(category: String) -> Array:
 static func _with_mods(text: String, item: Object) -> String:
 	var parts: Array[String] = []
 	for pair in [["combat_mod", "Combate"], ["defense_mod", "Defensa"], ["leadership_mod", "Liderazgo"],
-			["charisma_mod", "Carisma"], ["strategy_mod", "Estrategia"]]:
+			["charisma_mod", "Carisma"], ["strategy_mod", "Estrategia"], ["agility_mod", "Agilidad"]]:
 		var v = item.get(pair[0])
 		if v != null and int(v) != 0:
 			parts.append("%s %+d" % [pair[1], int(v)])

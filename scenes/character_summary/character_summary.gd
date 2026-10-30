@@ -35,8 +35,8 @@ func _build_summary_text() -> String:
 		CharacterEnums.fighter_type_name(character.fighter_type),
 	])
 	lines.append("")
-	lines.append("Liderazgo: %d   Carisma: %d   Estrategia: %d   Combate: %d   Defensa: %d" % [
-		character.leadership, character.charisma, character.strategy, character.combat, character.defense
+	lines.append("Liderazgo: %d   Carisma: %d   Estrategia: %d   Combate: %d   Defensa: %d   Agilidad: %d" % [
+		character.leadership, character.charisma, character.strategy, character.combat, character.defense, character.agility
 	])
 	lines.append("")
 

@@ -6,11 +6,10 @@ extends RefCounted
 # suma TICK / Agilidad. timeline(n) predice los próximos n turnos para la interfaz.
 # Una RONDA termina cuando todos los activos en pie han actuado una vez.
 #
-# TURNO EXTRA (estilo SMT, acotado): cada turno da `actions` acciones (1; mini jefes 2). Al resolver una
-# acción ofensiva se cuentan aciertos buenos (debilidad o crítico) y malos (fallo o resistido):
-#   buenos > malos → +1 acción («¡Ímpetu!»), como mucho EXTRA_ACTIONS_MAX por turno;
-#   malos > buenos → se pierden las acciones que quedaran y, si era la primera acción del turno,
-#                    el siguiente turno se retrasa LOSE_TURN_DELAY × intervalo («pierde el ritmo»).
+# TURNO EXTRA: cada turno da `actions` acciones (1; mini jefes 2). Golpear una debilidad o hacer un
+# crítico solo sube el daño; NO da turnos, y fallar o ser resistido no los quita. Solo quien tiene la
+# pasiva «brecha» (nodo «Aprovechar la brecha», Estoque, Misericordia de Toledo) gana +1 acción
+# («¡Aprovecha la brecha!») al conectar una debilidad o un crítico, como mucho EXTRA_ACTIONS_MAX por turno.
 #
 # Acciones: atacar, tecnica, defender, objeto (gancho), cambiar (con la reserva; gasta el turno),
 #           abandonar (rendirse / retirarse).
@@ -29,7 +28,7 @@ signal battle_ended(result: Dictionary)
 const MAX_ACTIVE := 4
 const TICK := 100.0
 const START_JITTER := 0.1
-const DMG_SCALE := 1.5
+const DMG_SCALE := 2.5
 const DEF_K := 30.0                 # daño × DEF_K / (DEF_K + Defensa)
 const VARIANCE := 0.1
 const HIT_BASE := 0.9
@@ -41,7 +40,6 @@ const CRIT_PER_AIM := 0.002
 const CRIT_MAX := 0.5
 const CRIT_MULT := 1.5
 const EXTRA_ACTIONS_MAX := 1
-const LOSE_TURN_DELAY := 0.35
 const DOWN_DELAY := 0.5             # derribado: su turno se retrasa medio intervalo
 const PT_REGEN := 2
 const PT_ON_ATTACK := 3
@@ -101,7 +99,7 @@ const AI_PROFILE := {
 	P.VALIENTE: [1.3, 0.6, 1.0, 1.0], P.CRUEL: [1.2, 0.8, 1.5, 0.6], P.GENEROSO: [1.0, 1.1, 0.9, 1.5],
 	P.COBARDE: [0.7, 1.8, 1.1, 0.9], P.ROMANTICO: [1.1, 0.7, 1.0, 1.2], P.HONORABLE: [1.1, 1.1, 0.6, 1.2],
 }
-const AI_WEAK_BONUS := 0.6          # valor del turno extra al buscar debilidades (× astucia)
+const AI_WEAK_BONUS := 0.6          # valor del turno extra (pasiva «brecha») al buscar debilidades (× astucia)
 const AI_RESIST_PENALTY := 0.5
 const AI_KILL_BONUS := 0.5
 const AI_NOISE := 0.15
@@ -442,24 +440,16 @@ func act(f: Fighter, action: Dictionary) -> Dictionary:
 			ends_turn = true
 	if f.has("oculto") and info.type in ["atacar", "tecnica"] and not info.hits.is_empty():
 		f.statuses.erase("oculto")
-	# Turno extra / pérdida de ritmo.
-	if not ended and not ends_turn and f.up():
-		if info.good > info.bad and f.extra_used < EXTRA_ACTIONS_MAX:
+	# Turno extra: solo con la pasiva «brecha», al conectar debilidad o crítico, una vez por turno.
+	if not ended and not ends_turn and f.up() and f.fx("brecha") > 0:
+		if info.good > 0 and f.extra_used < EXTRA_ACTIONS_MAX:
 			f.extra_used += 1
 			f.actions_left += 1
 			info["extra"] = true
-			_log("¡Ímpetu! %s actúa de nuevo." % f.name())
-		elif info.bad > info.good:
-			f.actions_left = 0
-			info["lost"] = true
-			if f.action_index == 1 and f.extra_used == 0:
-				info["delayed"] = true
-			_log("%s pierde el ritmo." % f.name())
+			_log("¡Aprovecha la brecha! %s actúa de nuevo." % f.name())
 	if ends_turn or f.actions_left <= 0 or not f.up() or not f.active:
 		if f.up():
 			_end_turn(f)
-			if info.get("delayed", false):
-				f.next_time += f.interval() * LOSE_TURN_DELAY
 		elif current == f:
 			current = null
 	action_done.emit(info)
@@ -793,7 +783,7 @@ func _score_hit(f: Fighter, t: Fighter, pow: float, dt: int, fx: Dictionary, cun
 	var dmg := base_damage(f, t, pow, dt, fx) * (1.0 + crit_chance(f, fx) * 0.5)
 	var sc := minf(dmg, t.hp) * hitp
 	var aff := affinity_of(f, t, dt, fx)
-	if aff == RpgStats.Affinity.DEBIL:
+	if aff == RpgStats.Affinity.DEBIL and f.fx("brecha") > 0:
 		sc *= 1.0 + AI_WEAK_BONUS * cunning
 	elif aff == RpgStats.Affinity.RESISTE:
 		sc *= 1.0 - AI_RESIST_PENALTY * minf(1.0, cunning)

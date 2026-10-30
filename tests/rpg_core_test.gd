@@ -51,10 +51,17 @@ func _run() -> void:
 	var t := _char(F.TANQUE)
 	check(RpgStats.compute(t).pv > s.pv and RpgStats.compute(_char(F.DUELISTA, 10)).pv > s.pv, "tanque y nivel suben los PV")
 	print("[debilidades]")
-	check(RpgStats.affinity(DT.TAJO, AC.SIN) == AF.DEBIL and RpgStats.affinity(DT.ESTOCADA, AC.PLACAS) == AF.RESISTE
-		and RpgStats.affinity(DT.CONTUNDENTE, AC.PLACAS) == AF.DEBIL and RpgStats.affinity(DT.ESTOCADA, AC.MALLA) == AF.DEBIL, "tabla fija")
-	check(RpgStats.affinity(DT.PROYECTIL, AC.SIN, true) == AF.NORMAL, "el escudo mejora un paso ante Proyectil")
-	# Débil → turno extra (derribado: acierto seguro y débil a todo).
+	# Círculo: una debilidad por arma; Placas resiste todo salvo Contundente; el resto, neutro.
+	var weak_of := {DT.TAJO: AC.SIN, DT.ESTOCADA: AC.MALLA, DT.CONTUNDENTE: AC.PLACAS, DT.PROYECTIL: AC.CUERO}
+	var table_ok := true
+	for dt in weak_of:
+		for ac in [AC.SIN, AC.CUERO, AC.MALLA, AC.PLACAS]:
+			var want: int = AF.DEBIL if ac == weak_of[dt] else (AF.RESISTE if ac == AC.PLACAS else AF.NORMAL)
+			if RpgStats.affinity(dt, ac) != want:
+				table_ok = false
+	check(table_ok, "tabla fija (círculo de debilidades, Placas resiste)")
+	check(RpgStats.affinity(DT.PROYECTIL, AC.CUERO, true) == AF.NORMAL, "el escudo mejora un paso ante Proyectil")
+	# Débil sin la pasiva → solo más daño, no hay acción extra (derribado: acierto seguro y débil a todo).
 	var a := _char(F.TANQUE, 5, 8)
 	var e := EnemyCatalog.make_enemy("infanteria_pesada", 5)
 	var bm := _bm([a], [e])
@@ -62,14 +69,31 @@ func _run() -> void:
 	var fe: RpgBattleManager.Fighter = bm.fighter_of(e)
 	fa.next_time = 0.0
 	fa.s.crit = -1.0
+	fa.s.fx.erase("brecha")
 	var who := bm.next_turn()
 	fe.statuses["derribado"] = {"turns": 1, "src": fa, "power": 0.0}
 	var info := bm.act(who, {"type": "atacar", "target": fe})
-	check(info.get("extra", false) and bm.next_turn() == fa, "golpe débil → acción extra del mismo luchador")
+	check(info.hits[0].aff == AF.DEBIL and not info.get("extra", false) and bm.current == null, "golpe débil sin «brecha» → sin acción extra")
+	# Con la pasiva «brecha» → una acción extra, solo una por turno.
+	a = _char(F.TANQUE, 5, 8)
+	e = EnemyCatalog.make_enemy("infanteria_pesada", 5)
+	bm = _bm([a], [e])
+	fa = bm.fighter_of(a)
+	fe = bm.fighter_of(e)
+	fa.next_time = 0.0
+	fa.s.crit = -1.0
+	fa.s.fx["brecha"] = 1.0
+	who = bm.next_turn()
+	fe.statuses["derribado"] = {"turns": 1, "src": fa, "power": 0.0}
+	info = bm.act(who, {"type": "atacar", "target": fe})
+	check(info.get("extra", false) and bm.next_turn() == fa, "golpe débil con «brecha» → acción extra del mismo luchador")
+	fe.statuses["derribado"] = {"turns": 1, "src": fa, "power": 0.0}
 	info = bm.act(fa, {"type": "atacar", "target": fe})
 	check(not info.get("extra", false) and bm.current == null, "como mucho 1 acción extra por turno")
-	# Resiste → pierde el ritmo.
-	var lost_ok := false
+	check(SkillTreeCatalog.node("due_brecha").get("fx", {}).get("brecha", 0) > 0 and SkillTreeCatalog.node("ase_brecha").get("fx", {}).get("brecha", 0) > 0
+		and SkillTreeCatalog.EQUIPMENT_NODES.get("Estoque", "") == "due_brecha" and SkillTreeCatalog.UNIQUE_FX.sangrado.get("brecha", 0) > 0, "«brecha»: nodos, Estoque y Misericordia de Toledo")
+	# Resiste → solo menos daño: ni pierde el ritmo ni se retrasa.
+	var res_ok := false
 	for i in 20:
 		var b := _char(F.DUELISTA, 5, 8)
 		b.set_meta(RpgStats.META_DAMAGE, DT.TAJO)
@@ -79,12 +103,12 @@ func _run() -> void:
 		fb.next_time = 0.0
 		fb.s.crit = -1.0
 		var before := bm2.next_turn()
-		var expected := bm2.now + fb.interval() * (1.0 + RpgBattleManager.LOSE_TURN_DELAY)
+		var expected := bm2.now + fb.interval()
 		var inf2 := bm2.act(before, {"type": "atacar", "target": bm2.fighter_of(e2)})
 		if inf2.hits.size() > 0 and inf2.hits[0].hit:
-			lost_ok = inf2.get("lost", false) and is_equal_approx(fb.next_time, expected) and inf2.hits[0].aff == AF.RESISTE
+			res_ok = not inf2.get("lost", false) and is_equal_approx(fb.next_time, expected) and inf2.hits[0].aff == AF.RESISTE
 			break
-	check(lost_ok, "golpe resistido → pierde el ritmo (turno retrasado)")
+	check(res_ok, "golpe resistido → menos daño, sin perder ni retrasar el turno")
 	print("[línea de turnos]")
 	var slow := _char(F.TANQUE, 1, 3)
 	var fast := _char(F.ASESINO, 1, 12)
@@ -105,7 +129,7 @@ func _run() -> void:
 			bad.append(n.id)
 	check(bad.is_empty(), "todos los nodos se aprenden y tienen efecto %s" % [bad])
 	for ft in F.values():
-		check(SkillTreeCatalog.nodes_of_tree(ft).size() == 15, "%s: 15 nodos" % CharacterEnums.fighter_type_name(ft))
+		check(SkillTreeCatalog.nodes_of_tree(ft).size() in [15, 16], "%s: 15-16 nodos" % CharacterEnums.fighter_type_name(ft))
 	var low := _char(F.DUELISTA, 1)
 	check(not SkillTreeCatalog.can_learn(low, "due_corazon") and not SkillTreeCatalog.can_learn(low, "tan_mazazo"), "requisitos de nivel/árbol")
 	var npc := _char(F.ASESINO, 8)

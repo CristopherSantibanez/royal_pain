@@ -3,9 +3,9 @@ extends SceneTree
 # Objetivos: 4–8 rondas; cada tipo 45–55% como líder en espejo; acertar debilidades sube las victorias
 # de forma clara pero no decisiva.
 
-const N := 30                 # combates por caso (subir para más precisión)
+const N := 60                 # combates por caso (subir para más precisión)
 const MIRROR_LEVEL := 6
-const WEAK_TEST_LEVEL_UP := 4   # soldados veteranos más fuertes: así se nota el arma
+const WEAK_TEST_LEVEL_UP := 1   # soldados veteranos más fuertes: así se nota el arma
 const LEVELS := [3, 8, 14]
 const ATTR_BASE := 6.0
 const ATTR_PER_LEVEL := 0.4
@@ -83,7 +83,7 @@ func _run() -> void:
 		print("  %-10s %3d%%" % [CharacterEnums.fighter_type_name(x), 100 * wins / games])
 	print("  rondas medias en espejo: %.1f" % (total_rounds / fights))
 	print("[debilidades] grupo mixto contra 4 soldados (Malla) a nivel %d" % MIRROR_LEVEL)
-	for dt in [RpgStats.DamageType.ESTOCADA, RpgStats.DamageType.CONTUNDENTE, RpgStats.DamageType.TAJO]:
+	for dt in [RpgStats.DamageType.ESTOCADA, RpgStats.DamageType.CONTUNDENTE, RpgStats.DamageType.TAJO, RpgStats.DamageType.PROYECTIL]:
 		var wins := 0
 		for i in N * 2:
 			all.shuffle()

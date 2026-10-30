@@ -14,7 +14,7 @@ Decisiones tomadas con el usuario:
 
 | Tema | Decisión |
 |---|---|
-| Combate RPG | Híbrido FF + SMT: línea de turnos por velocidad y debilidades que dan o quitan turnos. **Vista frontal**: enemigos arriba con su retrato y tu grupo abajo con sus retratos. |
+| Combate RPG | Híbrido FF + SMT: línea de turnos por velocidad y debilidades que suben o bajan el daño (no dan ni quitan turnos). **Vista frontal**: enemigos arriba con su retrato y tu grupo abajo con sus retratos. |
 | Alcance del RPG | Todo lo que no es batalla campal: duelos 1v1, torneos, retos, eventos, encuentros, exploración, historias y escaramuzas. |
 | Grupo | 4 activos + reserva, cambiables en combate gastando un turno. Gestor de grupo con todo el séquito. |
 | Tipos de daño | Solo armas: Tajo, Estocada, Contundente, Proyectil. |
@@ -151,13 +151,14 @@ Todo entra por la cola común `GameManager.queue_event()` con ritmo controlado (
 
      | | Sin armadura | Cuero | Malla | Placas |
      |---|---|---|---|---|
-     | Tajo | Débil | — | Resiste | Resiste |
-     | Estocada | — | Débil | Débil | Resiste |
+     | Tajo | Débil | — | — | Resiste |
+     | Estocada | — | — | Débil | Resiste |
      | Contundente | — | — | — | Débil |
-     | Proyectil | Débil | — | Resiste | Resiste |
+     | Proyectil | — | Débil | — | Resiste |
 
-     - Débil: ×1,5 de daño y turno extra.
-     - Resiste: ×0,5 de daño y se pierde el turno extra.
+     - Un círculo, una debilidad por arma; las Placas resisten todo salvo lo Contundente.
+     - Débil: ×1,4 de daño. Resiste: ×0,6 de daño. Solo daño: no dan ni quitan turnos.
+     - el turno extra solo lo da la pasiva **«Aprovechar la brecha»** (Duelista/Precisión y Asesino, escalón 3), el **Estoque** o la pieza única **Misericordia de Toledo**: al conectar una debilidad o un crítico, una acción más, como mucho una vez por turno.
      - Algunos estados crean debilidades temporales. Ejemplos: Derribado (débil a todo), Desequilibrado (débil a Contundente).
    - **Las posturas desaparecen** como mecánica aparte. Las que aportan se convierten en técnicas:
      - activas: "Furia" (≈ Desesperada, más daño y menos defensa durante 2 turnos) y "Guardia de esgrima" (≈ Esgrima, más esquiva y contra);
@@ -215,7 +216,7 @@ Todo entra por la cola común `GameManager.queue_event()` con ritmo controlado (
    - **Debilidades:**
      - tipos de daño Tajo, Estocada, Contundente y Proyectil;
      - armaduras y escudos con debilidades y resistencias;
-     - acertar una debilidad o un crítico da un **turno extra**; fallar o golpear lo que resiste lo quita (estilo SMT).
+     - las debilidades solo cambian el daño; el turno extra solo lo da la pasiva **«Aprovechar la brecha»** (Duelista/Precisión y Asesino, escalón 3), el **Estoque** o la pieza única **Misericordia de Toledo**: al conectar una debilidad o un crítico, una acción más, como mucho una vez por turno.
    - **Menú:** Atacar, Técnicas, Defender, Objeto, Cambiar (reserva) y Abandonar (rendirse o retirarse).
    - **Técnicas:** las del árbol de habilidades (punto 2). Datos en un nuevo `scripts/resources/skill_tree_catalog.gd` y efectos en `rpg_battle_manager.gd` / `skill_effects.gd`.
    - **IA:** usa la personalidad (reutilizar la lógica de `duel_ai.gd`) y aprovecha las debilidades.
@@ -266,7 +267,7 @@ Todo entra por la cola común `GameManager.queue_event()` con ritmo controlado (
   - `phase1_test.gd`: reino caído → gente reclutada o errante y visible; tropa elegida respetada; partida con mercenario → No afiliado; registros con 200 líneas sin desborde.
   - `social_test.gd`: cada tipo de evento nuevo sale y se aplica; tope de esposas; concubinas y herencia; gestor de personajes (borrar, duplicar, exportar e importar en `user://_pruebas`).
   - Lealtad: sube y baja por cada causa; avisos antes de traicionar; cada tipo de traición se dispara con lealtad baja; ritmo en la simulación de 20 años.
-  - `rpg_test.gd`: turnos por velocidad; debilidad → turno extra; resistencia → turno perdido; técnicas por tipo; cambio de reserva; muerte, captura y XP; todos los puntos de entrada abren el RPG.
+  - `rpg_test.gd`: turnos por velocidad; debilidad → más daño; turno extra solo con «brecha» (una vez por turno); resistencia → menos daño, sin perder turno; técnicas por tipo; cambio de reserva; muerte, captura y XP; todos los puntos de entrada abren el RPG.
   - Fórmulas de estadísticas, tabla arma × armadura y árbol: cada nodo es aprendible y tiene efecto.
   - `rpg_sim.gd`: equilibrio de grupo dentro de los objetivos del punto 2.
   - `campal_test.gd`: oficiales asignados; encuentro → combate RPG o "Resolver"; flancos y formaciones; IA que protege al general.

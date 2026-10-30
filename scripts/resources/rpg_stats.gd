@@ -22,18 +22,21 @@ enum Affinity { NORMAL, DEBIL, RESISTE }
 const DAMAGE_NAMES := ["Tajo", "Estocada", "Contundente", "Proyectil"]
 const ARMOR_NAMES := ["Sin armadura", "Cuero", "Malla", "Placas"]
 
-# Tabla fija de debilidades (fila: tipo de daño; columna: clase de armadura).
+# Tabla fija de debilidades (fila: tipo de daño; columna: clase de armadura). Solo cambia el DAÑO
+# (×WEAK_MULT / ×RESIST_MULT); no da ni quita turnos (el turno extra sale de la pasiva «brecha»).
+# Un círculo, una debilidad por arma: Tajo > Sin armadura, Estocada > Malla, Contundente > Placas,
+# Proyectil > Cuero. Las Placas resisten todo salvo lo Contundente; el resto es neutro.
 const W := Affinity.DEBIL
 const R := Affinity.RESISTE
 const N := Affinity.NORMAL
 const AFFINITY := [
-	[W, N, R, R],   # Tajo
-	[N, W, W, R],   # Estocada
+	[W, N, N, R],   # Tajo
+	[N, N, W, R],   # Estocada
 	[N, N, N, W],   # Contundente
-	[W, N, R, R],   # Proyectil
+	[N, W, N, R],   # Proyectil
 ]
-const WEAK_MULT := 1.5
-const RESIST_MULT := 0.5
+const WEAK_MULT := 1.4
+const RESIST_MULT := 0.6
 
 # --- Curvas ---
 const PV_BASE := 50.0

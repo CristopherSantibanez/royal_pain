@@ -1,6 +1,6 @@
 class_name SkillTreeCatalog
 extends RefCounted
-# Árbol de habilidades del combate RPG: un árbol por tipo de luchador (3 ramas, 15 nodos) y 3 ramas
+# Árbol de habilidades del combate RPG: un árbol por tipo de luchador (3 ramas, 15-16 nodos) y 3 ramas
 # comunes (Mando y apoyo, Supervivencia, Maestría de arma). 1 punto por nivel; requisitos de nivel
 # (por escalón, TIER_LEVEL) y de nodos previos. Los nodos "base" se aprenden gratis.
 #
@@ -12,7 +12,8 @@ extends RefCounted
 #   pasivas: fx {pv_pct, pt_pct, fuerza_pct, defensa, agilidad, punteria, voluntad, crit, crit_mult,
 #                evasion, taken, counter, low_hp_dmg, low_hp_taken, guard, lifesteal, pt_regen,
 #                status_res, ally_taken, ally_dmg, immune_derribo, last_stand, bleed_bonus, retreat,
-#                avenge, dmg_t0..dmg_t3 (por tipo de daño), first_sure, on_hit_bleed, crit_ward, reflect}}
+#                avenge, dmg_t0..dmg_t3 (por tipo de daño), first_sure, on_hit_bleed, crit_ward, reflect,
+#                brecha (turno extra al conectar debilidad o crítico, 1 por turno)}}
 # Efectos de estado y su significado: RpgBattleManager.
 
 const TREE_COMMON := -1
@@ -50,6 +51,7 @@ const NODES := [
 	{"id": "due_certero", "name": "Golpe certero", "tree": D.DUELISTA, "branch": 1, "tier": 1, "req": [], "kind": "pas", "fx": {"crit": 0.08}, "desc": "+8% de crítico."},
 	{"id": "due_punto", "name": "Punto débil", "tree": D.DUELISTA, "branch": 1, "tier": 2, "req": ["due_certero"], "kind": "act", "pt": 6, "tgt": "enemy", "pow": 1.0, "dt": -1, "fx": {"pierce": 1, "crit": 0.1}, "desc": "Ignora la resistencia de la armadura."},
 	{"id": "due_halcon", "name": "Ojo de halcón", "tree": D.DUELISTA, "branch": 1, "tier": 3, "req": ["due_certero"], "kind": "pas", "fx": {"crit_mult": 0.25, "punteria": 2}, "desc": "Críticos más dañinos y +2 de Puntería."},
+	{"id": "due_brecha", "name": "Aprovechar la brecha", "tree": D.DUELISTA, "branch": 1, "tier": 3, "req": ["due_punto"], "kind": "pas", "fx": {"brecha": 1}, "desc": "Al conectar una debilidad o un crítico actúa otra vez (una vez por turno)."},
 	{"id": "due_corazon", "name": "Estocada al corazón", "tree": D.DUELISTA, "branch": 1, "tier": 4, "req": ["due_punto"], "kind": "act", "pt": 12, "tgt": "enemy", "pow": 1.9, "dt": T1, "fx": {"crit": 0.2}, "desc": "Golpe muy fuerte con +20% de crítico."},
 	{"id": "due_gracia", "name": "Golpe de gracia", "tree": D.DUELISTA, "branch": 1, "tier": 5, "req": ["due_corazon"], "kind": "act", "pt": 10, "tgt": "enemy", "pow": 1.2, "dt": -1, "fx": {"exec": 2.0}, "desc": "Doble daño a quien tenga menos del 30% de vida."},
 	{"id": "due_desarme", "name": "Desarme", "tree": D.DUELISTA, "branch": 2, "tier": 1, "req": [], "kind": "act", "pt": 5, "tgt": "enemy", "pow": 0.6, "dt": -1, "st": [["desarmado", 0.65, 2]], "desc": "Le quita el arma: pega mucho menos."},
@@ -135,6 +137,7 @@ const NODES := [
 	{"id": "ase_ojo", "name": "Ojo certero", "tree": D.ASESINO, "branch": 2, "tier": 1, "req": [], "kind": "pas", "fx": {"crit": 0.06, "crit_mult": 0.2}, "desc": "+6% de crítico, críticos más dañinos."},
 	{"id": "ase_remate", "name": "Remate", "tree": D.ASESINO, "branch": 2, "tier": 2, "req": ["ase_ojo"], "kind": "act", "pt": 7, "tgt": "enemy", "pow": 1.0, "dt": -1, "fx": {"exec": 2.2}, "desc": "×2,2 a quien tenga menos del 30% de vida."},
 	{"id": "ase_precision", "name": "Precisión mortal", "tree": D.ASESINO, "branch": 2, "tier": 3, "req": ["ase_ojo"], "kind": "pas", "fx": {"crit_mult": 0.3}, "desc": "Críticos aún más dañinos."},
+	{"id": "ase_brecha", "name": "Aprovechar la brecha", "tree": D.ASESINO, "branch": 2, "tier": 3, "req": ["ase_remate"], "kind": "pas", "fx": {"brecha": 1}, "desc": "Al conectar una debilidad o un crítico actúa otra vez (una vez por turno)."},
 	{"id": "ase_tendones", "name": "Cortar tendones", "tree": D.ASESINO, "branch": 2, "tier": 4, "req": ["ase_remate"], "kind": "act", "pt": 8, "tgt": "enemy", "pow": 0.8, "dt": -1, "st": [["desequilibrado", 0.7, 2]], "desc": "Puede desequilibrar."},
 	{"id": "ase_ejecucion", "name": "Ejecución", "tree": D.ASESINO, "branch": 2, "tier": 5, "req": ["ase_remate"], "kind": "act", "pt": 16, "tgt": "enemy", "pow": 2.3, "dt": -1, "fx": {"crit": 0.1}, "desc": "Golpe letal."},
 	# --- COMUNES: Mando y apoyo ---
@@ -191,11 +194,11 @@ const LEGACY_SKILL_NODES := {
 const EQUIPMENT_NODES := {
 	"Estoque de Duelo": "due_guardia", "Manual de Esgrima": "due_guardia", "Hacha de Berserker": "ber_furia",
 	"Pavés": "tan_muro", "Escudo de Cometa": "com_proteger", "Arco Largo": "com_proy2",
-	"Ballesta de Cranequín": "ene_virote", "Lanza": "com_esto1", "Bolsa de Hierbas": "com_auxilios",
+	"Ballesta de Cranequín": "ene_virote", "Lanza": "com_esto1", "Estoque": "due_brecha", "Bolsa de Hierbas": "com_auxilios",
 }
 # Piezas únicas (SkillEffects.UNIQUE_*) → efecto pasivo en el RPG.
 const UNIQUE_FX := {
-	"durandal": {"first_sure": 1}, "sangrado": {"on_hit_bleed": 1}, "anticritico": {"crit_ward": 1},
+	"durandal": {"first_sure": 1}, "sangrado": {"on_hit_bleed": 1, "brecha": 1}, "anticritico": {"crit_ward": 1},
 	"reflejo": {"reflect": 0.25}, "firmeza": {"immune_derribo": 1}, "oriflama": {"voluntad": 4},
 	"olifante": {"pt_pct": 0.15}, "reliquia": {"status_res": 0.2}, "babieca": {"agilidad": 2},
 	"elocuencia": {"voluntad": 2}, "camino_seguro": {"evasion": 0.03}, "sello": {"voluntad": 2},

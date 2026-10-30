@@ -30,8 +30,9 @@ Resumen de las fases que faltan del plan de revisión. El detalle completo, con 
 2. **Diseño del sistema**, antes de programar:
    - **Estadísticas de combate:** salen de los 5 atributos actuales. Son vida (PV), puntos de técnica (PT), Fuerza, Defensa, Agilidad (turnos y esquiva), Puntería (acierto y crítico) y Voluntad (moral y estados).
    - **Debilidades arma × armadura:** tabla fija con los daños Tajo, Estocada, Contundente y Proyectil contra las armaduras Sin, Cuero, Malla y Placas.
-     - Débil: ×1,5 de daño y **turno extra**.
-     - Resiste: ×0,5 de daño y **pierdes el turno extra**.
+     - Círculo: Tajo > Sin armadura, Estocada > Malla, Contundente > Placas, Proyectil > Cuero; las Placas resisten todo salvo lo Contundente.
+     - Débil: ×1,4 de daño. Resiste: ×0,6 de daño. Solo daño: no dan ni quitan turnos.
+     - El turno extra solo lo da la pasiva **«Aprovechar la brecha»** (Duelista/Precisión y Asesino, escalón 3), el **Estoque** o la pieza única **Misericordia de Toledo**: al conectar una debilidad o un crítico, una acción más, como mucho una vez por turno.
    - **Las posturas desaparecen:** las útiles pasan a ser técnicas, como "Furia", "Guardia de esgrima" o "Muro de escudos".
    - **Árbol de habilidades:**
      - uno por tipo de luchador, con 3 ramas;

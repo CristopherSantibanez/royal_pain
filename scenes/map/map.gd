@@ -773,7 +773,7 @@ func _on_event_option_pressed(index: int) -> void:
 	var duel_rival: Relationship = RelationsData.get_relation(e.get("duel_with", e.get("speaker", "")))
 	var starts_duel: bool = e.options[index].get("start_duel", false)
 	_pending_duel_to_death = e.options[index].get("to_death", false)
-	_pending_fight = e.options[index].get("fight", {})
+	_pending_fight = CombatSetup.tag_fight(e.options[index].get("fight", {}), "historia" if e.options[index].get("effects", {}).has("story") else "camino")
 	_pending_fight_title = e.get("title", "Combate")
 	var chosen_label: String = e.options[index].get("label", "")
 	var result := GameManager.resolve_pending_event(index, target)
@@ -820,7 +820,7 @@ func _on_event_close_pressed() -> void:
 		if "duel_to_death" in CombatSetup:
 			CombatSetup.duel_to_death = _pending_duel_to_death
 		CombatSetup.return_scene = "res://scenes/map/map.tscn"
-		get_tree().change_scene_to_file("res://scenes/combat/combat.tscn")
+		get_tree().change_scene_to_file(CombatSetup.RPG_SCENE)
 		return
 	for child in event_options.get_children():
 		child.queue_free()

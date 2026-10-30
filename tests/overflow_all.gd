@@ -97,6 +97,7 @@ func _run() -> void:
 			["consejo", func(): load("res://scripts/ui/war_council_panel.gd").open(host)],
 			["audiencia", func(): load("res://scripts/ui/audience_panel.gd").open(host, MD.castles[2])],
 			["grupo", func(): load("res://scripts/ui/party_panel.gd").open(host)],
+			["arbol", func(): load("res://scripts/ui/skill_tree_panel.gd").open(host, p)],
 		]
 		if some_rel != null:
 			panels.append(["perfil", func(): load("res://scripts/ui/character_profile.gd").open(host, some_rel)])
@@ -107,5 +108,25 @@ func _run() -> void:
 			entry[1].call()
 			await _check("%s_%s" % [entry[0], rn])
 			_close_popups(host, keep)
+	# Combate RPG: 4 contra 5, eligiendo objetivo (se ven las marcas Débil/Resiste).
+	root.get_node("CombatSetup").clear()
+	var mine: Array = [GM.player_character]
+	for i in 3:
+		mine.append(CL.make_test_character("Compañera de Armas Muy Larga %d" % i, CH.Role.SOLDADO))
+	var rpg = load("res://scenes/rpg_battle/rpg_battle.tscn").instantiate()
+	rpg.side_a = mine
+	rpg.side_b = Array(EnemyCatalog.make_party("escaramuza", 2, 2)).slice(0, 5)
+	rpg.title_text = "Emboscada en el camino"
+	current_scene.queue_free()
+	root.add_child(rpg)
+	current_scene = rpg
+	for i in 60:
+		if rpg._acting != null:
+			break
+		await create_timer(0.1).timeout
+	if rpg._acting != null:
+		rpg.cmd_box.get_child(0).get_child(0).pressed.emit()
+	await _check("combate_rpg")
+	root.get_texture().get_image().save_png("%s/rpg_battle.png" % OUT)
 	print("PANTALLAS CON DESBORDE: ", total_bad)
 	quit()

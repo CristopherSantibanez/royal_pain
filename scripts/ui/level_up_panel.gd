@@ -193,11 +193,10 @@ func _open_skill_tree() -> void:
 	var script: Script = load(SKILL_TREE_PANEL)
 	if script == null:
 		return
-	if script.get_script_method_list().any(func(m): return m.name == "open"):
-		script.call("open", get_parent())
-	else:
-		var panel: Node = script.new()
-		get_parent().add_child(panel)
+	var panel: Control = script.call("open", get_parent(), _player)
+	if panel != null:
+		panel.z_index = z_index + 10
+		panel.tree_exited.connect(func(): if is_inside_tree(): _rebuild_level())
 
 func _change(stat: String, delta: int) -> void:
 	var now: int = _added.get(stat, 0) + delta

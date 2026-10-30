@@ -53,4 +53,4 @@ func _on_iniciar_pressed() -> void:
 	CombatSetup.clear()   # el modo prueba nunca hereda un duelo de campaña
 	CombatSetup.player_character = _get_selected_character(player_option, "Sir Alaric", Character.Role.CABALLERO)
 	CombatSetup.enemy_character = _get_selected_character(enemy_option, "Bandido Renco", Character.Role.SOLDADO)
-	get_tree().change_scene_to_file("res://scenes/combat/combat.tscn")
+	get_tree().change_scene_to_file(CombatSetup.RPG_SCENE)

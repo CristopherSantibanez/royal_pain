@@ -43,7 +43,7 @@ var player_defending := false   # true si el jugador defiende su castillo de un 
 var skirmish: Dictionary = {}   # escaramuza de un evento (sin ejército ni castillo de por medio)
 var invited: Dictionary = {}    # batalla ajena: alguien te llamó a filas (ver CombatSetup.invited)
 const CHALLENGE_KEY := KEY_D
-const COMBAT_SCENE := "res://scenes/combat/combat.tscn"
+const COMBAT_SCENE := "res://scenes/rpg_battle/rpg_battle.tscn"
 var _challenge_mode := false    # el siguiente clic en un jefe enemigo lo reta a duelo
 var _dueling := false           # hay un duelo singular encima del tablero
 var _challenge_btn: Button

@@ -2,6 +2,9 @@ extends Node
 # Autoload — registrar como "CombatSetup"
 
 const CASTLE_SCENE := "res://scenes/castle_interior/castle_interior.tscn"
+## Escena de todos los combates que no son batallas campales (duelos, encuentros, torneos, prácticas…).
+const RPG_SCENE := "res://scenes/rpg_battle/rpg_battle.tscn"
+const ESCORT_MAX := 4   # el jefe rival + como mucho 4 de escolta (5 enemigos)
 
 # --- Torneos (ajustables sin tocar la lógica) ---
 const TOURNAMENT_ROUNDS := 3
@@ -24,6 +27,11 @@ var last_result_text: String = ""   # resumen que el castillo muestra al volver
 # el rival, muere él. Quien lance el duelo lo activa justo después de start_campaign_duel:
 #   CombatSetup.duel_to_death = option.get("to_death", false)
 var duel_to_death: bool = false
+# Combate de grupo (eventos, encuentros, exploración, historias): tu grupo (PartyData) contra el rival
+# como jefe más una escolta genérica según el contexto (EnemyCatalog). Los duelos de honor son 1 contra 1.
+var group_fight := false
+var fight_context := ""
+var enemy_party: Array[Character] = []
 
 # --- Combates que nacen de un evento (ver opciones "fight" en EventCatalog) ---
 # pending_outcome: {title, win: {effects, result}, lose: {effects, result}, no_rival}
@@ -66,6 +74,9 @@ func start_campaign_duel(player: Character, rival: Character) -> void:
 	return_scene = CASTLE_SCENE
 	last_result_text = ""
 	duel_to_death = false
+	group_fight = false
+	fight_context = ""
+	enemy_party = []
 	tournament_opponents.clear()
 	tournament_round = 0
 
@@ -180,7 +191,27 @@ func begin_event_fight(fight: Dictionary, event_title: String) -> String:
 	start_campaign_duel(player, foe)
 	duel_to_death = bool(fight.get("to_death", false))
 	return_scene = "res://scenes/map/map.tscn"
-	return "res://scenes/combat/combat.tscn"
+	group_fight = true
+	fight_context = str(fight.get("context", "camino"))
+	enemy_party = make_enemy_party(foe, fight_context, player)
+	return RPG_SCENE
+
+## Marca de dónde viene un combate (camino, exploracion, historia…) para elegir la escolta enemiga.
+static func tag_fight(fight: Dictionary, context: String) -> Dictionary:
+	if fight.is_empty() or fight.has("context"):
+		return fight
+	var out := fight.duplicate()
+	out["context"] = context
+	return out
+
+## Grupo rival: el rival con nombre de jefe y una escolta genérica del contexto (tantos como tu grupo activo).
+func make_enemy_party(leader: Character, context: String, player: Character) -> Array[Character]:
+	var out: Array[Character] = [leader]
+	var size := clampi(PartyData.active().size() if player != null else 1, 1, ESCORT_MAX)
+	var escort := EnemyCatalog.make_party(context, player.level if player != null else 1)
+	for e in escort.slice(0, size):
+		out.append(e)
+	return out
 
 ## Aplica el desenlace del combate de un evento y devuelve su texto ("" si no había ninguno).
 func apply_outcome(won: bool) -> String:
@@ -208,5 +239,8 @@ func clear() -> void:
 	is_campaign = false
 	return_scene = ""
 	duel_to_death = false
+	group_fight = false
+	fight_context = ""
+	enemy_party = []
 	tournament_opponents.clear()
 	tournament_round = 0

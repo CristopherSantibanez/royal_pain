@@ -227,7 +227,7 @@ func resolve_encounter(option_index: int) -> Dictionary:
 	var text := EventCatalog.apply_option(event, option_index, player, home)
 	WorldEvents.record("%s: %s. %s" % [event.title, option.get("label", ""), text.get_slice("\n", 0)], str(pending_encounter.get("to", "")), true)
 	pending_encounter = {}
-	return {"ok": true, "text": text, "fight": option.get("fight", {}), "title": event.title}
+	return {"ok": true, "text": text, "fight": CombatSetup.tag_fight(option.get("fight", {}), "camino"), "title": event.title}
 
 # --- Gobernar desde lejos ---
 

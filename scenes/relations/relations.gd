@@ -318,7 +318,7 @@ func _on_challenge(r: Relationship) -> void:
 	RelationsData.requested_tab = TAB_KEYS[tabs.current_tab][0]
 	_show_feedback(result.text, false)
 	await get_tree().create_timer(1.2).timeout
-	get_tree().change_scene_to_file("res://scenes/combat/combat.tscn")
+	get_tree().change_scene_to_file(CombatSetup.RPG_SCENE)
 
 func _affinity_row(r: Relationship) -> HBoxContainer:
 	var row := HBoxContainer.new()

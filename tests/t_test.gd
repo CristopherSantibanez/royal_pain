@@ -23,26 +23,35 @@ func _run() -> void:
 	change_scene_to_file("res://scenes/tutorial/tutorial.tscn")
 	await create_timer(0.6).timeout
 	var tut = current_scene
-	# Lecciones de duelo 1 y 2: pulsa la acción recomendada en cada paso.
-	for lesson in [0, 1, 3]:
+	# Lecciones del combate RPG: la tabla y un combate de prueba incrustado (la IA juega por ti).
+	var RS = load("res://scenes/rpg_battle/rpg_battle.gd")
+	RS.test_auto = true
+	RS.test_delay = 0.0
+	for lesson in [0, 1, 2]:
 		tut.start_lesson(lesson)
-		await create_timer(0.3).timeout
 		for s in tut._steps().size():
+			await create_timer(0.3).timeout
 			var step: Dictionary = tut._steps()[tut._step]
-			tut._on_player_action(step.action)
-			await create_timer(1.0).timeout
-			print("L%d paso %d -> %s" % [lesson + 1, tut._step + 1, tut.result_label.text.replace("\n", " | ")])
-			if s == 0 and lesson == 0:
-				await _shot("t_tutorial_duel")
+			if step.get("demo", "") == "fight":
+				tut.arena.find_children("*", "Button", true, false)[0].pressed.emit()
+				await create_timer(0.3).timeout
+				if lesson == 0:
+					await _shot("t_tutorial_rpg")
+				var sc = tut._rpg_layer.get_child(0)
+				var t := 0.0
+				while not sc._ended and t < 30.0:
+					await create_timer(0.1).timeout
+					t += 0.1
+				sc._on_back_pressed()
+				await create_timer(0.2).timeout
+			elif lesson == 1:
+				await _shot("t_tutorial_table")
+			print("R%d paso %d -> %s" % [lesson + 1, tut._step + 1, tut.result_label.text if tut.result_panel.visible else "(sin resultado)"])
 			if tut._step + 1 < tut._steps().size():
 				tut._on_next()
-				await create_timer(0.2).timeout
-	# Personalidades
-	tut.start_lesson(8)
-	await create_timer(0.4).timeout
-	await _shot("t_tutorial_ai")
+	RS.test_auto = false
 	# Batallas
-	for lesson in [9, 10]:
+	for lesson in [3, 4]:
 		tut.start_lesson(lesson)
 		for s in tut._steps().size():
 			await create_timer(0.3).timeout
@@ -50,7 +59,7 @@ func _run() -> void:
 			btn.pressed.emit()
 			await create_timer(0.6).timeout
 			print("B%d paso %d -> %s" % [lesson + 1, tut._step + 1, tut.result_label.text.replace("\n", " | ")])
-			if lesson == 9 and s == 0:
+			if lesson == 3 and s == 0:
 				await _shot("t_tutorial_battle")
 			if tut._step + 1 < tut._steps().size():
 				tut._on_next()

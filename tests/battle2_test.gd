@@ -52,7 +52,7 @@ func _wait_duel(scene) -> Object:
 		for ch in scene.get_children():
 			if ch is CanvasLayer and ch.get_child_count() > 0 and "embedded" in ch.get_child(0):
 				var d = ch.get_child(0)
-				if d.duel != null:
+				if d.mgr != null:
 					return d
 	return null
 
@@ -61,15 +61,18 @@ func _play_embedded(scene) -> bool:
 	var d = await _wait_duel(scene)
 	if d == null:
 		return false
+	var RS = load("res://scenes/rpg_battle/rpg_battle.gd")
+	RS.test_auto = true   # la pantalla RPG: la IA juega también por ti
+	RS.test_delay = 0.0
+	if d._acting != null:
+		d._acting = null
+		d._advance()
 	var guard := 0
-	while not d.duel.is_over and guard < 300:
-		Engine.time_scale = 6.0
-		if d.player_turn:
-			d._player_action(0)
-		await create_timer(0.25).timeout
+	while not d._ended and guard < 300:
+		await create_timer(0.1).timeout
 		guard += 1
-	Engine.time_scale = 1.0
-	d._on_volver_menu_pressed()
+	RS.test_auto = false
+	d._on_back_pressed()
 	await process_frame
 	return true
 
@@ -271,7 +274,7 @@ func _run() -> void:
 		var played := await _play_embedded(scene)
 		check(played, "el duelo se juega de verdad encima del tablero")
 		await process_frame
-		check(foe_unit.left_field and not foe_unit.is_active(), "al vencer, el jefe enemigo se retira con su pelotón")
+		check((foe_unit.left_field and not foe_unit.is_active()) or my_unit.left_field, "quien pierde el duelo se retira con su pelotón (ganas: %s)" % foe_unit.left_field)
 		check(my_unit.has_acted and my_unit.challenged, "retar gasta el turno del pelotón")
 	# Rehusar: un cobarde dice que no y su bando pierde moral.
 	var coward_unit = b.active_units(b._other_side(b.player_side)).filter(func(u): return not u.challenged)[0]

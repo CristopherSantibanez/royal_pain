@@ -9,7 +9,7 @@ signal finished(text: String)   # al cerrar; text = último resultado ("" si nad
 const OccupationRules = preload("res://scripts/resources/occupation_rules.gd")
 const ContentCatalog = preload("res://scripts/resources/content_catalog.gd")
 const UNIQUE_COLOR := Color("f0c060")
-const COMBAT_SCENE := "res://scenes/combat/combat.tscn"
+const COMBAT_SCENE := "res://scenes/rpg_battle/rpg_battle.tscn"
 const FACE_SIZE := 96
 
 var relation: Relationship

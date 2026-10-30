@@ -41,14 +41,14 @@ func _run() -> void:
 	change_scene_to_file(scene_path)
 	await create_timer(0.5).timeout
 	var combat = current_scene
-	combat.enemy_character.current_health = 3
+	load("res://scenes/rpg_battle/rpg_battle.gd").test_auto = true
+	load("res://scenes/rpg_battle/rpg_battle.gd").test_delay = 0.0
 	var guard := 0
-	while not combat.duel.is_over and guard < 30:
-		if combat.player_turn:
-			combat._player_action(0)
-		await create_timer(1.4).timeout
+	while not combat._ended and guard < 300:
+		await create_timer(0.1).timeout
 		guard += 1
-	print("Duelo terminado: %s · honor %d -> %d · resumen: %s" % [combat.duel.is_over, honor_before, player.honor, CS.last_result_text.left(160)])
+	load("res://scenes/rpg_battle/rpg_battle.gd").test_auto = false
+	print("Duelo terminado: %s · honor %d -> %d · resumen: %s" % [combat._ended, honor_before, player.honor, CS.last_result_text.left(160)])
 
 	# 2. Escaramuza de evento: bandidos con la guarnición.
 	var bandits: Dictionary = {}

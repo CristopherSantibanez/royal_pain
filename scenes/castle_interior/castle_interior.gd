@@ -418,7 +418,7 @@ func _action_torneo_local() -> void:
 	TravelData.mark_local_tournament(castle)
 	var opponents := RelationsData.tournament_opponents(character, CombatSetup.TOURNAMENT_ROUNDS, CombatSetup.TOURNAMENT_STAT_STEP)
 	CombatSetup.start_tournament(character, opponents)
-	get_tree().change_scene_to_file("res://scenes/combat/combat.tscn")
+	get_tree().change_scene_to_file(CombatSetup.RPG_SCENE)
 
 func _get_actions_for_role(role: int) -> Array[Dictionary]:
 	match role:
@@ -814,7 +814,7 @@ func _action_retar_duelo() -> void:
 	# A veces vuelve un rival conocido buscando revancha; si no, te retas con alguien de la corte.
 	var rival := RelationsData.pick_duel_opponent(character)
 	CombatSetup.start_campaign_duel(character, rival)
-	get_tree().change_scene_to_file("res://scenes/combat/combat.tscn")
+	get_tree().change_scene_to_file(CombatSetup.RPG_SCENE)
 
 func _action_abrir_relaciones() -> void:
 	get_tree().change_scene_to_file("res://scenes/relations/relations.tscn")
@@ -853,7 +853,7 @@ func _action_torneo() -> void:
 	GameManager.last_tournament_year = GameManager.current_year
 	var opponents := RelationsData.tournament_opponents(character, CombatSetup.TOURNAMENT_ROUNDS, CombatSetup.TOURNAMENT_STAT_STEP)
 	CombatSetup.start_tournament(character, opponents)
-	get_tree().change_scene_to_file("res://scenes/combat/combat.tscn")
+	get_tree().change_scene_to_file(CombatSetup.RPG_SCENE)
 
 # Acciones disponibles para cualquier rol.
 func _common_actions() -> Array[Dictionary]:

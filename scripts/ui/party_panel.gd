@@ -113,10 +113,15 @@ func _row(c: Character, is_active: bool, index: int, count: int) -> void:
 		_button(row, "Reservar", c, not player, func(): PartyData.to_reserve(c))
 	else:
 		_button(row, "Activar", c, PartyData.active().size() < PartyData.MAX_ACTIVE, func(): PartyData.activate(c))
+	if not player:
+		var off := _button(row, "Oficial", c, true, func(): PartyData.set_officer(c, not PartyData.is_officer(c)))
+		off.toggle_mode = true
+		off.set_pressed_no_signal(PartyData.is_officer(c))
+		off.tooltip_text = "Va de oficial en tu pelotón en las batallas campales."
 	_button(row, "Gestionar", c, r != null, func(): _open_companion(r), false)
 	_button(row, "Mejorar", c, player or ResourceLoader.exists(SKILL_TREE_PANEL), func(): _open_upgrade(c), false)
 
-func _button(parent: Node, text: String, c: Character, enabled: bool, action: Callable, rebuild: bool = true) -> void:
+func _button(parent: Node, text: String, c: Character, enabled: bool, action: Callable, rebuild: bool = true) -> Button:
 	var btn := Button.new()
 	btn.text = text
 	btn.disabled = not enabled
@@ -128,6 +133,7 @@ func _button(parent: Node, text: String, c: Character, enabled: bool, action: Ca
 		if rebuild:
 			_rebuild())
 	parent.add_child(btn)
+	return btn
 
 func _restore_focus() -> void:
 	var first: Button = null

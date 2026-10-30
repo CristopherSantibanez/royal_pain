@@ -260,6 +260,35 @@ var pending_encounters: Array = []     # choques esperando a jugarse en la panta
 var encounter_hp := {}                 # Character -> parte de PV que le queda en esta batalla
 var faction_officers := {}             # "player"/"enemy" -> Array[Character]: PNJ de la facción que van de oficiales
 var player_is_officer := false         # vas de oficial en el pelotón de otro jefe (tu señor te asigna)
+
+# --- Fase 4B: flancos, formaciones e IA más lista ---
+const FLANK_DAMAGE := 1.25             # golpe por el flanco...
+const REAR_DAMAGE := 1.5               # ...o por la espalda
+const FLANK_MORALE := 4                # moral extra que pierde quien recibe por el flanco...
+const REAR_MORALE := 8                 # ...o por la espalda
+const CUNA_POWER := 1.2                # Cuña: golpea y carga más fuerte...
+const CUNA_FLANK_DEFENSE := 0.8        # ...pero sus flancos aguantan peor
+const CUADRO_POWER := 0.9              # Cuadro: golpea algo menos...
+const CUADRO_DEFENSE := 1.1            # ...se defiende algo mejor...
+const CUADRO_VS_CAVALRY := 1.35        # ...mucho mejor contra la caballería...
+const CUADRO_MOVE := 1                 # ...se mueve una casilla menos y apenas tiene flancos
+const AI_SMART_CHANCE := [0.55, 0.85, 1.0]   # Fácil, Normal, Difícil: cuántas veces la IA elige lo mejor
+const AI_SLOPPY_CHANCE := [0.25, 0.0, 0.0]   # en Fácil, a veces golpea o avanza sin pensar
+const AI_FLANK_WEIGHT := 2.0           # la IA busca casillas de flanco y espalda
+const AI_ISOLATED_WEIGHT := 4.0        # y prefiere a los pelotones aislados...
+const AI_GENERAL_TARGET := 3.0         # ...y al general enemigo
+const AI_REGROUP_MORALE := 42          # con menos moral y el enemigo cerca, se repliega para reagruparse
+const AI_REGROUP_DIST := 2
+const AI_RESERVE_MIN_UNITS := 4        # con tantos pelotones, guarda uno en reserva
+const AI_RESERVE_BEHIND := 2
+const AI_RESERVE_TRIGGER := 3          # la reserva entra si el enemigo se acerca a esto de ella o del general...
+const AI_RESERVE_TURN := 4             # ...desde este turno...
+const AI_RESERVE_LOSING := 0.1         # ...o si su bando va perdiendo por esta parte de fuerza
+const AI_ESCORT_MIN_UNITS := 3         # con tantos pelotones, uno escolta al general
+const AI_ESCORT_RADIUS := 3            # la escolta ataca a quien se acerque a esto del general
+var ai_difficulty := 1                 # 0 Fácil, 1 Normal, 2 Difícil (Ajustes)
+var _ai_flank := false                 # la IA valora flanquear en esta decisión
+var _roles_done := {}                  # bando -> ya repartió reserva y escolta
 var player_officer_override := -1      # pruebas: 0/1 fija si vas de oficial
 var abandon_chance_override := -1.0
 var defect_chance_override := -1.0
@@ -332,6 +361,12 @@ func start_battle(attacker_size: int, defender_size: int, walls: bool, a_cmd: Ch
 			_apply_player_family()
 		_place_side(side)
 	_mark_own_units()
+	_roles_done.clear()
+	for u: BattleUnit in units:
+		u.facing = Vector2i(1, 0) if u.side == BattleEnums.Side.ATACANTE else Vector2i(-1, 0)
+		u.formation = BattleEnums.Formation.LINEA
+		u.reserve = false
+		u.escort = false
 	_initial_soldiers = {
 		BattleEnums.Side.ATACANTE: total_soldiers(BattleEnums.Side.ATACANTE),
 		BattleEnums.Side.DEFENSOR: total_soldiers(BattleEnums.Side.DEFENSOR),
@@ -698,6 +733,8 @@ func effective_move_range(u: BattleUnit) -> int:
 		if weather == BattleEnums.Weather.NIEVE:
 			r -= SNOW_CAV_MOVE_PENALTY
 	# Las tropas muy fatigadas avanzan más lento.
+	if u.formation == BattleEnums.Formation.CUADRO:
+		r = maxi(1, r - CUADRO_MOVE)
 	if u.fatigue >= 70:
 		return maxi(1, r - 1)
 	return r
@@ -757,6 +794,7 @@ func move_unit(u: BattleUnit, cell: Vector2i) -> bool:
 	if not cell in reachable_cells(u):
 		return false
 	u.last_move_distance = distance(u.cell, cell)
+	_face(u, cell)
 	u.cell = cell
 	u.has_moved = true
 	u.fatigue = mini(100, u.fatigue + _fatigue_gain(u, 8 if BattleEnums.is_cavalry(u.type) else 5))
@@ -768,13 +806,16 @@ func attack(attacker: BattleUnit, target: BattleUnit) -> bool:
 		return false
 
 	var dist := distance(attacker.cell, target.cell)
+	_face(attacker, target.cell)
 	if use_encounters and dist == 1:
 		return _encounter(attacker, target, dist)
+	var flank := flank_of(attacker, target)
 	var casualties := _compute_casualties(attacker, target, dist, true)
 	_apply_casualties(target, casualties)
 	var text := "%s (%s) ataca a %s (%s): %d bajas." % [
 		BattleEnums.unit_type_name(attacker.type), _side_label(attacker.side),
 		BattleEnums.unit_type_name(target.type), _side_label(target.side), casualties]
+	text += _flank_morale(target, flank)
 	# La carga y los golpes reforzados se gastan con el primer golpe.
 	var charged := attacker.order == BattleEnums.Order.CARGAR and dist == 1
 	if charged:
@@ -819,6 +860,46 @@ func set_order(u: BattleUnit, order: int) -> bool:
 		log_message.emit("%s (%s): «%s»." % [BattleEnums.unit_type_name(u.type), _side_label(u.side), BattleEnums.order_name(u.order)])
 	state_updated.emit()
 	return true
+
+## Formación del pelotón (Línea, Cuña, Cuadro). No gasta el turno.
+func set_formation(u: BattleUnit, f: int) -> bool:
+	if is_over or not u.is_active() or u.has_acted:
+		return false
+	u.formation = f
+	log_message.emit("%s (%s): formación en %s." % [BattleEnums.unit_type_name(u.type), _side_label(u.side), BattleEnums.formation_name(f)])
+	state_updated.emit()
+	return true
+
+## Pasa a la siguiente formación: Línea → Cuña → Cuadro → Línea.
+func cycle_formation(u: BattleUnit) -> bool:
+	return set_formation(u, (u.formation + 1) % BattleEnums.Formation.size())
+
+## 0 = de frente, 1 = por el flanco, 2 = por la espalda, según hacia dónde mira el objetivo.
+## El Cuadro apenas tiene flancos: le quita un nivel. from_cell: desde otra casilla (la IA lo usa).
+func flank_of(attacker: BattleUnit, target: BattleUnit, from_cell: Vector2i = Vector2i(-99, -99)) -> int:
+	var c := attacker.cell if from_cell == Vector2i(-99, -99) else from_cell
+	var d := c - target.cell
+	var f := target.facing
+	var along := d.x * f.x + d.y * f.y
+	var across := absi(d.x * f.y - d.y * f.x)
+	var level := 0 if along >= across else (2 if -along >= across else 1)
+	if target.formation == BattleEnums.Formation.CUADRO:
+		level = maxi(0, level - 1)
+	return level
+
+## Mira hacia la casilla (eje dominante).
+func _face(u: BattleUnit, toward: Vector2i) -> void:
+	var d := toward - u.cell
+	if d == Vector2i.ZERO:
+		return
+	u.facing = Vector2i(signi(d.x), 0) if absi(d.x) >= absi(d.y) else Vector2i(0, signi(d.y))
+
+## Moral extra que pierde quien recibe por el flanco o la espalda; devuelve el texto para el registro.
+func _flank_morale(target: BattleUnit, flank: int) -> String:
+	if flank <= 0 or not target.is_active():
+		return ""
+	target.morale = maxi(0, target.morale - (REAR_MORALE if flank == 2 else FLANK_MORALE))
+	return " ¡Por la espalda!" if flank == 2 else " ¡Por el flanco!"
 
 func can_withdraw(u: BattleUnit) -> bool:
 	return not is_over and u.is_active() and not u.has_moved and not u.has_acted
@@ -1080,8 +1161,19 @@ func _compute_casualties(attacker: BattleUnit, target: BattleUnit, dist: int, wi
 	if BattleEnums.is_cavalry(attacker.type) and attacker.side == BattleEnums.Side.DEFENSOR and has_walls:
 		strength *= 1.0 + float(cavalry_bonus[0])   # establos del castillo
 
+	var flank := flank_of(attacker, target)
+	strength *= REAR_DAMAGE if flank == 2 else (FLANK_DAMAGE if flank == 1 else 1.0)
+	if attacker.formation == BattleEnums.Formation.CUNA:
+		strength *= CUNA_POWER
+	elif attacker.formation == BattleEnums.Formation.CUADRO:
+		strength *= CUADRO_POWER
+
 	var t := terrain_at(target.cell)
 	var defense: float = unit_terrain_defense(target, target.cell)
+	if target.formation == BattleEnums.Formation.CUADRO:
+		defense *= CUADRO_VS_CAVALRY if BattleEnums.is_cavalry(attacker.type) else CUADRO_DEFENSE
+	elif target.formation == BattleEnums.Formation.CUNA and flank > 0:
+		defense *= CUNA_FLANK_DEFENSE
 	# Defensa propia del tipo (lanceros, pesados); los ballesteros atraviesan armaduras.
 	var pierce := attacker.type == BattleEnums.UnitType.BALLESTEROS
 	if not pierce:
@@ -1231,53 +1323,273 @@ func _ai_naive_cell(u: BattleUnit, target: BattleUnit) -> Vector2i:
 func _run_ai(side: int) -> void:
 	# Primero disparan los arqueros (ablandan), después carga la caballería y por último la infantería.
 	_path_cache.clear()
+	_ai_assign_roles(side)
 	_ai_use_ability(side)
 	var order: Array[BattleUnit] = []
 	for u: BattleUnit in active_units(side):
 		if side != player_side or u.ally:
 			order.append(u)
 	order.sort_custom(func(a: BattleUnit, b: BattleUnit): return AI_ORDER[a.family()] < AI_ORDER[b.family()])
+	var walled := has_walls and side == BattleEnums.Side.DEFENSOR
 	for u: BattleUnit in order:
 		if is_over:
 			return
 		if not u.is_active():
 			continue
 		# El general se cuida en campo abierto; tras la muralla defiende el muro como uno más.
-		if u.general and active_units(side).size() > 1 and not (has_walls and side == BattleEnums.Side.DEFENSOR):
+		if u.general and active_units(side).size() > 1 and not walled:
 			_ai_general_turn(u)
 			continue
 		u.order = BattleEnums.Order.NINGUNA if u.order == BattleEnums.Order.MANTENER else u.order
+		_ai_pick_formation(u)
 		var nearest := _nearest_enemy(u)
+		# Con la moral baja y el enemigo encima, se repliega para reagruparse en vez de luchar hasta huir.
+		if nearest != null and not walled and u.morale < AI_REGROUP_MORALE and distance(u.cell, nearest.cell) <= AI_REGROUP_DIST \
+				and can_withdraw(u) and _ai_smart(u):
+			withdraw(u)
+			continue
 		# Un pelotón deshecho y acosado se repliega para no romper filas.
 		if nearest != null and distance(u.cell, nearest.cell) <= 1 and u.morale < AI_WITHDRAW_MORALE \
 				and u.soldiers < u.max_soldiers * 0.4 and randf() < 0.5:
 			withdraw(u)
 			continue
+		# La reserva espera detrás hasta que hace falta.
+		if u.reserve:
+			if _ai_reserve_needed(u):
+				u.reserve = false
+				log_message.emit("La reserva (%s) entra en combate." % _side_label(side))
+			else:
+				_follow_line(u, AI_RESERVE_BEHIND, AI_REGROUP_DIST)
+				continue
+		# La escolta no se aleja del general y caza a quien se le acerque.
+		var guard_target: BattleUnit = null
+		if u.escort:
+			var g := _general_unit(side)
+			if g == null or active_units(side).size() < AI_ESCORT_MIN_UNITS:
+				u.escort = false
+			else:
+				guard_target = _threat_to(g)
+				if guard_target == null:
+					var near := targets_in_range(u)
+					if not near.is_empty():
+						attack(u, _ai_best_target(u, near))
+					elif distance(u.cell, g.cell) > 1:
+						_ai_move_near(u, g)
+					continue
+				nearest = guard_target
 		var targets := targets_in_range(u)
 		if targets.is_empty():
 			if nearest == null:
 				continue
-			var engaged := distance(u.cell, nearest.cell) <= AI_ENGAGE_DISTANCE
+			var goal := nearest
+			if guard_target == null and _ai_smart(u):
+				goal = _ai_move_target(u, nearest)
+			var engaged := distance(u.cell, goal.cell) <= AI_ENGAGE_DISTANCE
 			# Tras la muralla, el defensor espera; la caballería sale a cazar igual.
 			if engaged or not has_walls or BattleEnums.is_cavalry(u.type) or side == BattleEnums.Side.ATACANTE:
 				# Si llega al cuerpo a cuerpo este turno, entra a la carga.
-				if not BattleEnums.is_ranged(u.type) and distance(u.cell, nearest.cell) <= effective_move_range(u) + 1:
+				if not BattleEnums.is_ranged(u.type) and distance(u.cell, goal.cell) <= effective_move_range(u) + 1:
 					u.order = BattleEnums.Order.CARGAR
-				var cell := _ai_pick_cell(u, nearest)
-				if _ally_blunder(u):
+				_ai_flank = _ai_smart(u)
+				var cell := _ai_pick_cell(u, goal)
+				_ai_flank = false
+				if _ally_blunder(u) or _ai_sloppy(u):
 					# Un jefe torpe duda (se queda donde está) o se lanza sin mirar el terreno.
 					var hesitate := ALLY_HESITATE_SHARE_SIEGE if has_walls else ALLY_HESITATE_SHARE
-					cell = u.cell if randf() < hesitate else _ai_naive_cell(u, nearest)
+					cell = u.cell if randf() < hesitate else _ai_naive_cell(u, goal)
 				if cell != u.cell:
 					move_unit(u, cell)
 			targets = targets_in_range(u)
+		elif not BattleEnums.is_ranged(u.type) and can_move(u) and _ai_smart(u):
+			# Ya en contacto: si puede rodear al objetivo y darle por el flanco, se mueve antes de golpear.
+			_ai_flank_step(u, _ai_best_target(u, targets))
+			targets = targets_in_range(u)
 		if not targets.is_empty():
 			# Sin buena coordinación, a veces golpea al que tiene delante en vez de concentrar el fuego.
-			attack(u, targets.pick_random() if targets.size() > 1 and _ally_blunder(u) else _ai_best_target(u, targets))
+			var sloppy := targets.size() > 1 and (_ally_blunder(u) or _ai_sloppy(u))
+			attack(u, targets.pick_random() if sloppy else _ai_best_target(u, targets))
 		# Infantería y arqueros con el enemigo encima se plantan para aguantar su turno.
 		if u.is_active() and not BattleEnums.is_cavalry(u.type) and nearest != null and nearest.is_active() \
 				and distance(u.cell, nearest.cell) <= 2 and not _ally_blunder(u):
 			u.order = BattleEnums.Order.MANTENER
+
+## ¿Elige la IA lo mejor esta vez? Depende de la dificultad (y, en los aliados, de la competencia de su jefe).
+func _ai_smart(u: BattleUnit) -> bool:
+	var p: float = AI_SMART_CHANCE[clampi(ai_difficulty, 0, AI_SMART_CHANCE.size() - 1)]
+	if u.side == player_side:
+		p *= ally_competence()
+	return randf() < p
+
+## En Fácil, el enemigo a veces actúa sin pensar.
+func _ai_sloppy(u: BattleUnit) -> bool:
+	if u.side == player_side:
+		return false
+	return randf() < float(AI_SLOPPY_CHANCE[clampi(ai_difficulty, 0, AI_SLOPPY_CHANCE.size() - 1)])
+
+func _ai_controls(u: BattleUnit) -> bool:
+	return u.side != player_side or u.ally
+
+## Al empezar: una escolta para el general y un pelotón de reserva (solo en campo abierto).
+func _ai_assign_roles(side: int) -> void:
+	if _roles_done.get(side, false):
+		return
+	_roles_done[side] = true
+	if has_walls:
+		return   # en un asedio no hay tiempo para reservas: se asalta o se defiende el muro
+	var mine: Array[BattleUnit] = active_units(side).filter(func(o: BattleUnit) -> bool: return _ai_controls(o))
+	if mine.is_empty() or not _ai_smart(mine[0]):
+		return
+	var g := _general_unit(side)
+	var foe := _other_side(side)
+	var free: Array[BattleUnit] = mine.filter(func(o: BattleUnit) -> bool: return not o.general and not BattleEnums.is_ranged(o.type))
+	if g != null and _ai_controls(g) and mine.size() >= AI_ESCORT_MIN_UNITS and not free.is_empty():
+		free.sort_custom(func(a: BattleUnit, b: BattleUnit) -> bool: return distance(a.cell, g.cell) < distance(b.cell, g.cell))
+		free[0].escort = true
+		free.remove_at(0)
+	if mine.size() >= AI_RESERVE_MIN_UNITS and not free.is_empty():
+		# La caballería es la mejor reserva; si no, el más alejado del enemigo.
+		free.sort_custom(func(a: BattleUnit, b: BattleUnit) -> bool:
+			var ca := BattleEnums.is_cavalry(a.type)
+			var cb := BattleEnums.is_cavalry(b.type)
+			if ca != cb:
+				return ca
+			return _min_enemy_dist(a.cell, foe) > _min_enemy_dist(b.cell, foe))
+		free[0].reserve = true
+
+func _min_enemy_dist(cell: Vector2i, foe: int) -> int:
+	var best := 999
+	for e: BattleUnit in active_units(foe):
+		best = mini(best, distance(cell, e.cell))
+	return best
+
+func _general_unit(side: int) -> BattleUnit:
+	for u: BattleUnit in active_units(side):
+		if u.general:
+			return u
+	return null
+
+## El enemigo más cercano al general que está a menos de AI_ESCORT_RADIUS de él.
+func _threat_to(g: BattleUnit) -> BattleUnit:
+	var best: BattleUnit = null
+	var best_d := AI_ESCORT_RADIUS + 1
+	for e: BattleUnit in active_units(_other_side(g.side)):
+		var d := distance(e.cell, g.cell)
+		if d < best_d:
+			best_d = d
+			best = e
+	return best
+
+func _ai_reserve_needed(u: BattleUnit) -> bool:
+	if turn >= AI_RESERVE_TURN:
+		return true
+	if _min_enemy_dist(u.cell, _other_side(u.side)) <= AI_RESERVE_TRIGGER:
+		return true
+	var g := _general_unit(u.side)
+	if g != null and _threat_to(g) != null:
+		return true
+	return _strength_ratio(u.side) < _strength_ratio(_other_side(u.side)) - AI_RESERVE_LOSING
+
+## Se acerca al pelotón amigo (la casilla alcanzable más cercana).
+func _ai_move_near(u: BattleUnit, friend: BattleUnit) -> void:
+	var best_cell := u.cell
+	var best_d := distance(u.cell, friend.cell)
+	for cell in reachable_cells(u):
+		var d := distance(cell, friend.cell)
+		if d < best_d or (d == best_d and d > 0 and _terrain_defense(terrain_at(cell)) > _terrain_defense(terrain_at(best_cell))):
+			best_d = d
+			best_cell = cell
+	if best_cell != u.cell:
+		move_unit(u, best_cell)
+
+## Hacia quién avanza: el más débil, aislado o fácil de flanquear al alcance de este turno (o el más cercano).
+func _ai_move_target(u: BattleUnit, nearest: BattleUnit) -> BattleUnit:
+	var reach := effective_move_range(u) + _range_from(u, u.cell) + 1
+	var best := nearest
+	var best_value := -INF
+	for e: BattleUnit in active_units(_other_side(u.side)):
+		var d := distance(u.cell, e.cell)
+		if d > reach or not is_visible_to(u.side, e):
+			continue
+		var value := _ai_target_value(u, e) - d * 0.5
+		if value > best_value:
+			best_value = value
+			best = e
+	return best
+
+func _ai_target_value(u: BattleUnit, e: BattleUnit) -> float:
+	var value := (1.0 - float(e.soldiers) / maxi(1, e.max_soldiers)) * AI_FOCUS_WEIGHT + (100 - e.morale) * 0.05
+	if _isolated(e):
+		value += AI_ISOLATED_WEIGHT
+	if e.general:
+		value += AI_GENERAL_TARGET
+	if BattleEnums.beats(u.family(), e.family()):
+		value += 2.0
+	elif BattleEnums.beats(e.family(), u.family()):
+		value -= 2.0
+	return value
+
+## Sin ningún amigo a 2 casillas.
+func _isolated(e: BattleUnit) -> bool:
+	for o: BattleUnit in active_units(e.side):
+		if o != e and distance(o.cell, e.cell) <= 2:
+			return false
+	return true
+
+## Ya en contacto: busca una casilla junto al objetivo desde la que darle por el flanco o la espalda.
+func _ai_flank_step(u: BattleUnit, t: BattleUnit) -> void:
+	var best_cell := u.cell
+	var best_level := flank_of(u, t)
+	for cell in reachable_cells(u):
+		if distance(cell, t.cell) != 1:
+			continue
+		var level := flank_of(u, t, cell)
+		if level > best_level:
+			best_level = level
+			best_cell = cell
+	if best_cell != u.cell:
+		move_unit(u, best_cell)
+
+## Formación según la situación: cuadro si amenaza caballería, cuña la caballería, línea el resto.
+func _ai_pick_formation(u: BattleUnit) -> void:
+	if not _ai_smart(u):
+		return
+	var f := BattleEnums.Formation.LINEA
+	if BattleEnums.is_cavalry(u.type):
+		f = BattleEnums.Formation.CUNA
+	elif not BattleEnums.is_ranged(u.type) and u.family() != BattleEnums.Family.PIQUEROS:
+		for e: BattleUnit in active_units(_other_side(u.side)):
+			if BattleEnums.is_cavalry(e.type) and distance(u.cell, e.cell) <= effective_move_range(e) + 1:
+				f = BattleEnums.Formation.CUADRO
+				break
+	u.formation = f
+
+## Sigue a su ejército a "behind" casillas por detrás, sin acercarse a menos de "danger" del enemigo.
+func _follow_line(u: BattleUnit, behind: int, danger: int) -> void:
+	var front := -1 if u.side == BattleEnums.Side.ATACANTE else 1   # hacia atrás: −x el atacante
+	var others: Array[BattleUnit] = active_units(u.side).filter(func(o: BattleUnit) -> bool: return o != u and not o.reserve)
+	if others.is_empty():
+		return
+	var line_x := 0.0
+	var mid_y := 0.0
+	for o: BattleUnit in others:
+		line_x += o.cell.x
+		mid_y += o.cell.y
+	line_x /= others.size()
+	mid_y /= others.size()
+	var goal := Vector2(line_x + front * behind, mid_y)
+	var best_cell := u.cell
+	var best_score := Vector2(u.cell).distance_to(goal)
+	for cell in reachable_cells(u):
+		if _enemy_near_cell(u.side, cell, danger):
+			continue
+		var score := Vector2(cell).distance_to(goal) - (_terrain_defense(terrain_at(cell)) - 1.0)
+		if score < best_score:
+			best_score = score
+			best_cell = cell
+	if best_cell != u.cell:
+		var keep := u.facing
+		move_unit(u, best_cell)
+		u.facing = keep   # recolocarse detrás no le hace dar la espalda al enemigo
 
 const AI_GENERAL_SAFE_RATIO := 1.5     # el general solo golpea si causa 1,5 veces las bajas que recibe
 const AI_GENERAL_DANGER := 2           # y se repliega si el enemigo está así de cerca
@@ -1300,27 +1612,7 @@ func _ai_general_turn(u: BattleUnit) -> void:
 			withdraw(u)
 		return
 	# Sigue a su ejército por detrás, sin acercarse a menos de AI_GENERAL_DANGER del enemigo.
-	var front := -1 if u.side == BattleEnums.Side.ATACANTE else 1   # hacia el enemigo: +x el atacante
-	var others: Array[BattleUnit] = active_units(u.side).filter(func(o: BattleUnit) -> bool: return o != u)
-	var line_x := 0.0
-	var mid_y := 0.0
-	for o: BattleUnit in others:
-		line_x += o.cell.x
-		mid_y += o.cell.y
-	line_x /= others.size()
-	mid_y /= others.size()
-	var goal := Vector2(line_x + front * AI_GENERAL_BEHIND, mid_y)
-	var best_cell := u.cell
-	var best_score := Vector2(u.cell).distance_to(goal)
-	for cell in reachable_cells(u):
-		if _enemy_near_cell(u.side, cell, AI_GENERAL_DANGER):
-			continue
-		var score := Vector2(cell).distance_to(goal) - (_terrain_defense(terrain_at(cell)) - 1.0)
-		if score < best_score:
-			best_score = score
-			best_cell = cell
-	if best_cell != u.cell:
-		move_unit(u, best_cell)
+	_follow_line(u, AI_GENERAL_BEHIND, AI_GENERAL_DANGER)
 
 # Parte de su ejército inicial que le queda a un bando.
 ## Al caer la noche en campo abierto: gana quien perdió menos hombres (más la moral que le queda).
@@ -1457,6 +1749,8 @@ func _ai_cell_score(u: BattleUnit, cell: Vector2i, target: BattleUnit) -> float:
 	var r := _range_from(u, cell)
 	var score: float = float(r - d) if d <= r else 100.0 + _path_dist(cell, target.cell)
 	score -= (_terrain_defense(terrain_at(cell)) - 1.0) * AI_TERRAIN_WEIGHT
+	if _ai_flank and d <= r:
+		score -= AI_FLANK_WEIGHT * flank_of(u, target, cell)
 	# Los arqueros no se dejan alcanzar por la infantería o la caballería enemigas.
 	if BattleEnums.is_ranged(u.type):
 		for enemy: BattleUnit in active_units(_other_side(u.side)):
@@ -1474,6 +1768,10 @@ func _ai_best_target(u: BattleUnit, targets: Array[BattleUnit]) -> BattleUnit:
 		value += (1.0 - float(t.soldiers) / maxi(1, t.max_soldiers)) * AI_FOCUS_WEIGHT
 		if preview.casualties >= t.soldiers:
 			value += AI_FINISH_BONUS
+		if _isolated(t):
+			value += AI_ISOLATED_WEIGHT * 0.5
+		if t.general:
+			value += AI_GENERAL_TARGET
 		value -= preview.counter * 0.8
 		if value > best_value:
 			best_value = value
@@ -2489,6 +2787,7 @@ func resolve_encounter(enc: Dictionary, result: Dictionary) -> void:
 	att.surge = 1.0
 	var before := [tgt.soldiers, att.soldiers]
 	var text := CampalEncounters.apply(self, enc, result)
+	text += _flank_morale(tgt, int(enc.get("flank", 0)))
 	unit_attacked.emit(att, tgt, before[0] - tgt.soldiers, before[1] - att.soldiers, false)
 	log_message.emit(text)
 	_check_rout(tgt)
@@ -2531,6 +2830,8 @@ func _check_defections() -> void:
 func _switch_unit_side(u: BattleUnit, new_side: int, by_ai: bool) -> void:
 	u.side = new_side
 	u.general = false
+	u.reserve = false
+	u.escort = false
 	u.order = BattleEnums.Order.NINGUNA
 	u.ally = by_ai and new_side == player_side
 	if by_ai:

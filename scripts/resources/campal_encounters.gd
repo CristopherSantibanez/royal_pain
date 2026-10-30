@@ -29,6 +29,12 @@ const INF_DEF := 2.0
 const ARCHER_AIM := 4.0
 const TROOP_MORALE_PIVOT := 50        # la moral del pelotón sube o baja la del personaje
 const TROOP_MORALE_DIV := 3
+# Flancos y formaciones en el choque (fase 4B).
+const ENC_FLANK_MORALE := 8           # quien es cogido por el flanco empieza con menos moral (×2 por la espalda)...
+const ENC_FLANK_DEFENSE := 0.1        # ...y −10% de Defensa por nivel
+const ENC_CUNA_STR := 0.1             # Cuña: +10% de Fuerza
+const ENC_CUADRO_DEF := 0.1           # Cuadro: +10% de Defensa...
+const ENC_CUADRO_DEF_CAV := 0.25      # ...+25% contra caballería
 
 # Del combate a los pelotones.
 const WIN_DMG := 1.35                 # bajas que causa quien gana el choque (× las del tablero)
@@ -91,10 +97,10 @@ static func party_of(u: BattleUnit, level: int) -> Array:
 		escort -= 1
 	return out
 
-static func set_troops(chars: Array, u: BattleUnit, foe: BattleUnit) -> void:
+static func set_troops(chars: Array, u: BattleUnit, foe: BattleUnit, flanked: int = 0) -> void:
 	for c: Character in chars:
 		c.set_meta("campal_troops", {"soldiers": u.soldiers, "type": u.type, "family": u.family(),
-			"morale": u.morale, "foe_family": foe.family()})
+			"morale": u.morale, "foe_family": foe.family(), "formation": u.formation, "flanked": flanked})
 
 static func clear_troops(chars: Array) -> void:
 	for c: Character in chars:
@@ -122,8 +128,16 @@ static func apply_troop_bonus(f) -> void:
 			f.s.defensa = float(f.s.defensa) + INF_DEF
 		BattleEnums.Family.ARQUERIA:
 			f.s.punteria = float(f.s.punteria) + ARCHER_AIM
+	match int(t.get("formation", BattleEnums.Formation.LINEA)):
+		BattleEnums.Formation.CUNA:
+			str_mult += ENC_CUNA_STR
+		BattleEnums.Formation.CUADRO:
+			f.s.defensa = float(f.s.defensa) * (1.0 + (ENC_CUADRO_DEF_CAV if int(t.foe_family) == BattleEnums.Family.CABALLERIA else ENC_CUADRO_DEF))
+	var flanked := int(t.get("flanked", 0))
+	if flanked > 0:
+		f.s.defensa = float(f.s.defensa) * (1.0 - ENC_FLANK_DEFENSE * flanked)
 	f.s.fuerza = float(f.s.fuerza) * str_mult
-	f.morale = clampi(f.morale + (int(t.morale) - TROOP_MORALE_PIVOT) / TROOP_MORALE_DIV, 0, 100)
+	f.morale = clampi(f.morale + (int(t.morale) - TROOP_MORALE_PIVOT) / TROOP_MORALE_DIV - ENC_FLANK_MORALE * flanked, 0, 100)
 
 ## Técnicas con «req_troops» o «req_morale»: solo si el pelotón del personaje los cumple (fuera de campales no cuentan).
 static func technique_allowed(c: Character, n: Dictionary) -> bool:
@@ -147,9 +161,10 @@ static func make(bm: BattleManager, attacker: BattleUnit, target: BattleUnit, di
 			if c != list[0] and not is_generic(c) and c != bm.player_leader and _disloyal(c) and randf() < bm.abandon_chance():
 				list.erase(c)
 				notes.append("%s abandona el choque." % c.full_name())
+	var flank := bm.flank_of(attacker, target)
 	set_troops(a, attacker, target)
-	set_troops(b, target, attacker)
-	return {"attacker": attacker, "target": target, "dist": dist, "a": a, "b": b, "notes": notes}
+	set_troops(b, target, attacker, flank)
+	return {"attacker": attacker, "target": target, "dist": dist, "a": a, "b": b, "notes": notes, "flank": flank}
 
 static func _disloyal(c: Character) -> bool:
 	var loy = _autoload("LoyaltyData")

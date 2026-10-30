@@ -53,6 +53,8 @@ Resumen de las fases que faltan del plan de revisión. El detalle completo, con 
 
 **4A hecha** (`scripts/resources/campal_encounters.gd`, prueba `tests/campal_rpg_test.gd`): puntos 1, 2, 5 y botín. Los choques RPG son solo cuerpo a cuerpo; el tiro a distancia sigue con la fórmula del tablero. Los oficiales del grupo se marcan en el Consejo de guerra.
 
+**4B hecha** (prueba `tests/campal_ai_test.gd`): puntos 3 y 4. IA con flanqueo, escolta del general, reserva (solo campo abierto), repliegue con moral baja y dificultad en Ajustes; orientación, flancos y formaciones (orden «Línea/Cuña/Cuadro [F]»); botón «Oficial» en el gestor de grupo.
+
 1. **Oficiales:** cada pelotón tiene un jefe y 2 o 3 oficiales, sacados del séquito o de personajes de la facción.
 2. **Cada encuentro entre pelotones lanza un combate RPG:** el jefe y sus oficiales contra los del otro pelotón.
    - Las **tropas** dan estadísticas extra según su número, su familia y su moral.

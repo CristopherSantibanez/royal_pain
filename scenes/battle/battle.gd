@@ -32,6 +32,8 @@ const BATTLE_DEATH_CHANCE := 0.25     # si tu ejército entero cae o huye, puede
 const BANNER_TIME := 4.0
 const ORDER_KEYS := {KEY_H: BattleEnums.Order.MANTENER, KEY_C: BattleEnums.Order.CARGAR}
 const WITHDRAW_KEY := KEY_R
+const FORMATION_KEY := KEY_F
+const FORMATION_ORDER := -2      # clave del botón de formación en _order_buttons
 const COMMAND_FONT_SIZE := 13
 
 var battle: BattleManager
@@ -125,6 +127,7 @@ func _ready() -> void:
 	battle.battle_ended.connect(_on_battle_ended)
 	battle.interactive_encounters = true
 	battle.auto_resolve_others = Settings.auto_resolve_others
+	battle.ai_difficulty = Settings.ai_difficulty
 	battle.encounter_pending.connect(func(_e): _play_encounters.call_deferred())
 	board.setup(battle)
 	# Teclado y mando: el tablero tiene el foco (cursor con flechas o cruceta, Intro o A para actuar).
@@ -613,11 +616,12 @@ func _build_command_card() -> void:
 	box.add_child(row)
 	for spec in [[BattleEnums.Order.MANTENER, "Mantener [H]", "Mantener posición: el pelotón no se mueve, pero recibe un 23% menos de bajas. Dura hasta que la quites."],
 			[BattleEnums.Order.CARGAR, "Cargar [C]", "Cargar: su primer golpe cuerpo a cuerpo hace +30%, pero se cansa un 50% más. No vale para arqueros."],
-			[-1, "Replegarse [R]", "Replegarse: retrocede hasta 2 casillas hacia tu retaguardia y recupera 10 de moral. Gasta su turno."]]:
+			[-1, "Replegarse [R]", "Replegarse: retrocede hasta 2 casillas hacia tu retaguardia y recupera 10 de moral. Gasta su turno."],
+			[FORMATION_ORDER, "Línea [F]", "Formación (cambia con F). Línea: equilibrada. Cuña: +20% al golpear, flancos débiles. Cuadro: aguanta caballería y flancos, golpea menos y se mueve 1 menos. Por el flanco: +25% y −4 de moral; por la espalda: +50% y −8."]]:
 		var b := Button.new()
 		b.text = spec[1]
 		b.tooltip_text = spec[2]
-		b.toggle_mode = spec[0] != -1
+		b.toggle_mode = spec[0] >= 0
 		_compact(b)
 		var order: int = spec[0]
 		b.pressed.connect(func(): _give_order(order))
@@ -715,7 +719,11 @@ func _give_order(order: int) -> void:
 		Sfx.play("whoosh", -10.0)
 		_refresh()
 		return
-	var ok := battle.withdraw(selected) if order == -1 else battle.set_order(selected, order)
+	var ok := false
+	if order == FORMATION_ORDER:
+		ok = battle.is_player_unit(selected) and battle.cycle_formation(selected)
+	else:
+		ok = battle.withdraw(selected) if order == -1 else battle.set_order(selected, order)
 	Sfx.play("click" if ok else "whoosh", -6.0 if ok else -10.0)
 	_refresh()
 
@@ -771,6 +779,9 @@ func _refresh_commands() -> void:
 		var b: Button = _order_buttons[order]
 		if order == -1:
 			b.disabled = not can_order or not battle.can_withdraw(selected)
+		elif order == FORMATION_ORDER:
+			b.disabled = not can_order or selected.has_acted
+			b.text = "%s [F]" % BattleEnums.formation_name(selected.formation if selected != null else BattleEnums.Formation.LINEA)
 		else:
 			b.disabled = not can_order or selected.has_acted or (order == BattleEnums.Order.CARGAR and selected.type == BattleEnums.UnitType.ARQUEROS)
 			b.set_pressed_no_signal(can_order and selected.order == order)
@@ -1407,6 +1418,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			_give_order(ORDER_KEYS[key])
 		elif key == WITHDRAW_KEY:
 			_give_order(-1)
+		elif key == FORMATION_KEY:
+			_give_order(FORMATION_ORDER)
 		elif key == CHALLENGE_KEY:
 			_on_challenge_pressed()
 		elif key >= KEY_1 and key <= KEY_9 and key - KEY_1 < _ability_buttons.size():

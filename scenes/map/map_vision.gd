@@ -34,11 +34,6 @@ static func _role_visible_castle_ids(role: int, home_castle_id: String) -> Array
 			ids = _union(ids, _castles_of_kingdoms(RelationsData.allied_kingdoms()))
 		Character.Role.REGENTE:
 			return _all_castle_ids()
-		# Los mercenarios recorren los caminos: ven lejos, pero no tienen reino propio.
-		Character.Role.MERCENARIO, Character.Role.CAPITAN:
-			ids = _bfs_within_hops(home_castle_id, 2)
-		Character.Role.CONDOTIERO:
-			ids = _bfs_within_hops(home_castle_id, 3)
 		Character.Role.INAFILIADO:   # va de camino en camino: ve lo que tiene cerca
 			ids = _bfs_within_hops(home_castle_id, 2)
 		_:

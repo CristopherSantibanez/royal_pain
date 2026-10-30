@@ -168,7 +168,7 @@ func _on_act(uid: String, type: String) -> void:
 			CombatSetup.start_campaign_duel(player, rival)
 			var scene := get_tree().current_scene
 			CombatSetup.return_scene = scene.scene_file_path if scene != null and not scene.scene_file_path.is_empty() else MAP_SCENE
-			get_tree().change_scene_to_file("res://scenes/combat/combat.tscn")
+			get_tree().change_scene_to_file(CombatSetup.RPG_SCENE)
 		return
 	_show(MissionData.act(uid))
 

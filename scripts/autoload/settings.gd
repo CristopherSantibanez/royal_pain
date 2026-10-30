@@ -35,6 +35,9 @@ const SHAKE_LEVELS := [0.0, 0.5, 1.0]
 const SHAKE_LEVEL_NAMES := ["Sin sacudida", "Suave", "Normal"]
 var shake_level := 2
 var reduced_effects := false
+var auto_resolve_others := true   # campales: los choques donde no estás tú ni tu grupo se resuelven solos
+const DIFFICULTY_NAMES := ["Fácil", "Normal", "Difícil"]
+var ai_difficulty := 1            # campales: lo bien que juega la IA enemiga
 
 func _ready() -> void:
 	_register_input_actions()
@@ -46,6 +49,8 @@ func _ready() -> void:
 		fullscreen = bool(cfg.get_value("video", "fullscreen", false))
 		shake_level = clampi(int(cfg.get_value("video", "shake_level", 2)), 0, SHAKE_LEVELS.size() - 1)
 		reduced_effects = bool(cfg.get_value("video", "reduced_effects", false))
+		auto_resolve_others = bool(cfg.get_value("game", "auto_resolve_others", true))
+		ai_difficulty = clampi(int(cfg.get_value("game", "ai_difficulty", 1)), 0, DIFFICULTY_NAMES.size() - 1)
 	for bus in BUSES:
 		_apply_volume(bus)
 	_apply_fullscreen()
@@ -82,6 +87,14 @@ func set_shake_level(level: int) -> void:
 	shake_level = clampi(level, 0, SHAKE_LEVELS.size() - 1)
 	changed.emit()
 
+func set_auto_resolve_others(on: bool) -> void:
+	auto_resolve_others = on
+	changed.emit()
+
+func set_ai_difficulty(level: int) -> void:
+	ai_difficulty = clampi(level, 0, DIFFICULTY_NAMES.size() - 1)
+	changed.emit()
+
 func set_reduced_effects(on: bool) -> void:
 	reduced_effects = on
 	changed.emit()
@@ -97,6 +110,8 @@ func save() -> void:
 	cfg.set_value("video", "fullscreen", fullscreen)
 	cfg.set_value("video", "shake_level", shake_level)
 	cfg.set_value("video", "reduced_effects", reduced_effects)
+	cfg.set_value("game", "auto_resolve_others", auto_resolve_others)
+	cfg.set_value("game", "ai_difficulty", ai_difficulty)
 	DirAccess.make_dir_recursive_absolute(settings_path.get_base_dir())
 	cfg.save(settings_path)
 

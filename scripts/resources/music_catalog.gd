@@ -29,7 +29,7 @@ const SCENE_CONTEXT := {
 	"main_menu": "menu", "new_game": "menu", "character_creation": "menu", "character_summary": "menu",
 	"save_slots": "menu", "fighter_select": "menu",
 	"map": "map", "relations": "court", "castle_interior": "castle",
-	"combat": "duel", "battle": "battle", "succession": "mourning",
+	"combat": "duel", "rpg_battle": "duel", "battle": "battle", "succession": "mourning",
 }
 
 static func culture_key(culture: int) -> String:

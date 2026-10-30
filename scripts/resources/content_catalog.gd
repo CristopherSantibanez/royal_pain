@@ -159,7 +159,7 @@ const EQUIPMENT := [
 	{"name": "Mandoble", "slot": SLOT_ARMA, "tier": 3, "price": 300, "desc": "Golpes devastadores (+10% de daño) que cansan (+15% de aliento).", "mods": {"combat": 4}, "fx": {"dmg": 0.1, "stamina_cost": 0.15}},
 	{"name": "Hacha de Guerra", "slot": SLOT_ARMA, "tier": 2, "price": 150, "desc": "Abre escudos y cráneos: +5% de crítico.", "mods": {"combat": 2}, "fx": {"crit": 0.05}},
 	{"name": "Lanza", "slot": SLOT_ARMA, "tier": 1, "price": 50, "desc": "Mantiene al rival a distancia: +10% de iniciativa.", "mods": {"combat": 1}, "fx": {"initiative": 0.1, "cav_power": 0.05}},
-	{"name": "Estoque", "slot": SLOT_ARMA, "tier": 2, "price": 160, "desc": "Hoja de esgrimista: respuestas un 20% más letales.", "mods": {"combat": 2}, "fx": {"riposte": 0.2}},
+	{"name": "Estoque", "slot": SLOT_ARMA, "tier": 2, "price": 160, "desc": "Hoja de esgrimista: respuestas un 20% más letales. Aprovecha la brecha: al dar en una debilidad o un crítico, actúa otra vez.", "mods": {"combat": 2}, "fx": {"riposte": 0.2}},
 	{"name": "Maza de Armas", "slot": SLOT_ARMA, "tier": 2, "price": 130, "desc": "Derriba guardias: +10% al empujar.", "mods": {"combat": 2}, "fx": {"push": 0.1}},
 	{"name": "Arco Largo", "slot": SLOT_ARMA, "tier": 2, "price": 140, "desc": "Para quien manda arqueros: +10% de bajas a distancia.", "mods": {"strategy": 1}, "fx": {"arch_power": 0.1}},
 	{"name": "Daga de Misericordia", "slot": SLOT_ARMA, "tier": 1, "price": 35, "desc": "Busca el hueco de la armadura: +4% de crítico.", "fx": {"crit": 0.04}},
@@ -194,7 +194,7 @@ const EQUIPMENT := [
 	{"name": "Durandal", "slot": SLOT_ARMA, "tier": UNIQUE_TIER, "price": 1600, "unique": "durandal", "mods": {"combat": 3},
 		"desc": "La espada de Roldán. Tu primer ataque de cada duelo no se puede esquivar ni parar."},
 	{"name": "Misericordia de Toledo", "slot": SLOT_ARMA, "tier": UNIQUE_TIER, "price": 1200, "unique": "sangrado", "mods": {"combat": 2}, "fx": {"crit": 0.03},
-		"desc": "Daga de acero toledano. Cada golpe que conecta abre una herida: el rival sangra 4 de vida en sus dos turnos siguientes."},
+		"desc": "Daga de acero toledano. Cada golpe que conecta abre una herida: el rival sangra 4 de vida en sus dos turnos siguientes. Además aprovecha la brecha: al dar en una debilidad o un crítico, actúa otra vez."},
 	{"name": "Loriga de Covadonga", "slot": SLOT_ARMADURA, "tier": UNIQUE_TIER, "price": 1500, "unique": "anticritico", "mods": {"defense": 3},
 		"desc": "Malla bendecida en la cueva. El primer golpe crítico que recibes en cada duelo se queda en un golpe normal."},
 	{"name": "Escudo de Teodorico", "slot": SLOT_ESCUDO, "tier": UNIQUE_TIER, "price": 1300, "unique": "reflejo", "mods": {"defense": 2},
@@ -227,7 +227,29 @@ const EQUIPMENT := [
 	{"name": "Bardas de Acero", "slot": SLOT_MONTURA, "tier": 3, "price": 480, "desc": "Caballo acorazado: +20% a tu caballería y tu pelotón recibe menos bajas si eres el general.", "fx": {"cav_power": 0.2, "general_def": 0.1}},
 	{"name": "Estandarte de Campaña", "slot": SLOT_ACCESORIO, "tier": 2, "price": 160, "desc": "Tu enseña en lo alto: los señores te prefieren como general y tus tropas empiezan con +4 de moral.", "fx": {"general_score": 8, "morale_start": 4}},
 	{"name": "Epitoma de Vegecio", "slot": SLOT_ACCESORIO, "tier": 2, "price": 130, "desc": "El tratado militar de los romanos: +20% de experiencia de mando y lees mejor al enemigo.", "mods": {"strategy": 1}, "fx": {"mastery_xp": 0.2, "intent": 1}},
+	# Equipo inicial básico (creación del personaje)
+	{"name": "Garrote", "slot": SLOT_ARMA, "tier": 1, "price": 25, "desc": "Madera dura: golpe contundente.", "mods": {"combat": 1}},
+	{"name": "Arco Corto", "slot": SLOT_ARMA, "tier": 1, "price": 45, "desc": "Arco de caza: ataca a distancia.", "mods": {"combat": 1}},
+	{"name": "Escudo Redondo", "slot": SLOT_ESCUDO, "tier": 1, "price": 40, "desc": "Madera y cuero: cubre bien.", "mods": {"defense": 1}},
+	{"name": "Ropas de Viaje", "slot": SLOT_ARMADURA, "tier": 1, "price": 5, "desc": "Sin armadura: nada estorba tus movimientos."},
+	{"name": "Cota Ligera", "slot": SLOT_ARMADURA, "tier": 1, "price": 70, "desc": "Malla corta: protege y pesa algo."},
+	{"name": "Peto de Placas", "slot": SLOT_ARMADURA, "tier": 1, "price": 110, "desc": "Placas sobre el pecho: protege mucho y pesa."},
+	{"name": "Bastón de Mando", "slot": SLOT_ACCESORIO, "tier": 1, "price": 30, "desc": "Señal de autoridad.", "mods": {"leadership": 1}},
+	{"name": "Broche de Plata", "slot": SLOT_ACCESORIO, "tier": 1, "price": 30, "desc": "Un detalle que agrada.", "mods": {"charisma": 1}},
+	{"name": "Tablillas de Cera", "slot": SLOT_ACCESORIO, "tier": 1, "price": 30, "desc": "Para trazar planes.", "mods": {"strategy": 1}},
+	{"name": "Muñequeras de Cuero", "slot": SLOT_ACCESORIO, "tier": 1, "price": 30, "desc": "Firmes al golpear.", "mods": {"combat": 1}},
+	{"name": "Amuleto de Hierro", "slot": SLOT_ACCESORIO, "tier": 1, "price": 30, "desc": "Da aplomo ante el golpe.", "mods": {"defense": 1}},
+	{"name": "Botas Ligeras", "slot": SLOT_ACCESORIO, "tier": 1, "price": 30, "desc": "Pies rápidos.", "mods": {"agility": 1}},
 ]
+
+# Equipo que se elige al crear el personaje (un arma, una armadura, un accesorio y, si quiere, un escudo).
+const CREATION_WEAPONS := {"Tajo": "Espada Corta", "Estocada": "Lanza", "Contundente": "Garrote", "Proyectil": "Arco Corto"}
+const CREATION_SHIELDS := ["Rodela", "Escudo Redondo"]
+const CREATION_ARMORS := {"Sin armadura": "Ropas de Viaje", "Cuero": "Gambesón", "Malla": "Cota Ligera", "Placas": "Peto de Placas"}
+const CREATION_ACCESSORIES := {
+	"leadership": "Bastón de Mando", "charisma": "Broche de Plata", "strategy": "Tablillas de Cera",
+	"combat": "Muñequeras de Cuero", "defense": "Amuleto de Hierro", "agility": "Botas Ligeras",
+}
 
 # Calidad del equipo inicial de los PNJ según su rango: niveles permitidos y piezas.
 const NPC_EQUIPMENT_BY_ROLE := {

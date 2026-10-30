@@ -18,6 +18,7 @@ var has_acted: bool = false
 var routed: bool = false
 var companion: Character           # compañero (séquito o de facción) que dirige este pelotón, o null
 var captain: Character             # quien manda el pelotón si no hay compañero: el comandante o un capitán
+var officers: Array[Character] = []   # oficiales con nombre que acompañan al jefe (fase 4)
 var order: int = BattleEnums.Order.NINGUNA   # Mantener posición o Cargar (dura hasta cambiarla o, la carga, hasta golpear)
 var bonus_move: int = 0            # casillas extra este turno (habilidad Carga de caballería)
 var surge: float = 1.0             # multiplicador de su próximo golpe (habilidades como Emboscada)
@@ -26,6 +27,10 @@ var own: bool = false              # tuyo de verdad (tu pelotón y los de tu sé
 var challenged: bool = false       # su jefe ya retó (o fue retado) a duelo en esta batalla
 var left_field: bool = false       # se retiró del campo tras perder un duelo de jefes
 var general: bool = false          # lo encabeza el general del bando: si cae, el bando pierde
+var facing: Vector2i = Vector2i(1, 0)   # hacia dónde mira (lo último que movió o atacó): flancos y espalda
+var formation: int = BattleEnums.Formation.LINEA
+var reserve: bool = false          # IA: pelotón de reserva, se queda atrás hasta que hace falta
+var escort: bool = false           # IA: escolta del general
 
 ## Quien encabeza el pelotón (su cara se ve sobre él en el tablero).
 func leader() -> Character:

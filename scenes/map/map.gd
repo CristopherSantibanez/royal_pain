@@ -11,10 +11,13 @@ const ChroniclePanel = preload("res://scripts/ui/chronicle_panel.gd")
 const AchievementsPanel = preload("res://scripts/ui/achievements_panel.gd")
 const EndingPanel = preload("res://scripts/ui/ending_panel.gd")
 const ACHIEVEMENTS_KEY := KEY_L   # «Libro de hazañas»
+const PARTY_KEY := KEY_G          # gestor de grupo
+const PartyPanel = preload("res://scripts/ui/party_panel.gd")
 const SiteMarkerScript = preload("res://scenes/map/site_marker.gd")
 const SiteCatalog = preload("res://scripts/resources/site_catalog.gd")
 const LEVEL_UP_PANEL := "res://scripts/ui/level_up_panel.gd"
 const PlayerTokenScript = preload("res://scenes/map/player_token.gd")
+const TravelerTokenScript = preload("res://scenes/map/traveler_token.gd")
 
 @onready var camera: Camera2D = $Camera2D
 @onready var castles_container: Node2D = $CastlesContainer
@@ -40,6 +43,7 @@ const PlayerTokenScript = preload("res://scenes/map/player_token.gd")
 @onready var btn_relations: Button = %BtnRelations
 @onready var objective_label: Label = %ObjectiveLabel
 @onready var events_label: Label = %EventsLabel
+const EVENTS_HEIGHT := 120.0  # noticias del mes: alto fijo, con desplazamiento
 @onready var player_summary_label: Label = %PlayerSummaryLabel
 @onready var btn_options: Button = %BtnOptions
 @onready var btn_missions: Button = %BtnMissions
@@ -85,6 +89,7 @@ var _btn_travel: Button
 var _showing_encounter := false   # el panel de eventos muestra un encuentro del camino
 
 func _ready() -> void:
+	LogView.wrap(events_label, EVENTS_HEIGHT)
 	# Si el personaje murió, primero se elige heredero (ver DynastyData).
 	if DynastyData.has_method("needs_succession") and DynastyData.needs_succession():
 		get_tree().change_scene_to_file.call_deferred(DynastyData.SUCCESSION_SCENE)
@@ -94,6 +99,7 @@ func _ready() -> void:
 		Sfx.stinger("achievement" if Sfx.variant_count("achievement") > 0 else "victory", ACHIEVEMENT_STINGER_DB, 1.0))
 	_add_player_face()
 	_add_level_button()
+	_add_party_button()
 	camera.setup_bounds(MapData.MAP_WIDTH, MapData.MAP_HEIGHT)
 	# Empieza mirando dónde estás (tu castillo al empezar), no el centro del mapa.
 	var here := TravelData.current_castle() if GameManager.is_game_active else MapData.get_castle_by_id(GameManager.home_castle_id)
@@ -201,6 +207,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		ChroniclePanel.open($UILayer, visible_castle_ids)
 	elif event is InputEventKey and event.pressed and not event.echo and event.keycode == ACHIEVEMENTS_KEY:
 		AchievementsPanel.open($UILayer)
+	elif event is InputEventKey and event.pressed and not event.echo and event.keycode == PARTY_KEY:
+		_open_party()
 	elif event.is_action_pressed("map_toggle_panels"):
 		_toggle_bottom_panels()
 	elif event.is_action_pressed("map_next_castle"):
@@ -529,11 +537,6 @@ func _refresh_turn_ui() -> void:
 	if CaptureData.is_captive():
 		player_summary_label.text = "%s   |   %s" % [CaptureData.captive_text(), p.full_name()]
 		player_summary_label.tooltip_text = "Estás preso: sin acciones hasta que salgas libre. Avanza el turno para esperar o intentar fugarte."
-	if p.is_mercenary():
-		# La barra superior ya va justa: el estado de la compañía se muestra en «Tu destino».
-		objective_label.text += "\nCompañía %d soldados (soldada %d/mes) · Infamia %d/%d" % [
-			MissionData.company_size(), MissionData.company_pay(), MissionData.infamy, MissionData.INFAMY_REFUSE]
-		objective_label.tooltip_text = "La soldada se paga cada mes; sin paga, deserta una cuarta parte. Con %d de infamia nadie te contrata." % MissionData.INFAMY_REFUSE
 	# Una historia que espera a que viajes a algún sitio (StoryData): aviso de una línea.
 	var story := get_node_or_null("/root/StoryData")
 	if story != null and not story.travel_target().is_empty() and story.summary_line().contains("Viaja a"):
@@ -591,6 +594,7 @@ func _spawn_armies() -> void:
 					line.width = 2.0
 					line.default_color = Color(0.9, 0.75, 0.15, 0.8) if ArmyData.is_player_army(a) else Color(0.55, 0.2, 0.65, 0.8)
 					armies_container.add_child(line)
+	_spawn_travelers()
 
 	if selected_army != null and army_panel.visible:
 		_refresh_army_panel()
@@ -722,7 +726,7 @@ func _refresh_events() -> void:
 	if lines.is_empty():
 		events_label.text = "Sin novedades a la vista este mes."
 	else:
-		events_label.text = "\n".join(lines)
+		LogView.show(events_label, "\n".join(lines))
 
 # --- Evento del mes ---
 
@@ -769,7 +773,7 @@ func _on_event_option_pressed(index: int) -> void:
 	var duel_rival: Relationship = RelationsData.get_relation(e.get("duel_with", e.get("speaker", "")))
 	var starts_duel: bool = e.options[index].get("start_duel", false)
 	_pending_duel_to_death = e.options[index].get("to_death", false)
-	_pending_fight = e.options[index].get("fight", {})
+	_pending_fight = CombatSetup.tag_fight(e.options[index].get("fight", {}), "historia" if e.options[index].get("effects", {}).has("story") else "camino")
 	_pending_fight_title = e.get("title", "Combate")
 	var chosen_label: String = e.options[index].get("label", "")
 	var result := GameManager.resolve_pending_event(index, target)
@@ -796,6 +800,10 @@ func _on_event_close_pressed() -> void:
 		_showing_notification = false
 		_show_next_notification()
 		return
+	# «Conversar» con un viajero abre la charla al cerrar el encuentro (ver TravelerData).
+	var talk_to := RelationsData.get_relation(TravelerData.take_conversation())
+	if talk_to != null:
+		load("res://scripts/ui/conversation_panel.gd").open($UILayer, talk_to)
 	if not _pending_fight.is_empty():
 		var scene := CombatSetup.begin_event_fight(_pending_fight, _pending_fight_title)
 		_pending_fight = {}
@@ -812,7 +820,7 @@ func _on_event_close_pressed() -> void:
 		if "duel_to_death" in CombatSetup:
 			CombatSetup.duel_to_death = _pending_duel_to_death
 		CombatSetup.return_scene = "res://scenes/map/map.tscn"
-		get_tree().change_scene_to_file("res://scenes/combat/combat.tscn")
+		get_tree().change_scene_to_file(CombatSetup.RPG_SCENE)
 		return
 	for child in event_options.get_children():
 		child.queue_free()
@@ -832,6 +840,27 @@ func _on_event_close_pressed() -> void:
 
 # --- Nivel del personaje ---
 # Botón «Nivel N» arriba: late cuando hay puntos o habilidades por repartir y abre el panel de nivel.
+
+# Botón «Grupo» arriba (o tecla G): abre el gestor de grupo.
+func _add_party_button() -> void:
+	if GameManager.player_character == null:
+		return
+	var btn := Button.new()
+	btn.name = "BtnParty"
+	btn.text = "Grupo"
+	btn.tooltip_text = "Gestor de grupo: activos y reserva (G)."
+	btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	btn.pressed.connect(_open_party)
+	var bar: HBoxContainer = $UILayer/TopBar/TopHBox
+	bar.add_child(btn)
+	bar.move_child(btn, mini(2, bar.get_child_count() - 1))
+
+func _open_party() -> void:
+	if $UILayer.get_children().any(func(n): return n is Control and n.get_script() == PartyPanel):
+		return
+	PartyPanel.open($UILayer).tree_exited.connect(func():
+		if is_inside_tree():
+			_refresh_turn_ui())
 
 func _add_level_button() -> void:
 	if GameManager.player_character == null:
@@ -855,10 +884,10 @@ func _refresh_level_button() -> void:
 	var p: Character = GameManager.player_character
 	if _btn_level == null or p == null:
 		return
-	var pending: bool = p.unspent_points > 0 or p.pending_skill_choices > 0
+	var pending: bool = p.unspent_points > 0
 	_btn_level.text = "Nivel %d%s" % [p.level, " ●" if pending else ""]
 	_btn_level.tooltip_text = "Experiencia %d/%d.%s" % [p.xp, p.xp_to_next(),
-		"\n¡Tienes %d puntos y %d habilidades por elegir!" % [p.unspent_points, p.pending_skill_choices] if pending else ""]
+		"\n¡Tienes %d puntos por repartir!" % p.unspent_points if pending else ""]
 	_btn_level.theme_type_variation = &"PrimaryButton" if pending else &""
 	if pending and _level_pulse == null:
 		_level_pulse = UiAnim.pulse(_btn_level)
@@ -944,6 +973,22 @@ func _spawn_player_token() -> void:
 	move_child(_player_token, armies_container.get_index() + 1)
 	_player_token.setup(GameManager.player_character, TravelData.current_castle_id())
 	TravelData.location_changed.connect(_on_location_changed)
+
+## Viajeros entre reinos (TravelerData) en los castillos que ves; van con los ejércitos y se redibujan con ellos.
+func _spawn_travelers() -> void:
+	if not GameManager.is_game_active:
+		return
+	var here := TravelData.current_castle_id()
+	var counts := {}
+	for t: Dictionary in TravelerData.travelers:
+		var r := RelationsData.get_relation(str(t.name))
+		var castle := MapData.get_castle_by_id(str(t.at))
+		if r == null or r.character == null or castle == null or not (t.at in visible_castle_ids or t.at == here):
+			continue
+		var token: Node2D = TravelerTokenScript.new()
+		armies_container.add_child(token)
+		token.setup(r, castle, int(counts.get(t.at, 0)), TravelerData.tooltip(t))
+		counts[t.at] = int(counts.get(t.at, 0)) + 1
 
 func _on_location_changed(castle_id: String) -> void:
 	if _player_token != null and is_instance_valid(_player_token):

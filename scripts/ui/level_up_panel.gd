@@ -4,7 +4,7 @@ extends Control
 #   Familia: cónyuge e hijos (edad, rasgos heredados; los adultos pueden heredar).
 # Uso: const LevelUpPanel = preload("res://scripts/ui/level_up_panel.gd"); LevelUpPanel.open(nodo)
 
-const STATS := ["leadership", "charisma", "strategy", "combat", "defense"]
+const STATS := Character.ATTRIBUTES
 const STAT_MIN := 1
 const STAT_MAX := 20
 const SKILL_OFFER_SIZE := 3
@@ -175,19 +175,28 @@ func _rebuild_level() -> void:
 		confirm.pressed.connect(_confirm_points)
 		_level_box.add_child(confirm)
 
-	if _player.pending_skill_choices > 0:
-		_level_box.add_child(HSeparator.new())
-		_level_box.add_child(_label("Elige una habilidad nueva (%d por elegir):" % _player.pending_skill_choices, &"BodyBoldLabel"))
-		for s: Skill in _skill_offer():
-			var b := Button.new()
-			var fx := GameData.effect_summary(s.skill_name)
-			b.text = "%s · %s%s" % [s.skill_name, _category_name(s.category), " — " + fx if not fx.is_empty() else ""]
-			b.tooltip_text = s.description
-			b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-			b.pressed.connect(_pick_skill.bind(s))
-			_level_box.add_child(b)
+	# Habilidades: se aprenden en los árboles (un punto cada SKILL_EVERY_LEVELS niveles).
+	_level_box.add_child(HSeparator.new())
+	if ResourceLoader.exists(SKILL_TREE_PANEL):
+		var trees := Button.new()
+		trees.text = "Árbol de habilidades"
+		trees.tooltip_text = "Un punto de habilidad cada %d niveles." % Character.SKILL_EVERY_LEVELS
+		trees.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		trees.pressed.connect(_open_skill_tree)
+		_level_box.add_child(trees)
 	else:
-		_level_box.add_child(_label("Cada %d niveles eliges una habilidad nueva." % Character.SKILL_EVERY_LEVELS, &"MutedLabel", 15))
+		_level_box.add_child(_label("Un punto de habilidad cada %d niveles." % Character.SKILL_EVERY_LEVELS, &"MutedLabel", 15))
+
+const SKILL_TREE_PANEL := "res://scripts/ui/skill_tree_panel.gd"
+
+func _open_skill_tree() -> void:
+	var script: Script = load(SKILL_TREE_PANEL)
+	if script == null:
+		return
+	var panel: Control = script.call("open", get_parent(), _player)
+	if panel != null:
+		panel.z_index = z_index + 10
+		panel.tree_exited.connect(func(): if is_inside_tree(): _rebuild_level())
 
 func _change(stat: String, delta: int) -> void:
 	var now: int = _added.get(stat, 0) + delta
@@ -278,10 +287,14 @@ func _rebuild_family() -> void:
 	_clear(_family_box)
 	if _player == null:
 		return
-	var spouse: Relationship = RelationsData.spouse_relation() if RelationsData.is_married() else null
-	if spouse != null:
-		_family_box.add_child(_label("Cónyuge", &"SubheaderLabel"))
-		_family_box.add_child(_person_row(spouse.character, spouse.person_name, ""))
+	var spouses := RelationsData.spouse_relations()
+	if not spouses.is_empty():
+		_family_box.add_child(_label("Cónyuges (%d/%d)" % [spouses.size(), RelationsData.max_spouses(_player)], &"SubheaderLabel"))
+		for spouse: Relationship in spouses:
+			_family_box.add_child(_person_row(spouse.character, spouse.person_name,
+				"Principal · " + LoyaltyData.bar_text(spouse.person_name) if spouse.person_name == RelationsData.spouse_name else LoyaltyData.bar_text(spouse.person_name)))
+		for lover: Relationship in RelationsData.concubine_relations():
+			_family_box.add_child(_person_row(lover.character, lover.person_name, "Amante · " + LoyaltyData.bar_text(lover.person_name)))
 	else:
 		_family_box.add_child(_label("Sin cónyuge." , &"MutedLabel"))
 	_family_box.add_child(HSeparator.new())
@@ -297,6 +310,8 @@ func _rebuild_family() -> void:
 		var fem := c.gender == CharacterEnums.Gender.FEMENINO
 		var status := ("Adulta · puede heredar" if fem else "Adulto · puede heredar") if c.age >= DynastyData.ADULT_AGE \
 			else "Mayor de edad en %d %s" % [DynastyData.ADULT_AGE - c.age, "año" if DynastyData.ADULT_AGE - c.age == 1 else "años"]
+		if DynastyData.is_natural(c):
+			status = "Bastard%s · %s" % ["a" if fem else "o", status]
 		if not DynastyData.is_own_child(c):
 			status = ("Tu hermana · " if fem else "Tu hermano · ") + status
 		_family_box.add_child(_person_row(c, c.full_name(), status))
@@ -317,8 +332,8 @@ func _person_row(c: Character, display_name: String, status: String) -> Control:
 		var traits: Array[String] = []
 		for t: CharacterTrait in c.advantages:
 			traits.append(t.trait_name)
-		var line := "%s · Liderazgo %d · Carisma %d · Estrategia %d · Combate %d · Defensa %d" % [
-			_personality(c), c.leadership, c.charisma, c.strategy, c.combat, c.defense]
+		var line := "%s · Liderazgo %d · Carisma %d · Estrategia %d · Combate %d · Defensa %d · Agilidad %d" % [
+			_personality(c), c.leadership, c.charisma, c.strategy, c.combat, c.defense, c.agility]
 		if not traits.is_empty():
 			line += "\nVentajas: " + ", ".join(traits)
 		info.add_child(_label(line, &"MutedLabel", 14))

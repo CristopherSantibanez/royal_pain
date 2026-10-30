@@ -19,6 +19,7 @@ func _ready() -> void:
 		btn_cargar_partida.tooltip_text = "No hay ninguna partida guardada."
 	btn_combate.pressed.connect(_on_combate_pressed)
 	btn_crear_personaje.pressed.connect(_on_crear_personaje_pressed)
+	%BtnPersonajes.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/character_manager/character_manager.tscn"))
 	btn_mapa.pressed.connect(_on_mapa_pressed)
 	btn_opciones.pressed.connect(func(): OptionsPanel.open(self))
 	%BtnTutorial.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/tutorial/tutorial.tscn"))
@@ -53,6 +54,7 @@ func _on_combate_pressed() -> void:
 	get_tree().change_scene_to_file("res://scenes/fighter_select/fighter_select.tscn")
 
 func _on_crear_personaje_pressed() -> void:
+	CreationState.clear_edit()
 	get_tree().change_scene_to_file("res://scenes/character_creation/character_creation.tscn")
 
 func _on_mapa_pressed() -> void:

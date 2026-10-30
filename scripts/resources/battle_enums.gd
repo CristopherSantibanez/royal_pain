@@ -6,6 +6,7 @@ enum UnitType { INFANTERIA, ARQUEROS, CABALLERIA, PIQUEROS, CABALLERIA_PESADA, B
 enum Family { INFANTERIA, ARQUERIA, CABALLERIA, PIQUEROS }
 enum Terrain { LLANO, BOSQUE, COLINA, MURALLA, RIO, VADO, PUENTE, ALDEA }   # los nuevos, siempre al final
 enum Order { NINGUNA, MANTENER, CARGAR }      # Replegarse es una acción inmediata, no una orden que dure
+enum Formation { LINEA, CUNA, CUADRO }        # formación del pelotón (fase 4B)
 enum Weather { DESPEJADO, LLUVIA, NIEBLA, NIEVE }
 enum TimeOfDay { DIA, ATARDECER, NOCHE }
 enum Side { ATACANTE, DEFENSOR }
@@ -118,6 +119,12 @@ static func terrain_name(t: int) -> String:
 		Terrain.PUENTE: return "Puente"
 		Terrain.ALDEA: return "Aldea"
 	return "?"
+
+static func formation_name(f: int) -> String:
+	match f:
+		Formation.CUNA: return "Cuña"
+		Formation.CUADRO: return "Cuadro"
+	return "Línea"
 
 static func order_name(o: int) -> String:
 	match o:

@@ -19,7 +19,6 @@ const AchievementCatalog = preload("res://scripts/resources/achievement_catalog.
 const STARTING_ROLES: Array[int] = [
 	Character.Role.CAMPESINO, Character.Role.SOLDADO, Character.Role.CABALLERO,
 	Character.Role.NOBLEZA_BAJA, Character.Role.NOBLEZA_ALTA,
-	Character.Role.MERCENARIO, Character.Role.CAPITAN, Character.Role.CONDOTIERO,
 	Character.Role.INAFILIADO,
 ]
 # Oro máximo con el que empiezan los más pobres (si no, se alistarían el primer mes).
@@ -51,7 +50,7 @@ func _ready() -> void:
 	role_option.item_selected.connect(func(_i): _refresh_info())
 	castle_option.item_selected.connect(func(_i): _refresh_info())
 	btn_volver_menu.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/main_menu/main_menu.tscn"))
-	btn_crear_personaje.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/character_creation/character_creation.tscn"))
+	btn_crear_personaje.pressed.connect(func(): CreationState.clear_edit(); get_tree().change_scene_to_file("res://scenes/character_creation/character_creation.tscn"))
 	btn_comenzar.pressed.connect(_on_comenzar_pressed)
 
 	_refresh_info()
@@ -89,9 +88,7 @@ func _populate_characters() -> void:
 func _populate_roles() -> void:
 	role_option.clear()
 	for r in STARTING_ROLES:
-		if r == Character.Role.MERCENARIO:
-			role_option.add_separator("Camino mercenario")
-		elif r == Character.Role.INAFILIADO:
+		if r == Character.Role.INAFILIADO:
 			role_option.add_separator("Sin tierra ni señor")
 		role_option.add_item(Character.role_name_for(r), r)
 	_on_character_selected()
@@ -136,7 +133,7 @@ Comida: %d" % [
 
 	var role := role_option.get_selected_id()
 	goal_title.text = "Hazañas destacadas · %s" % VictoryRules.goal_title(role)
-	# Solo lo esencial: el resto (cómo terminan las partidas, el camino mercenario…) está en el glosario.
+	# Solo lo esencial: el resto (cómo terminan las partidas…) está en el glosario.
 	var featured: Array[String] = []
 	for a: Dictionary in AchievementCatalog.featured_for(role):
 		featured.append("• %s: %s" % [a.title, AchievementCatalog.description_of(a)])
@@ -162,14 +159,12 @@ Crea uno y guárdalo para poder comenzar una partida."
 	character_info.text = "%s
 Comienza como %s, con %d años
 
-Liderazgo %d
-Carisma %d
-Estrategia %d
-Combate %d
-Defensa %d
+Liderazgo %d · Carisma %d
+Estrategia %d · Combate %d
+Defensa %d · Agilidad %d
 
 Honor %d · Oro %d" % [
-		c.full_name(), Character.role_name_for(role), DynastyData.START_AGE_BY_ROLE.get(role, 20), c.leadership, c.charisma, c.strategy, c.combat, c.defense, c.honor, c.gold]
+		c.full_name(), Character.role_name_for(role), DynastyData.START_AGE_BY_ROLE.get(role, 20), c.leadership, c.charisma, c.strategy, c.combat, c.defense, c.agility, c.honor, c.gold]
 	btn_comenzar.disabled = castle == null
 
 func _on_comenzar_pressed() -> void:

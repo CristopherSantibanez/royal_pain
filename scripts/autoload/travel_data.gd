@@ -25,7 +25,7 @@ const REMOTE_EXTRA_ACTIONS := 1
 
 # Audiencia con un señor (1 acción, una vez al mes por señor).
 const AUDIENCE_MIN_AFFINITY := -30       # por debajo no te recibe
-const AUDIENCE_LOW_RANK_FAME := 15       # bajo Caballero (mercenarios) hace falta algo de fama; campesinos y soldados no piden audiencia
+const AUDIENCE_LOW_RANK_FAME := 15       # bajo Caballero hace falta algo de fama; campesinos y soldados no piden audiencia
 const AUDIENCE_RESPECT_BASE := 6         # + Carisma / 3 de afinidad al presentar tus respetos
 
 # Jurar lealtad a otro señor.
@@ -227,7 +227,7 @@ func resolve_encounter(option_index: int) -> Dictionary:
 	var text := EventCatalog.apply_option(event, option_index, player, home)
 	WorldEvents.record("%s: %s. %s" % [event.title, option.get("label", ""), text.get_slice("\n", 0)], str(pending_encounter.get("to", "")), true)
 	pending_encounter = {}
-	return {"ok": true, "text": text, "fight": option.get("fight", {}), "title": event.title}
+	return {"ok": true, "text": text, "fight": CombatSetup.tag_fight(option.get("fight", {}), "camino"), "title": event.title}
 
 # --- Gobernar desde lejos ---
 
@@ -356,7 +356,7 @@ func fealty_blocker(castle: Castle) -> String:
 		return "No puedes jurarte lealtad a ti mismo."
 	if not is_at(castle.castle_id):
 		return "El juramento se hace en persona: viaja a %s." % castle.castle_name
-	if castle.kingdom == GameManager.player_kingdom and not player.is_mercenary() and player.role != Character.Role.INAFILIADO:
+	if castle.kingdom == GameManager.player_kingdom and player.role != Character.Role.INAFILIADO:
 		return "Ya sirves a %s." % KingdomEnums.kingdom_name(castle.kingdom)
 	if GameManager.months_elapsed() - last_fealty_month < FEALTY_COOLDOWN_MONTHS:
 		return "Cambiaste de señor hace poco: nadie confiaría en otro juramento tuyo tan pronto."
@@ -372,7 +372,7 @@ func fealty_blocker(castle: Castle) -> String:
 ## Honor que te costaría el juramento ahora (0 si no rompes ninguno).
 func fealty_honor_cost(castle: Castle) -> int:
 	var player: Character = GameManager.player_character
-	if player == null or player.role in [Character.Role.CAMPESINO, Character.Role.INAFILIADO] or player.is_mercenary() or RelationsData.liege_name.is_empty():
+	if player == null or player.role in [Character.Role.CAMPESINO, Character.Role.INAFILIADO] or RelationsData.liege_name.is_empty():
 		return 0
 	var cost := FEALTY_HONOR_COST
 	var old_liege := RelationsData.get_relation(RelationsData.liege_name)
@@ -418,7 +418,9 @@ func swear_fealty(castle: Castle) -> Dictionary:
 	lord.adjust(FEALTY_NEW_LORD_AFFINITY)
 	# Tus tierras propias cambian de reino contigo; tus ejércitos también.
 	for c: Castle in RelationsData.castles_of(player.full_name()):
+		var was := c.kingdom
 		c.kingdom = castle.kingdom
+		RelationsData.on_castle_taken(c, was, c.kingdom)
 	for a: Army in ArmyData.armies:
 		if ArmyData.is_player_army(a):
 			a.kingdom = castle.kingdom

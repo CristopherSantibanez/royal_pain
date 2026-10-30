@@ -17,11 +17,13 @@ extends Control
 @onready var result_panel: PanelContainer = %ResultPanel
 @onready var companions_label: Label = %CompanionsLabel
 
-const MAX_LOG_LINES := 12
+const MAX_LOG_LINES := LogView.MAX_LINES
+const LOG_HEIGHT := 150.0  # el registro de batalla tiene alto fijo y se desplaza
 # Compañeros que trae el señor enemigo según su rango (cortesanos de su reino).
 const ENEMY_COMPANIONS_BY_ROLE := {Character.Role.NOBLEZA_BAJA: 1, Character.Role.NOBLEZA_ALTA: 2, Character.Role.REGENTE: 3,
-	Character.Role.DUQUE: 3, Character.Role.CAPITAN: 1, Character.Role.CONDOTIERO: 2}
+	Character.Role.DUQUE: 3}
 const ENEMY_COMPANION_CHANCE := 0.7
+const FACTION_OFFICERS := 2   # cortesanos que van de oficiales en los pelotones enemigos
 const DEFENDER_HINT := "Defiendes tras la muralla (+50%)."
 const IDLE_HINT := "Elige un pelotón azul."
 const XpRules = preload("res://scripts/resources/xp_rules.gd")
@@ -30,6 +32,8 @@ const BATTLE_DEATH_CHANCE := 0.25     # si tu ejército entero cae o huye, puede
 const BANNER_TIME := 4.0
 const ORDER_KEYS := {KEY_H: BattleEnums.Order.MANTENER, KEY_C: BattleEnums.Order.CARGAR}
 const WITHDRAW_KEY := KEY_R
+const FORMATION_KEY := KEY_F
+const FORMATION_ORDER := -2      # clave del botón de formación en _order_buttons
 const COMMAND_FONT_SIZE := 13
 
 var battle: BattleManager
@@ -42,7 +46,7 @@ var player_defending := false   # true si el jugador defiende su castillo de un 
 var skirmish: Dictionary = {}   # escaramuza de un evento (sin ejército ni castillo de por medio)
 var invited: Dictionary = {}    # batalla ajena: alguien te llamó a filas (ver CombatSetup.invited)
 const CHALLENGE_KEY := KEY_D
-const COMBAT_SCENE := "res://scenes/combat/combat.tscn"
+const COMBAT_SCENE := "res://scenes/rpg_battle/rpg_battle.tscn"
 var _challenge_mode := false    # el siguiente clic en un jefe enemigo lo reta a duelo
 var _dueling := false           # hay un duelo singular encima del tablero
 var _challenge_btn: Button
@@ -73,6 +77,7 @@ var _alloc_cost_label: Label
 var _go_btn: Button
 
 func _ready() -> void:
+	LogView.wrap(log_label, LOG_HEIGHT)
 	skirmish = CombatSetup.skirmish
 	invited = CombatSetup.invited
 	army = ArmyData.active_battle_army
@@ -120,6 +125,10 @@ func _ready() -> void:
 	battle.log_message.connect(_on_log_message)
 	battle.state_updated.connect(_refresh)
 	battle.battle_ended.connect(_on_battle_ended)
+	battle.interactive_encounters = true
+	battle.auto_resolve_others = Settings.auto_resolve_others
+	battle.ai_difficulty = Settings.ai_difficulty
+	battle.encounter_pending.connect(func(_e): _play_encounters.call_deferred())
 	board.setup(battle)
 	# Teclado y mando: el tablero tiene el foco (cursor con flechas o cruceta, Intro o A para actuar).
 	board.focus_mode = Control.FOCUS_ALL
@@ -178,8 +187,8 @@ func _start_invited(player: Character) -> void:
 	var side: int = int(invited.get("side", BattleEnums.Side.ATACANTE))
 	battle.player_side = side
 	_alloc_default_mine = int(invited.get("player_soldiers", CombatSetup.PERSONAL_LEVY_BY_RANK[0]))
-	# Tu compañía mercenaria ya cobra cada mes: la repartes gratis. Si no, los hombres se contratan.
-	_alloc_hired = not player.is_mercenary()
+	# Los hombres de una batalla ajena se contratan.
+	_alloc_hired = true
 	_alloc_pool = 0 if _alloc_hired else _alloc_default_mine
 	# A una batalla ajena solo te acompaña tu séquito (tu señor no te presta a nadie para servir a otro).
 	var companions: Array[Character] = []
@@ -607,11 +616,12 @@ func _build_command_card() -> void:
 	box.add_child(row)
 	for spec in [[BattleEnums.Order.MANTENER, "Mantener [H]", "Mantener posición: el pelotón no se mueve, pero recibe un 23% menos de bajas. Dura hasta que la quites."],
 			[BattleEnums.Order.CARGAR, "Cargar [C]", "Cargar: su primer golpe cuerpo a cuerpo hace +30%, pero se cansa un 50% más. No vale para arqueros."],
-			[-1, "Replegarse [R]", "Replegarse: retrocede hasta 2 casillas hacia tu retaguardia y recupera 10 de moral. Gasta su turno."]]:
+			[-1, "Replegarse [R]", "Replegarse: retrocede hasta 2 casillas hacia tu retaguardia y recupera 10 de moral. Gasta su turno."],
+			[FORMATION_ORDER, "Línea [F]", "Formación (cambia con F). Línea: equilibrada. Cuña: +20% al golpear, flancos débiles. Cuadro: aguanta caballería y flancos, golpea menos y se mueve 1 menos. Por el flanco: +25% y −4 de moral; por la espalda: +50% y −8."]]:
 		var b := Button.new()
 		b.text = spec[1]
 		b.tooltip_text = spec[2]
-		b.toggle_mode = spec[0] != -1
+		b.toggle_mode = spec[0] >= 0
 		_compact(b)
 		var order: int = spec[0]
 		b.pressed.connect(func(): _give_order(order))
@@ -709,7 +719,11 @@ func _give_order(order: int) -> void:
 		Sfx.play("whoosh", -10.0)
 		_refresh()
 		return
-	var ok := battle.withdraw(selected) if order == -1 else battle.set_order(selected, order)
+	var ok := false
+	if order == FORMATION_ORDER:
+		ok = battle.is_player_unit(selected) and battle.cycle_formation(selected)
+	else:
+		ok = battle.withdraw(selected) if order == -1 else battle.set_order(selected, order)
 	Sfx.play("click" if ok else "whoosh", -6.0 if ok else -10.0)
 	_refresh()
 
@@ -765,6 +779,9 @@ func _refresh_commands() -> void:
 		var b: Button = _order_buttons[order]
 		if order == -1:
 			b.disabled = not can_order or not battle.can_withdraw(selected)
+		elif order == FORMATION_ORDER:
+			b.disabled = not can_order or selected.has_acted
+			b.text = "%s [F]" % BattleEnums.formation_name(selected.formation if selected != null else BattleEnums.Formation.LINEA)
 		else:
 			b.disabled = not can_order or selected.has_acted or (order == BattleEnums.Order.CARGAR and selected.type == BattleEnums.UnitType.ARQUEROS)
 			b.set_pressed_no_signal(can_order and selected.order == order)
@@ -808,6 +825,14 @@ func _enemy_companions(enemy_cmd: Character, kingdom: int) -> Array[Character]:
 			break
 		if r.character != null and not r.character.is_wounded() and randf() < ENEMY_COMPANION_CHANCE:
 			result.append(r.character)
+	# Otros cortesanos van de oficiales en los pelotones del señor (fase 4).
+	var officers: Array[Character] = []
+	for r: Relationship in pool:
+		if officers.size() >= FACTION_OFFICERS:
+			break
+		if r.character != null and not r.character in result and not r.character.is_wounded():
+			officers.append(r.character)
+	battle.faction_officers["enemy"] = officers
 	return result
 
 func _show_companions(mine: Array[Character], theirs: Array[Character]) -> void:
@@ -998,10 +1023,14 @@ func _on_log_message(text: String) -> void:
 	log_lines.append(text)
 	while log_lines.size() > MAX_LOG_LINES:
 		log_lines.remove_at(0)
-	log_label.text = "\n".join(log_lines)
+	LogView.show(log_label, "\n".join(log_lines))
 
 func _on_battle_ended(winner_side: int, report: Dictionary) -> void:
 	_close_prompt()
+	var loot := CampalEncounters.battle_loot(battle, winner_side == battle.player_side and battle.retreating_side != battle.player_side)
+	if not loot.is_empty():
+		_on_log_message(loot)
+		(func(): result_label.text += "\n\n" + loot).call_deferred()
 	_challenge_mode = false
 	_announce_general_fall(str(report.get("reason", "")))
 	if not invited.is_empty():
@@ -1389,6 +1418,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			_give_order(ORDER_KEYS[key])
 		elif key == WITHDRAW_KEY:
 			_give_order(-1)
+		elif key == FORMATION_KEY:
+			_give_order(FORMATION_ORDER)
 		elif key == CHALLENGE_KEY:
 			_on_challenge_pressed()
 		elif key >= KEY_1 and key <= KEY_9 and key - KEY_1 < _ability_buttons.size():
@@ -1397,3 +1428,128 @@ func _unhandled_input(event: InputEvent) -> void:
 		else:
 			return
 		get_viewport().set_input_as_handled()
+
+# --- Choques RPG (fase 4) ---
+
+var _encounters_running := false
+static var test_auto_encounters := false   # pruebas: los choques se resuelven con «Resolver» sin preguntar
+
+## Juega uno a uno los choques con tu grupo: «Luchar» abre la pantalla RPG; «Resolver», con las mismas reglas.
+func _play_encounters() -> void:
+	if _encounters_running:
+		return
+	_encounters_running = true
+	while not battle.pending_encounters.is_empty() and not battle.is_over:
+		var enc: Dictionary = battle.pending_encounters[0]
+		_dueling = true
+		_refresh()
+		var fight: bool = await _ask_encounter(enc)
+		if battle.is_over:
+			break
+		if fight:
+			battle.resolve_encounter(enc, await play_encounter(enc))
+		else:
+			battle.auto_resolve_pending(enc)
+	_dueling = false
+	_encounters_running = false
+	if selected != null and not selected.is_active():
+		selected = null
+	_refresh()
+	board.grab_focus.call_deferred()
+
+signal _encounter_choice(fight: bool)
+
+func _ask_encounter(enc: Dictionary) -> bool:
+	if test_auto_encounters:
+		await get_tree().process_frame
+		return false
+	_close_prompt()
+	var fi := CampalEncounters.friendly_index(battle, enc)
+	var mine: Array = enc.a if fi == 0 else enc.b
+	var foes: Array = enc.b if fi == 0 else enc.a
+	var overlay := ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0.55)
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.z_index = 60
+	add_child(overlay)
+	_prompt = overlay
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.add_child(center)
+	var panel := PanelContainer.new()
+	center.add_child(panel)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 12)
+	panel.add_child(box)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 14)
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_child(row)
+	row.add_child(FaceIcon.make(mine[0], 72, BattleBoard.PLAYER_COLOR))
+	var vs := Label.new()
+	vs.theme_type_variation = &"HeaderLabel"
+	vs.text = "contra"
+	vs.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(vs)
+	row.add_child(FaceIcon.make(foes[0], 72, BattleBoard.ENEMY_COLOR))
+	var title := Label.new()
+	title.theme_type_variation = &"HeaderLabel"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.text = "¡Choque! %d contra %d" % [mine.size(), foes.size()]
+	box.add_child(title)
+	var note := Label.new()
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	note.custom_minimum_size = Vector2(520, 0)
+	note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var mu: BattleUnit = enc.attacker if fi == 0 else enc.target
+	var fu: BattleUnit = enc.target if fi == 0 else enc.attacker
+	note.text = "Tus %d soldados contra %d. Perder cuesta bajas y moral; retirarse a tiempo, menos." % [mu.soldiers, fu.soldiers]
+	box.add_child(note)
+	var buttons := HBoxContainer.new()
+	buttons.alignment = BoxContainer.ALIGNMENT_CENTER
+	buttons.add_theme_constant_override("separation", 12)
+	box.add_child(buttons)
+	var fight := Button.new()
+	fight.text = "Luchar"
+	fight.theme_type_variation = &"PrimaryButton"
+	buttons.add_child(fight)
+	var auto := Button.new()
+	auto.text = "Resolver"
+	auto.tooltip_text = "Se resuelve solo, con las mismas reglas."
+	buttons.add_child(auto)
+	fight.pressed.connect(func(): _encounter_choice.emit(true))
+	auto.pressed.connect(func(): _encounter_choice.emit(false))
+	fight.grab_focus.call_deferred()
+	var choice: bool = await _encounter_choice
+	_close_prompt()
+	return choice
+
+## Juega el choque en la pantalla RPG (tu grupo abajo). Devuelve el resultado con el bando 0 = atacante.
+func play_encounter(enc: Dictionary) -> Dictionary:
+	var fi := CampalEncounters.friendly_index(battle, enc)
+	var layer := CanvasLayer.new()
+	layer.layer = 20
+	add_child(layer)
+	var scene = load(COMBAT_SCENE).instantiate()
+	scene.side_a = enc.a if fi == 0 else enc.b
+	scene.side_b = enc.b if fi == 0 else enc.a
+	scene.player_character = scene.side_a[0]
+	scene.enemy_character = scene.side_b[0]
+	scene.embedded = true
+	# La salud de la batalla (no la del personaje): se pone antes y se restaura al terminar.
+	var saved := {}
+	for c in enc.a + enc.b:
+		if c is Character and not CampalEncounters.is_generic(c) and c.max_health > 0:
+			saved[c] = c.current_health
+			c.current_health = maxi(1, roundi(c.max_health * float(battle.encounter_hp.get(c, float(c.current_health) / c.max_health))))
+	layer.add_child(scene)
+	await scene.embedded_finished
+	var result: Dictionary = scene.last_result.duplicate()
+	layer.queue_free()
+	for c: Character in saved:
+		c.current_health = saved[c]
+	if fi == 1:   # en la pantalla tu grupo es el bando 0: se da la vuelta
+		for k in ["winner", "retreated", "surrendered"]:
+			var v := int(result.get(k, -1))
+			result[k] = 1 - v if v >= 0 else v
+	return result

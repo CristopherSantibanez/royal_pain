@@ -9,7 +9,7 @@ signal finished(text: String)   # al cerrar; text = último resultado ("" si nad
 const OccupationRules = preload("res://scripts/resources/occupation_rules.gd")
 const ContentCatalog = preload("res://scripts/resources/content_catalog.gd")
 const UNIQUE_COLOR := Color("f0c060")
-const COMBAT_SCENE := "res://scenes/combat/combat.tscn"
+const COMBAT_SCENE := "res://scenes/rpg_battle/rpg_battle.tscn"
 const FACE_SIZE := 96
 
 var relation: Relationship
@@ -77,8 +77,8 @@ func _rebuild() -> void:
 	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(info)
 	_label(info, c.full_name(), "HeaderLabel")
-	_label(info, "%s · %s · Nivel %d (%d/%d exp.) · %s" % [c.role_title(), RelationsData.intimacy_label(relation), c.level, c.xp, c.xp_to_next(), c.health_text()], "MutedLabel")
-	_label(info, "Combate %d · Defensa %d · Liderazgo %d · Carisma %d · Estrategia %d" % [c.combat, c.defense, c.leadership, c.charisma, c.strategy], "BodyBoldLabel")
+	_label(info, "%s · %s · %s · Nivel %d (%d/%d exp.) · %s" % [c.role_title(), RelationsData.intimacy_label(relation), LoyaltyData.bar_text(relation.person_name), c.level, c.xp, c.xp_to_next(), c.health_text()], "MutedLabel")
+	_label(info, "Combate %d · Defensa %d · Agilidad %d · Liderazgo %d · Carisma %d · Estrategia %d" % [c.combat, c.defense, c.agility, c.leadership, c.charisma, c.strategy], "BodyBoldLabel")
 
 	# Ocupación del mes.
 	_label(_body, "Ocupación este mes", "SubheaderLabel")

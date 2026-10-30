@@ -87,6 +87,10 @@ static func _prisoner_row(list: VBoxContainer, p: Dictionary, on_result: Callabl
 		CaptureData.enslave_blocker(p), func(): on_result.call(CaptureData.enslave(p)))
 	_button(buttons, "Vender a los suyos (%d)" % CaptureData.ransom_value(p), "Su gente paga el rescate.",
 		CaptureData.ransom_blocker(p), func(): on_result.call(CaptureData.sell_to_faction(p)))
+	_button(buttons, "Interrogar", "Puede soltar un rumor o un secreto. Una vez.", CaptureData.interrogate_blocker(p),
+		func(): on_result.call(CaptureData.interrogate(p)))
+	_button(buttons, "Negociar rescate", "Su familia puede pagar más (Carisma); si falla, se ofende.",
+		CaptureData.negotiate_blocker(p), func(): on_result.call(CaptureData.negotiate_ransom(p)))
 	_button(buttons, "Liberar", "+%d de honor." % CaptureData.FREE_HONOR, "", func(): on_result.call(CaptureData.free_prisoner(p)))
 	# Ejecutar pide confirmación: el primer clic arma el botón.
 	var exec := _button(buttons, "Ejecutar", "−%d de honor; su casa no lo olvidará." % CaptureData.EXECUTE_HONOR, "", Callable())
@@ -101,8 +105,17 @@ static func _serf_row(list: VBoxContainer, person_name: String, on_result: Calla
 	var r := RelationsData.get_relation(person_name)
 	if r == null:
 		return
-	var sub := "%s · %s · %d de oro al mes" % [_who(r), RelationsData.intimacy_label(r), CaptureData.serf_gold(r)]
+	var sub := "%s · %s · %d de oro al mes · %s" % [_who(r), RelationsData.intimacy_label(r), CaptureData.serf_gold(r), LoyaltyData.bar_text(person_name)]
+	if CaptureData.serf_work.has(person_name):
+		sub += " · " + CaptureData.WORKS.get(CaptureData.serf_work[person_name], "")
 	var buttons := _row(list, r, person_name, sub)
+	_button(buttons, "Adiestrar (%d)" % CaptureData.TRAIN_COST, "Gana experiencia y lealtad. Una vez al mes.",
+		CaptureData.train_blocker(person_name), func(): on_result.call(CaptureData.train_serf(person_name)))
+	var current: String = CaptureData.serf_work.get(person_name, "")
+	for work: String in CaptureData.WORKS:
+		if work != current:
+			_button(buttons, CaptureData.WORKS[work], "Forja: oro. Campo: comida del castillo. Servicio: oro del castillo.", "",
+				func(): on_result.call(CaptureData.assign_work(person_name, work)))
 	_button(buttons, "Vender (%d)" % CaptureData.serf_price(r), "−%d de honor." % CaptureData.SERF_SELL_HONOR, "",
 		func(): on_result.call(CaptureData.sell_serf(person_name)))
 	_button(buttons, "Liberar", "+%d de honor y su gratitud." % CaptureData.MANUMIT_HONOR, "",

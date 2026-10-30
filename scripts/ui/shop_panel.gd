@@ -24,6 +24,9 @@ var _owned_list: VBoxContainer
 var _gold_label: Label
 var _feedback: Label
 var _first_button: Button
+var _tab := "equipo"             # "equipo" o "consumibles"
+var _titles: Array[Label] = []
+var _tab_buttons := {}
 
 static func open(host: Node) -> Control:
 	var panel: Control = load("res://scripts/ui/shop_panel.gd").new()
@@ -100,12 +103,21 @@ func _ready() -> void:
 	root.add_child(header)
 	var title := Label.new()
 	title.theme_type_variation = &"HeaderLabel"
-	title.text = "Armería"
+	title.text = "Tienda"
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(title)
 	_gold_label = Label.new()
 	_gold_label.theme_type_variation = &"StatLabel"
 	header.add_child(_gold_label)
+	var tabs := HBoxContainer.new()
+	root.add_child(tabs)
+	for t in [["equipo", "Equipo"], ["consumibles", "Consumibles"]]:
+		var tb := Button.new()
+		tb.text = t[1]
+		tb.toggle_mode = true
+		tb.pressed.connect(_set_tab.bind(t[0]))
+		tabs.add_child(tb)
+		_tab_buttons[t[0]] = tb
 
 	var note := Label.new()
 	note.theme_type_variation = &"MutedLabel"
@@ -148,6 +160,7 @@ func _column(parent: Node, title: String) -> VBoxContainer:
 	label.theme_type_variation = &"SubheaderLabel"
 	label.text = title
 	box.add_child(label)
+	_titles.append(label)
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -165,6 +178,13 @@ func _rebuild() -> void:
 	for list in [_stock_list, _owned_list]:
 		for child in list.get_children():
 			child.queue_free()
+	for k in _tab_buttons:
+		_tab_buttons[k].button_pressed = k == _tab
+	_titles[0].text = "A la venta este mes" if _tab == "equipo" else "Consumibles"
+	_titles[1].text = "Tu equipo" if _tab == "equipo" else "Tu bolsa (máx. %d de cada)" % ConsumableCatalog.MAX_STACK
+	if _tab == "consumibles":
+		_rebuild_consumables(player)
+		return
 	var castle_id: String = GameManager.current_castle.castle_id if GameManager.current_castle != null else GameManager.home_castle_id
 	var forged := monthly_forge(castle_id)
 	if forged != null:
@@ -197,6 +217,83 @@ func _rebuild() -> void:
 	for item: Equipment in player.equipment.duplicate():
 		var btn := _row(_owned_list, item, "Vender (%d)" % sell_price(item), "")
 		btn.pressed.connect(_sell.bind(item))
+
+func _set_tab(tab: String) -> void:
+	_tab = tab
+	_feedback.text = ""
+	_rebuild()
+
+static func market_level() -> int:
+	var castle := shop_castle()
+	return castle.building_level("mercado") if castle != null else 0
+
+static func consumable_price(id: String, buyer: Character) -> int:
+	var factor := clampf(1.0 - (buyer.charisma - 10) * CHARISMA_DISCOUNT, 0.8, 1.2)
+	return maxi(1, roundi(int(ConsumableCatalog.item(id).price) * factor))
+
+## Pestaña de consumibles: el Mercado del castillo trae más variedad.
+func _rebuild_consumables(player: Character) -> void:
+	for id in ConsumableCatalog.shop_items(market_level()):
+		var price := consumable_price(id, player)
+		var reason := ""
+		if ConsumableCatalog.count(player.consumables, id) >= ConsumableCatalog.MAX_STACK:
+			reason = "Llevas el máximo."
+		elif player.gold < price:
+			reason = "No te llega el oro."
+		var btn := _item_row(_stock_list, ConsumableCatalog.item_name(id), str(ConsumableCatalog.item(id).desc), "Comprar (%d)" % price, reason)
+		btn.pressed.connect(buy_consumable.bind(id))
+		if _first_button == null and not btn.disabled:
+			_first_button = btn
+	if player.consumables.is_empty():
+		var empty := Label.new()
+		empty.theme_type_variation = &"MutedLabel"
+		empty.text = "La bolsa está vacía."
+		_owned_list.add_child(empty)
+	for id in player.consumables:
+		var lbl := Label.new()
+		lbl.text = "%s ×%d" % [ConsumableCatalog.item_name(id), ConsumableCatalog.count(player.consumables, id)]
+		_owned_list.add_child(lbl)
+
+## Compra un consumible (también la usan las pruebas). Devuelve si se compró.
+func buy_consumable(id: String) -> bool:
+	var player: Character = GameManager.player_character
+	var price := consumable_price(id, player)
+	if player.gold < price or ConsumableCatalog.add(player.consumables, id) == 0:
+		return false
+	player.gold -= price
+	_feedback.text = "Compras %s por %d de oro." % [ConsumableCatalog.item_name(id), price]
+	purchased.emit()
+	_rebuild()
+	return true
+
+func _item_row(list: VBoxContainer, title: String, desc: String, action: String, disabled_reason: String) -> Button:
+	var card := PanelContainer.new()
+	card.theme_type_variation = &"CardPanel"
+	list.add_child(card)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	card.add_child(row)
+	var text := VBoxContainer.new()
+	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(text)
+	var name_label := Label.new()
+	name_label.theme_type_variation = &"BodyBoldLabel"
+	name_label.text = title
+	text.add_child(name_label)
+	var detail := Label.new()
+	detail.theme_type_variation = &"MutedLabel"
+	detail.add_theme_font_size_override("font_size", 14)
+	detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	detail.text = desc
+	text.add_child(detail)
+	var btn := Button.new()
+	btn.text = action
+	btn.add_theme_font_size_override("font_size", 13)
+	btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	btn.disabled = not disabled_reason.is_empty()
+	btn.tooltip_text = disabled_reason
+	row.add_child(btn)
+	return btn
 
 func _slot_taken(player: Character, slot: String) -> bool:
 	return player.equipment.any(func(e: Equipment) -> bool: return e.slot == slot)

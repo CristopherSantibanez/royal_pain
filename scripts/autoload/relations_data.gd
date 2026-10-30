@@ -122,7 +122,7 @@ const INTIMATE_SLOTS := 2                 # plazas extra solo para íntimos (el 
 const OccupationRules = preload("res://scripts/resources/occupation_rules.gd")
 
 # --- Pueblo ---
-const COMMONERS_PER_CASTLE := 4
+const COMMONERS_PER_CASTLE := 4   # mínimo por castillo (si hay pocos retratos)
 const COMMONER_ROLES := [Character.Role.CAMPESINO, Character.Role.CAMPESINO, Character.Role.SOLDADO]
 
 const SUITOR_CHANCE := 0.15
@@ -135,7 +135,9 @@ const SPOUSE_START_AFFECTION := 60
 
 const DUEL_POWER_WINDOW := 3             # cortesanos válidos como rival: combate+defensa a ±3 del jugador
 
-const COURTIERS_PER_CASTLE := 2
+const COURTIERS_PER_CASTLE := 2    # mínimo por castillo (si hay pocos retratos)
+const PORTRAIT_RESERVE := 31        # retratos que no se usan al crear el mundo: hijos, cónyuges, herederos…
+const COURTIER_SHARE := 1.0 / 3.0   # parte de la gente de cada castillo que es cortesana
 const COURTIER_ROLES := [Character.Role.SOLDADO, Character.Role.CABALLERO, Character.Role.NOBLEZA_BAJA]
 
 var relations: Array[Relationship] = []
@@ -149,6 +151,13 @@ var kingdom_alliances: Dictionary = {}
 var liege_name: String = ""
 var spouse_name: String = ""
 var spouse_family: String = ""      # señor cuya familia se unió a la del jugador
+# Varios cónyuges: spouse_name/spouse_family son siempre los del principal (el primero de spouses).
+const WIVES_BASE := 1                # hasta Caballero
+const WIVES_NOBLE := 2               # Nobleza Baja y Alta
+const WIVES_DUKE := 3                # Duque y Regente
+const CONCUBINE_MIN_AFFECTION := 60  # intimidad mínima (con romance) para tomarle como amante
+var spouses: Array[Dictionary] = []   # [{"name", "family"}] por orden de boda
+var concubines: Array[String] = []    # amantes reconocidos: sin alianza ni rango; sus hijos heredan en segunda línea
 var last_victory_month: int = -1     # mes de la última victoria (duelo, torneo, conquista)
 var retinue: Array[String] = []       # nombres de quienes forman tu séquito
 var requested_tab := ""               # pestaña con la que abrir la pantalla de relaciones ("lugar", "sequito"...)
@@ -169,6 +178,8 @@ func reset() -> void:
 	kingdom_alliances.clear()
 	spouse_name = ""
 	spouse_family = ""
+	spouses.clear()
+	concubines.clear()
 	retinue.clear()
 	retinue_news.clear()
 	occupations.clear()
@@ -202,10 +213,21 @@ func _populate_world() -> void:
 		r.character = CharacterLoader.make_random_character(lord_role, gender, _take_portrait(pool, gender), c.owner_name)
 		relations.append(r)
 
-	for c: Castle in MapData.castles:
-		if c.kingdom == KingdomEnums.Kingdom.NEUTRAL:
-			continue
-		for i in range(COURTIERS_PER_CASTLE):
+	# Se usan todos los retratos salvo PORTRAIT_RESERVE (para hijos, cónyuges, herederos…), repartidos
+	# entre los castillos; si hay pocos retratos, cada castillo tiene al menos su mínimo.
+	var peopled: Array = MapData.castles.filter(func(c: Castle) -> bool: return c.kingdom != KingdomEnums.Kingdom.NEUTRAL)
+	peopled.shuffle()
+	var free_faces := pool.remaining(CharacterEnums.Gender.MASCULINO) + pool.remaining(CharacterEnums.Gender.FEMENINO)
+	var budget := maxi(0, free_faces - PORTRAIT_RESERVE)
+	for idx in peopled.size():
+		var c: Castle = peopled[idx]
+		var people: int = budget / peopled.size() + (1 if idx < budget % peopled.size() else 0)
+		people = maxi(people, COURTIERS_PER_CASTLE + COMMONERS_PER_CASTLE)
+		var courtiers := maxi(COURTIERS_PER_CASTLE, roundi(people * COURTIER_SHARE))
+		_populate_castle(c, pool, courtiers, people - courtiers)
+
+func _populate_castle(c: Castle, pool: PortraitPool, courtier_count: int, commoner_count: int) -> void:
+		for i in range(courtier_count):
 			var gender := pool.pick_gender()
 			var person := _unique_random_character(COURTIER_ROLES.pick_random(), gender, _take_portrait(pool, gender), MapData.culture_of_castle(c))
 			var r := Relationship.new()
@@ -215,7 +237,7 @@ func _populate_world() -> void:
 			r.character = person
 			relations.append(r)
 		# Campesinos y soldados: gente del lugar con la que también se puede tratar.
-		for i in range(COMMONERS_PER_CASTLE):
+		for i in range(commoner_count):
 			var gender := pool.pick_gender()
 			var person := _unique_random_character(COMMONER_ROLES[i % COMMONER_ROLES.size()], gender, _take_portrait(pool, gender), MapData.culture_of_castle(c))
 			var r := Relationship.new()
@@ -269,6 +291,83 @@ func commoners(kingdom: int = -1) -> Array[Relationship]:
 		if r.kind == Relationship.Kind.PUEBLO and (kingdom < 0 or r.kingdom == kingdom) and not CaptureData.is_prisoner(r.person_name):
 			result.append(r)
 	return result
+
+# --- Reinos caídos: su gente no desaparece ---
+
+const CONQUEROR_JOIN_SHARE := 0.5   # parte de la corte y el pueblo de un reino caído que se une al vencedor
+const FALLEN_NEWS_NAMES := 3         # nombres que se citan en la crónica
+
+func kingdom_has_castles(kingdom: int) -> bool:
+	for c: Castle in MapData.castles:
+		if c.kingdom == kingdom:
+			return true
+	return false
+
+## Reinos que aún tienen castillos (sin contar los neutrales).
+func living_kingdoms() -> Array[int]:
+	var result: Array[int] = []
+	for c: Castle in MapData.castles:
+		if c.kingdom != KingdomEnums.Kingdom.NEUTRAL and c.kingdom >= 0 and not c.kingdom in result:
+			result.append(c.kingdom)
+	return result
+
+## Llamar cada vez que un castillo cambia de reino. Si el reino antiguo se queda sin castillos,
+## parte de su gente se une al vencedor y el resto huye como refugiada a otros reinos.
+func on_castle_taken(castle: Castle, old_kingdom: int, new_kingdom: int) -> void:
+	if old_kingdom == new_kingdom or old_kingdom < 0 or kingdom_has_castles(old_kingdom):
+		return
+	var castle_id := castle.castle_id if castle != null else ""
+	var joined: Array[String] = []
+	var fled: Array[String] = []
+	for r: Relationship in relations:
+		if r.kingdom != old_kingdom:
+			continue
+		if r.kind == Relationship.Kind.CORTESANO or r.kind == Relationship.Kind.PUEBLO:
+			if new_kingdom >= 0 and new_kingdom != KingdomEnums.Kingdom.NEUTRAL and randf() < CONQUEROR_JOIN_SHARE:
+				r.kingdom = new_kingdom
+				joined.append(r.person_name)
+			else:
+				r.kingdom = _refuge_kingdom(new_kingdom)
+				fled.append(r.person_name)
+		elif r.kind == Relationship.Kind.SENOR and not CaptureData.is_prisoner(r.person_name) \
+				and castles_of(r.person_name).is_empty():
+			# El señor vencido que no ha caído preso se refugia en otra corte.
+			r.kingdom = _refuge_kingdom(new_kingdom)
+			fled.append(r.person_name)
+	var fallen := KingdomEnums.kingdom_name(old_kingdom)
+	if not joined.is_empty():
+		WorldEvents.record("%s se une%s a %s tras la caída de %s." % [_names_text(joined),
+			"n" if joined.size() > 1 else "", KingdomEnums.kingdom_name(new_kingdom), fallen], castle_id)
+	if not fled.is_empty():
+		WorldEvents.record("%s huye%s de %s y busca%s refugio en otros reinos." % [_names_text(fled),
+			"n" if fled.size() > 1 else "", fallen, "n" if fled.size() > 1 else ""], castle_id)
+		# Los refugiados se ponen en camino desde el castillo perdido (TravelerData).
+		var travelers := get_node_or_null("/root/TravelerData")
+		if travelers != null and not castle_id.is_empty():
+			travelers.add_refugees(fled, castle_id)
+
+## Recoloca a cortesanos y pueblo de reinos que ya no tienen castillos (partidas antiguas).
+func rehome_stranded() -> void:
+	var stranded: Array[int] = []
+	for r: Relationship in relations:
+		if (r.kind == Relationship.Kind.CORTESANO or r.kind == Relationship.Kind.PUEBLO) and r.kingdom >= 0 \
+				and not r.kingdom in stranded and not kingdom_has_castles(r.kingdom):
+			stranded.append(r.kingdom)
+	for k in stranded:
+		on_castle_taken(null, k, -1)
+
+func _refuge_kingdom(prefer: int) -> int:
+	var options := living_kingdoms()
+	if options.is_empty():
+		return prefer
+	return options.pick_random()
+
+func _names_text(names: Array[String]) -> String:
+	var shown := names.slice(0, FALLEN_NEWS_NAMES)
+	var text := ", ".join(shown)
+	if names.size() > shown.size():
+		text += " y %d más" % (names.size() - shown.size())
+	return text
 
 func get_relation(person_name: String) -> Relationship:
 	for r: Relationship in relations:
@@ -391,6 +490,7 @@ func gift_cost(r: Relationship) -> int:
 func send_gift(r: Relationship) -> String:
 	if not can_send_gift(r).is_empty():
 		return can_send_gift(r)
+	LoyaltyData.note_if_dependent(r.person_name, "gift")   # regalos a vasallos
 	var player: Character = GameManager.player_character
 	var cost := gift_cost(r)
 	var prefix := _spend_letter(r)
@@ -631,12 +731,98 @@ func rival_reactions(max_lines: int = 2) -> String:
 func is_married() -> bool:
 	return not spouse_name.is_empty()
 
+## Cónyuges que admite tu rango.
+static func max_spouses(c: Character) -> int:
+	if c == null:
+		return WIVES_BASE
+	if c.rank() >= Character.rank_of(Character.Role.DUQUE):
+		return WIVES_DUKE
+	if c.rank() >= Character.rank_of(Character.Role.NOBLEZA_BAJA):
+		return WIVES_NOBLE
+	return WIVES_BASE
+
+## "" si puedes casarte otra vez; si no, el motivo.
+func spouse_cap_blocker() -> String:
+	var player: Character = GameManager.player_character
+	if spouses.size() < max_spouses(player):
+		return ""
+	if spouses.size() <= 1:
+		return "Ya estás %s con %s." % [_married_word(player), spouse_name]
+	return "Tu rango no admite más de %d cónyuges." % max_spouses(player)
+
+func spouse_names() -> Array[String]:
+	var out: Array[String] = []
+	for s: Dictionary in spouses:
+		out.append(str(s.name))
+	return out
+
+func is_spouse(person_name: String) -> bool:
+	return person_name in spouse_names()
+
+func is_concubine(person_name: String) -> bool:
+	return person_name in concubines
+
+## Todos los cónyuges vivos (relaciones CONYUGE), el principal primero.
+func spouse_relations() -> Array[Relationship]:
+	var out: Array[Relationship] = []
+	for r: Relationship in relations:
+		if r.kind == Relationship.Kind.CONYUGE:
+			if r.person_name == spouse_name:
+				out.push_front(r)
+			else:
+				out.append(r)
+	return out
+
+func concubine_relations() -> Array[Relationship]:
+	var out: Array[Relationship] = []
+	for person_name in concubines:
+		var r := get_relation(person_name)
+		if r != null:
+			out.append(r)
+	return out
+
+## Registra una boda: el primer cónyuge es el principal (spouse_name/spouse_family).
+func _register_spouse(person_name: String, family: String) -> void:
+	concubines.erase(person_name)
+	spouses.append({"name": person_name, "family": family})
+	if spouse_name.is_empty():
+		spouse_name = person_name
+		spouse_family = family
+
+## Un cónyuge muere o se va: si era el principal, el siguiente ocupa su lugar.
+func _unregister_spouse(person_name: String) -> void:
+	for s: Dictionary in spouses.duplicate():
+		if s.name == person_name:
+			spouses.erase(s)
+	if spouse_name == person_name or not is_spouse(spouse_name):
+		spouse_name = str(spouses[0].name) if not spouses.is_empty() else ""
+		spouse_family = str(spouses[0].family) if not spouses.is_empty() else ""
+
+## Amante reconocido: requiere romance e intimidad; no cuenta para el tope ni da alianza ni rango.
+func can_take_concubine(r: Relationship) -> String:
+	if r == null or not sociable(r) or r.kind == Relationship.Kind.CONYUGE or is_concubine(r.person_name):
+		return "No disponible."
+	if not r.romance:
+		return "Entre vosotros solo cabe la amistad."
+	if r.affection < CONCUBINE_MIN_AFFECTION:
+		return "Intimidad %d de %d." % [r.affection, CONCUBINE_MIN_AFFECTION]
+	return ""
+
+func take_concubine(r: Relationship) -> String:
+	var reason := can_take_concubine(r)
+	if not reason.is_empty():
+		return reason
+	concubines.append(r.person_name)
+	relations_changed.emit()
+	return "%s pasa a ser tu amante reconocid%s." % [r.person_name, "a" if r.character.gender == CharacterEnums.Gender.FEMENINO else "o"]
+
 func can_propose_marriage(r: Relationship) -> String:
 	var player: Character = GameManager.player_character
 	if player == null or r == null or r.kind != Relationship.Kind.SENOR:
 		return "No disponible."
-	if is_married():
-		return "Ya estás %s con %s." % [_married_word(player), spouse_name]
+	var cap := spouse_cap_blocker()
+	if not cap.is_empty():
+		return cap
 	if player.rank() < Character.rank_of(Character.Role.CABALLERO):
 		return "Ninguna casa noble casaría a los suyos con alguien de tu rango."
 	var contact := lord_contact_blocker(r, false)   # una mano se pide en persona
@@ -657,14 +843,14 @@ func propose_marriage(r: Relationship) -> String:
 	player.gold -= DOWRY_COST
 	player.honor = clampi(player.honor + MARRIAGE_HONOR, 0, 100)
 	var spouse_first := _spouse_first_name(player, r.kingdom)
-	spouse_name = "%s %s" % [spouse_first, family_name_of(r.person_name)]
-	spouse_family = r.person_name
+	var wed_name := "%s %s" % [spouse_first, family_name_of(r.person_name)]
+	_register_spouse(wed_name, r.person_name)
 	r.adjust(MARRIAGE_AFFINITY)
 	r.allied = true
 	_add_spouse_relation(spouse_first, family_name_of(r.person_name), r.kingdom, _spouse_gender(player))
 	relations_changed.emit()
 	var text := "Te casas con %s, de la casa de %s. Su familia es ahora tu aliada (honor +%d)." % [
-		spouse_name, r.person_name, MARRIAGE_HONOR]
+		wed_name, r.person_name, MARRIAGE_HONOR]
 	if r.person_name == liege_name:
 		text += " Al emparentar con tu soberano, quedas en la línea de sucesión al trono."
 	return text
@@ -685,7 +871,7 @@ func succession_context() -> Dictionary:
 				count += 1
 	return {
 		"liege_name": liege_name,
-		"married_to_liege": is_married() and spouse_family == liege_name,
+		"married_to_liege": spouses.any(func(s: Dictionary) -> bool: return s.family == liege_name and not liege_name.is_empty()),
 		"kingdom_castles": count,
 	}
 
@@ -786,11 +972,10 @@ func on_player_marches_against(owner_name: String) -> String:
 
 # --- Vida social: intimidad, romance, matrimonio y cónyuge ---
 
+## Cónyuge principal (el primero), o cualquiera si el principal no tiene relación.
 func spouse_relation() -> Relationship:
-	for r: Relationship in relations:
-		if r.kind == Relationship.Kind.CONYUGE:
-			return r
-	return null
+	var all := spouse_relations()
+	return all[0] if not all.is_empty() else null
 
 ## Personas con las que se puede tratar de tú a tú (no los señores, que se tratan por diplomacia).
 func sociable(r: Relationship) -> bool:
@@ -907,7 +1092,8 @@ func can_interact(r: Relationship, kind: String) -> String:
 		"intimate":
 			if not romance_possible(r):
 				return "Entre vosotros solo cabe la amistad."
-			if is_married() and r.kind != Relationship.Kind.CONYUGE:
+			if is_married() and r.kind != Relationship.Kind.CONYUGE and not is_concubine(r.person_name) \
+					and r.affection < CONCUBINE_MIN_AFFECTION:
 				return "Ya estás %s con %s." % [_married_word(player), spouse_name]
 			if r.affection < INTIMATE_MIN_AFFECTION:
 				return "Aún no tenéis la confianza suficiente (intimidad %d de %d)." % [r.affection, INTIMATE_MIN_AFFECTION]
@@ -923,6 +1109,8 @@ func interact(r: Relationship, kind: String) -> String:
 	var player: Character = GameManager.player_character
 	GameManager.consume_action()
 	r.last_courted_month = GameManager.months_elapsed()
+	if kind == "gift":
+		LoyaltyData.note_if_dependent(r.person_name, "gift")
 	var like := _like(r, kind)
 	var before := r.affection
 	var ctx := {"player": player.full_name(), "rank": player.role_name()}
@@ -1139,7 +1327,8 @@ func on_character_died(person_name: String, cause: String) -> void:
 	if person_name.is_empty():
 		return
 	var r := get_relation(person_name)
-	var was_spouse := person_name == spouse_name or (r != null and r.kind == Relationship.Kind.CONYUGE)
+	var was_spouse := is_spouse(person_name) or person_name == spouse_name or (r != null and r.kind == Relationship.Kind.CONYUGE)
+	concubines.erase(person_name)
 	if r != null and r.kind != Relationship.Kind.SENOR:
 		relations.erase(r)
 	retinue.erase(person_name)
@@ -1151,8 +1340,7 @@ func on_character_died(person_name: String, cause: String) -> void:
 		if other.rival_suitor == person_name:
 			other.rival_suitor = ""
 	if was_spouse:
-		spouse_name = ""
-		spouse_family = ""
+		_unregister_spouse(person_name)
 	var why := (" (%s)" % cause) if not cause.is_empty() else ""
 	WorldEvents.record("Muere %s%s.%s" % [person_name, why, " Tu matrimonio termina con su muerte." if was_spouse else ""], "", true)
 	relations_changed.emit()
@@ -1161,8 +1349,9 @@ func can_propose_love(r: Relationship) -> String:
 	var player: Character = GameManager.player_character
 	if player == null or not courtable(r):
 		return "No disponible."
-	if is_married():
-		return "Ya estás %s con %s." % [_married_word(player), spouse_name]
+	var cap := spouse_cap_blocker()
+	if not cap.is_empty():
+		return cap
 	if not r.romance:
 		return "Antes debe nacer algo más que amistad."
 	if r.affection < PROPOSAL_MIN_AFFECTION:
@@ -1193,8 +1382,7 @@ func propose_love(r: Relationship) -> String:
 	r.kind = Relationship.Kind.CONYUGE
 	r.rival_suitor = ""
 	r.adjust_grudge(-100)
-	spouse_name = r.person_name
-	spouse_family = ""
+	_register_spouse(r.person_name, "")
 	var lord_text := ""
 	for lord: Relationship in lords():
 		if lord.kingdom == r.kingdom:
@@ -1414,9 +1602,9 @@ func toggle_champion(r: Relationship) -> String:
 ## Quienes tienen ocupación: tu cónyuge y los miembros del séquito.
 func occupation_people() -> Array[Relationship]:
 	var result: Array[Relationship] = []
-	var spouse := spouse_relation() if is_married() else null
-	if spouse != null and spouse.character != null and not CaptureData.is_prisoner(spouse.person_name):
-		result.append(spouse)
+	for spouse: Relationship in spouse_relations():
+		if spouse.character != null and not CaptureData.is_prisoner(spouse.person_name):
+			result.append(spouse)
 	for r: Relationship in retinue_members():
 		if not r in result and not CaptureData.is_serf(r.person_name):
 			result.append(r)
@@ -1630,7 +1818,9 @@ func _pay_retinue(player: Character) -> void:
 			continue
 		if player.gold >= RETINUE_UPKEEP:
 			player.gold -= RETINUE_UPKEEP
+			LoyaltyData.note(r.person_name, "paid")
 			continue
+		LoyaltyData.note(r.person_name, "unpaid")
 		r.adjust_affection(RETINUE_UNPAID_AFFECTION)
 		if r.affection < RETINUE_LEAVE_AFFECTION:
 			retinue.erase(r.person_name)
@@ -1820,6 +2010,9 @@ func replace_lord(old_name: String, heir: Character) -> String:
 		liege_name = heir_name
 	if spouse_family == old_name:
 		spouse_family = heir_name
+	for s: Dictionary in spouses:
+		if s.family == old_name:
+			s.family = heir_name
 	relations_changed.emit()
 	return heir_name
 
@@ -1850,22 +2043,23 @@ func arrange_political_marriage(lord_name: String) -> String:
 	var r := get_relation(lord_name)
 	if player == null or r == null or r.kind != Relationship.Kind.SENOR:
 		return "No disponible."
-	if is_married():
-		return "Ya estás %s con %s." % [_married_word(player), spouse_name]
+	var cap := spouse_cap_blocker()
+	if not cap.is_empty():
+		return cap
 	var spouse_first := _spouse_first_name(player, r.kingdom)
-	spouse_name = "%s %s" % [spouse_first, family_name_of(lord_name)]
-	spouse_family = lord_name
+	var wed_name := "%s %s" % [spouse_first, family_name_of(lord_name)]
+	_register_spouse(wed_name, lord_name)
 	r.adjust(MARRIAGE_AFFINITY)
 	r.allied = true
 	_add_spouse_relation(spouse_first, family_name_of(lord_name), r.kingdom, _spouse_gender(player))
 	relations_changed.emit()
-	return "Por voluntad de %s te casas con %s. Su casa es ahora la tuya." % [lord_name, spouse_name]
+	return "Por voluntad de %s te casas con %s. Su casa es ahora la tuya." % [lord_name, wed_name]
 
 ## Estado extra para el guardado (las relaciones en sí van en SaveGame.relations).
 func save_state() -> Dictionary:
 	return {"retinue": retinue.duplicate(), "last_victory_month": last_victory_month,
 		"occupations": occupations.duplicate(), "designated_champion": designated_champion,
-		"practice_month": practice_month.duplicate()}
+		"practice_month": practice_month.duplicate(), "spouses": spouses.duplicate(true), "concubines": concubines.duplicate()}
 
 func load_state(data: Dictionary) -> void:
 	retinue.clear()
@@ -1881,3 +2075,13 @@ func load_state(data: Dictionary) -> void:
 		practice_month[str(key)] = int(data.practice_month[key])
 	practice_partner = ""
 	retinue_news.clear()
+	# Partidas anteriores a los varios cónyuges: el único spouse_name pasa a la lista.
+	spouses.clear()
+	for s in data.get("spouses", []):
+		if s is Dictionary:
+			spouses.append({"name": str(s.get("name", "")), "family": str(s.get("family", ""))})
+	if spouses.is_empty() and not spouse_name.is_empty():
+		spouses.append({"name": spouse_name, "family": spouse_family})
+	concubines.clear()
+	for person_name in data.get("concubines", []):
+		concubines.append(str(person_name))

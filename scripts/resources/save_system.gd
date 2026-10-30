@@ -5,7 +5,7 @@ class_name SaveSystem
 const SAVE_VERSION := 3
 # Autoloads que guardan su propio estado con save_state() -> Dictionary y load_state(d).
 # Deben devolver datos planos (números, textos, arrays, diccionarios), nunca objetos.
-const MODULES := ["RelationsData", "MissionData", "WorldEvents", "DynastyData", "ExplorationData", "TravelData", "AchievementData", "CaptureData", "StoryData", "AmbitionData"]
+const MODULES := ["RelationsData", "MissionData", "WorldEvents", "DynastyData", "ExplorationData", "TravelData", "AchievementData", "CaptureData", "StoryData", "AmbitionData", "TravelerData", "SocialEvents", "LoyaltyData", "PartyData"]
 # Guardado y carga de la partida completa en ranuras: un autoguardado (cada mes) y varias
 # ranuras manuales. Cada ranura es un archivo JSON en <datos>/saves (ver DataCodec y DataPaths).
 # Las partidas .tres de versiones anteriores se convierten a JSON la primera vez que se leen.
@@ -148,6 +148,11 @@ static func load_game(slot: String = AUTO_SLOT) -> bool:
 		var node := _module(module_name)
 		if node != null and node.has_method("load_state"):
 			node.load_state(s.modules.get(module_name, {}) if s.version >= 2 else {})
+	# Partidas antiguas: la gente de reinos ya caídos se recoloca; los roles mercenarios desaparecen.
+	RelationsData.rehome_stranded()
+	RoleProgression.migrate_legacy_role(GameManager.player_character)
+	if Character.is_legacy_role(GameManager.starting_role):
+		GameManager.starting_role = Character.Role.INAFILIADO
 	ArmyData.armies_changed.emit()
 	ArmyData.events_changed.emit()
 	return true

@@ -76,6 +76,27 @@ func _ready() -> void:
 	reduced.toggled.connect(Settings.set_reduced_effects)
 	box.add_child(reduced)
 
+	var others := CheckBox.new()
+	others.text = "Resolver solos los choques ajenos"
+	others.tooltip_text = "En las batallas campales, los choques sin ti ni tu grupo se resuelven solos."
+	others.button_pressed = Settings.auto_resolve_others
+	others.toggled.connect(Settings.set_auto_resolve_others)
+	box.add_child(others)
+
+	var diff_row := HBoxContainer.new()
+	var diff_label := Label.new()
+	diff_label.text = "Dificultad en batalla"
+	diff_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	diff_row.add_child(diff_label)
+	var diff := OptionButton.new()
+	for i in Settings.DIFFICULTY_NAMES.size():
+		diff.add_item(Settings.DIFFICULTY_NAMES[i], i)
+	diff.select(Settings.ai_difficulty)
+	diff.tooltip_text = "Lo bien que juega la IA enemiga en las batallas campales."
+	diff.item_selected.connect(Settings.set_ai_difficulty)
+	diff_row.add_child(diff)
+	box.add_child(diff_row)
+
 	var close := Button.new()
 	close.text = "Cerrar"
 	close.theme_type_variation = "PrimaryButton"

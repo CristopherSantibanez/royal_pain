@@ -21,6 +21,7 @@ const SCENE_MUSIC := {
 	"relations": ["map", "amb_wind"],
 	"castle_interior": ["castle", "amb_fire"],
 	"combat": ["duel", ""],
+	"rpg_battle": ["duel", ""],
 	"battle": ["battle", "amb_wind"],
 }
 

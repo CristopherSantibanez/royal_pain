@@ -9,3 +9,4 @@ extends Resource
 @export var strategy_mod: int = 0
 @export var combat_mod: int = 0
 @export var defense_mod: int = 0
+@export var agility_mod: int = 0

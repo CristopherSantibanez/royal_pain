@@ -104,6 +104,8 @@ func _unlock(a: Dictionary, player: Character) -> void:
 	if reward.get("xp", 0) > 0:
 		player.gain_xp(int(reward.xp))
 	player.unspent_points += int(reward.get("points", 0))
+	if reward.get("skill_points", 0) > 0:
+		SkillTreeCatalog.grant_points(player, int(reward.skill_points), "logro:" + str(a.id))
 	if reward.get("unique", false):
 		var item_text := UniqueItems.grant(player)
 		if not item_text.is_empty():
@@ -148,6 +150,7 @@ func context() -> Dictionary:
 		"generations": generation, "retinue": RelationsData.retinue.size(),
 		"missions_done": MissionData.completed_count, "unique_items": uniques,
 		"visited_castles": visited_castles.size(), "visited_kingdoms": visited_kingdoms.size(),
+		"stories_done": StoryData.history.size(), "story_titles": StoryData.titles.size(),
 	}
 
 ## {done, current, target, ratio, text} de una hazaña.
@@ -159,7 +162,7 @@ func progress_of(a: Dictionary, ctx: Dictionary = {}) -> Dictionary:
 	if a.has("goal_role"):
 		var goal := VictoryRules.evaluate(a.goal_role, GameManager.player_character, MapData.castles,
 			GameManager.player_kingdom, GameManager.home_castle_id,
-			{"contracts_done": MissionData.contracts_done, "company_size": MissionData.company_size(), "visited_kingdoms": visited_kingdoms.size()})
+			{"visited_kingdoms": visited_kingdoms.size()})
 		return {"done": goal.done, "current": 0, "target": 1, "ratio": 0.5, "text": goal.progress}
 	var target: int = a.target
 	var current: int = int(ctx.get(a.stat, 0))
@@ -231,14 +234,16 @@ func check_endings() -> Dictionary:
 
 ## Casado con alguien de la casa del señor de ese reino.
 func _married_into(kingdom: int) -> bool:
-	if not RelationsData.is_married() or RelationsData.spouse_family.is_empty():
-		return false
-	var family: Relationship = RelationsData.get_relation(RelationsData.spouse_family)
-	if family != null and family.kingdom == kingdom:
-		return true
-	for c: Castle in MapData.castles:
-		if c.kingdom == kingdom and c.owner_name == RelationsData.spouse_family:
+	for s: Dictionary in RelationsData.spouses:
+		var house := str(s.family)
+		if house.is_empty():
+			continue
+		var family: Relationship = RelationsData.get_relation(house)
+		if family != null and family.kingdom == kingdom:
 			return true
+		for c: Castle in MapData.castles:
+			if c.kingdom == kingdom and c.owner_name == house:
+				return true
 	return false
 
 func _conquest_ending() -> Dictionary:

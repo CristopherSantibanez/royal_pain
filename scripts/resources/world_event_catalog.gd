@@ -51,7 +51,7 @@ const PLAYER_EVENTS := [
 	{
 		"id": "g_peste", "global": true, "title": "La peste en los caminos",
 		"text": "Una peste avanza de aldea en aldea. Una columna de refugiados llega a tus puertas.",
-		"roles": [],
+		"roles": [], "premise": {"governs": true},
 		"options": [
 			{"label": "Cerrar las puertas", "effects": {"castle_food": -30, "honor": -3},
 				"result": "Los refugiados acampan bajo las murallas. Algunos mueren allí."},
@@ -63,7 +63,7 @@ const PLAYER_EVENTS := [
 	{
 		"id": "g_hambruna", "global": true, "title": "Hambruna",
 		"text": "Tras una mala cosecha, el hambre se extiende entre los campesinos de la comarca.",
-		"roles": [],
+		"roles": [], "premise": {"governs": true},
 		"options": [
 			{"label": "Abrir los graneros", "effects": {"castle_food": -60, "honor": 6, "fame": 3},
 				"result": "El pueblo come gracias a ti y no lo olvidará."},
@@ -74,7 +74,7 @@ const PLAYER_EVENTS := [
 	{
 		"id": "g_torneo_real", "global": true, "title": "El gran torneo de la Corona",
 		"text": "La Corona celebra un gran torneo en la capital. Acuden campeones de todos los reinos.",
-		"roles": [R.SOLDADO, R.CABALLERO, R.NOBLEZA_BAJA, R.NOBLEZA_ALTA],
+		"roles": [R.SOLDADO, R.CABALLERO, R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.INAFILIADO],
 		"options": [
 			{"label": "Participar (inscripción 30)", "requires": {"gold": 30, "healthy": true}, "chance": 0.4, "chance_stat": "combat",
 				"success": {"effects": {"gold": 90, "fame": 12, "honor": 4}, "result": "¡Llegas a la final y te aclaman en la tribuna real!"},
@@ -88,9 +88,9 @@ const PLAYER_EVENTS := [
 		"text": "Un cometa de larga cola cruza el cielo durante semanas. Los augures discuten su significado.",
 		"roles": [],
 		"options": [
-			{"label": "Ordenar misas y rogativas (20)", "requires": {"gold": 20}, "effects": {"gold": -20, "honor": 3},
+			{"label": "Dar limosna a la iglesia y rezar (20)", "requires": {"gold": 20}, "effects": {"gold": -20, "honor": 3},
 				"result": "Los clérigos agradecen tu piedad."},
-			{"label": "Proclamarlo un buen augurio para tu casa", "chance": 0.5, "chance_stat": "charisma",
+			{"label": "Proclamarlo un buen augurio para ti", "chance": 0.5, "chance_stat": "charisma",
 				"success": {"effects": {"fame": 6}, "result": "La gente empieza a llamarte «el del cometa»."},
 				"failure": {"effects": {"honor": -4}, "result": "Te acusan de soberbia y de tentar a la providencia."}},
 		],
@@ -98,7 +98,7 @@ const PLAYER_EVENTS := [
 	{
 		"id": "g_mercenarios", "global": true, "title": "Lanzas en venta",
 		"text": "Una compañía de mercenarios licenciada tras una guerra ofrece sus servicios.",
-		"roles": [R.CABALLERO, R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.DUQUE, R.REGENTE],
+		"roles": [R.CABALLERO, R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.DUQUE, R.REGENTE], "premise": {"governs": true},
 		"options": [
 			{"label": "Contratarlos (100 de oro)", "requires": {"gold": 100}, "effects": {"gold": -100, "garrison": 25},
 				"result": "Veinticinco veteranos refuerzan tu guarnición."},
@@ -127,7 +127,7 @@ const PLAYER_EVENTS := [
 	{
 		"id": "g_embajada", "global": true, "title": "Una embajada de tierras lejanas",
 		"text": "Llega una embajada de un reino de ultramar con regalos exóticos y mucha curiosidad.",
-		"roles": [R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.DUQUE, R.REGENTE],
+		"roles": [R.NOBLEZA_BAJA, R.NOBLEZA_ALTA, R.DUQUE, R.REGENTE], "premise": {"governs": true},
 		"options": [
 			{"label": "Agasajarla con un banquete (60)", "requires": {"gold": 60}, "effects": {"gold": -60, "fame": 6, "honor": 2},
 				"result": "Los embajadores hablarán de tu hospitalidad en su tierra."},
@@ -140,21 +140,34 @@ const PLAYER_EVENTS := [
 		"text": "Un fraile predica contra los abusos de los señores y las plazas se llenan para escucharlo.",
 		"roles": [],
 		"options": [
-			{"label": "Protegerlo y darle limosna (20)", "requires": {"gold": 20}, "effects": {"gold": -20, "honor": 3, "fame": 2},
-				"result": "El pueblo te ve como un señor justo."},
-			{"label": "Hacerlo expulsar", "effects": {"honor": -3},
+			{"label": "Darle limosna y escucharlo (20)", "requires": {"gold": 20}, "effects": {"gold": -20, "honor": 3, "fame": 2},
+				"result": "El pueblo te tiene por alguien justo."},
+			{"label": "Denunciarlo ante el párroco", "effects": {"honor": -3},
 				"result": "El fraile se marcha maldiciendo tu nombre."},
 		],
 	},
 	{
 		"id": "g_invierno", "global": true, "title": "Se anuncia un invierno terrible",
 		"text": "Los viejos aseguran que el invierno que viene será de los que no se olvidan.",
-		"roles": [],
+		"roles": [], "premise": {"governs": true},
 		"options": [
 			{"label": "Hacer acopio de víveres (40)", "requires": {"gold": 40}, "effects": {"gold": -40, "castle_food": 60},
 				"result": "Llenas los graneros a tiempo."},
 			{"label": "Confiar en la suerte", "effects": {"castle_food": -40},
 				"result": "Los viejos tenían razón."},
+		],
+	},
+	{
+		"id": "g_hambre_aldea", "global": true, "title": "El hambre llega a tu mesa",
+		"text": "La mala cosecha vacía los mercados de la comarca: el pan cuesta el triple y en los caminos se ven familias enteras pidiendo.",
+		"roles": [], "premise": {"governs": false},
+		"options": [
+			{"label": "Comprar pan aunque sea caro (20)", "requires": {"gold": 20}, "effects": {"gold": -20},
+				"result": "Pasas el mal trago con la bolsa más ligera."},
+			{"label": "Compartir lo poco que tienes (10)", "requires": {"gold": 10}, "effects": {"gold": -10, "honor": 4},
+				"result": "Los que comieron gracias a ti no lo olvidan."},
+			{"label": "Apretarte el cinturón", "effects": {"health": -10},
+				"result": "Un mes de hambre te deja flaco y débil."},
 		],
 	},
 ]
@@ -165,10 +178,14 @@ static func pick_world_event(month: int) -> Dictionary:
 	return pool.pick_random().duplicate(true) if not pool.is_empty() else {}
 
 ## Suceso global con decisión, válido para el rol del jugador (o {}).
-static func pick_player_event(role: int, exclude_id: String = "") -> Dictionary:
+## ctx: situación del jugador (EventCatalog.situation); vacío = se calcula.
+static func pick_player_event(character: Character, exclude_id: String = "", ctx: Dictionary = {}) -> Dictionary:
+	if character == null:
+		return {}
+	if ctx.is_empty():
+		ctx = EventCatalog.situation(character)
 	var pool: Array = PLAYER_EVENTS.filter(func(e):
-		var roles: Array = e.roles
-		return (roles.is_empty() or role in roles or Character.ladder_role_of(role) in roles) and e.id != exclude_id)
+		return EventCatalog.fits_role(e, character) and EventCatalog.fits_situation(e, ctx) and e.id != exclude_id)
 	return pool.pick_random().duplicate(true) if not pool.is_empty() else {}
 
 ## Aplica un suceso del mundo a los castillos. Devuelve el texto de la noticia.

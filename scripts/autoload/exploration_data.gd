@@ -139,7 +139,7 @@ func visit(uid: String, option_index: int) -> Dictionary:
 	var option: Dictionary = options[option_index]
 	WorldEvents.record("%s: %s. %s" % [event.title, option.get("label", ""), text.get_slice("\n", 0)], site.castle_id, true)
 	sites_changed.emit()
-	return {"ok": true, "text": text, "fight": option.get("fight", {}), "title": event.title}
+	return {"ok": true, "text": text, "fight": CombatSetup.tag_fight(option.get("fight", {}), "exploracion"), "title": event.title}
 
 # --- Guardado ---
 

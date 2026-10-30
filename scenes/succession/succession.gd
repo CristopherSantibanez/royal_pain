@@ -62,8 +62,8 @@ func _heir_card(c: Character) -> Control:
 	var faults: Array[String] = []
 	for t: CharacterTrait in c.disadvantages:
 		faults.append(t.trait_name)
-	var stats := "%s · Liderazgo %d · Carisma %d · Estrategia %d · Combate %d · Defensa %d" % [
-		LevelUpPanel._personality(c), c.leadership, c.charisma, c.strategy, c.combat, c.defense]
+	var stats := "%s · Liderazgo %d · Carisma %d · Estrategia %d · Combate %d · Defensa %d · Agilidad %d" % [
+		LevelUpPanel._personality(c), c.leadership, c.charisma, c.strategy, c.combat, c.defense, c.agility]
 	if not traits.is_empty():
 		stats += "\nVentajas: " + ", ".join(traits)
 	if not faults.is_empty():

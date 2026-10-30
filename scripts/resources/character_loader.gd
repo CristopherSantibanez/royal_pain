@@ -130,8 +130,9 @@ static func make_random_character(role: int, gender: int, portrait_path: String 
 	c.strategy = stats.strategy
 	c.combat = stats.combat
 	c.defense = stats.defense
+	c.agility = stats.agility
 
-	c.advantages.assign(_pick(GameData.advantages, 3))
+	c.advantages.assign(_pick(GameData.advantages, Character.MAX_ADVANTAGES))
 	c.disadvantages.assign(_pick(GameData.disadvantages, 2))
 	var skill_counts: Array = NPC_SKILLS.get(role, [1, 1, 1])
 	c.general_skills.assign(_pick(GameData.general_skills, skill_counts[0]))
@@ -139,6 +140,7 @@ static func make_random_character(role: int, gender: int, portrait_path: String 
 	c.battle_skills.assign(_pick(GameData.battle_skills, skill_counts[2]))
 	c.equipment.assign(_pick_equipment(role))
 	c.apply_trait_and_equipment_modifiers()
+	c.pick_random_basics()   # una habilidad básica por rama de sus tres árboles
 
 	c.honor = randi_range(40, 70)
 	c.gold = GOLD_BY_ROLE.get(role, 100)
@@ -181,7 +183,7 @@ static func make_child(parent_a: Character, parent_b: Character, family_name: St
 	c.personality = parents.pick_random().personality if randf() < 0.5 else Character.Personality.values().pick_random()
 	c.alignment = CharacterEnums.Alignment.values().pick_random()
 	c.fighter_type = parents.pick_random().fighter_type
-	for stat in ["leadership", "charisma", "strategy", "combat", "defense"]:
+	for stat in Character.ATTRIBUTES:
 		var total := 0
 		for p: Character in parents:
 			total += int(p.get(stat))
@@ -195,6 +197,7 @@ static func make_child(parent_a: Character, parent_b: Character, family_name: St
 	c.advantages.assign(inherited.slice(0, randi_range(CHILD_INHERITED_ADVANTAGES[0], CHILD_INHERITED_ADVANTAGES[1])))
 	c.disadvantages.assign(_pick(GameData.disadvantages, 2))
 	c.general_skills.assign(_pick(GameData.general_skills, 1))
+	c.pick_random_basics()
 	c.honor = 50
 	c.gold = 0
 	return c
@@ -209,6 +212,7 @@ static func grow_up(child: Character, portrait_path: String) -> void:
 	for e: Equipment in child.equipment:
 		child.combat = clampi(child.combat + e.combat_mod, 1, 20)
 		child.defense = clampi(child.defense + e.defense_mod, 1, 20)
+		child.agility = clampi(child.agility + e.agility_mod, 1, 20)
 	child.max_health = maxi(40, 100 + roundi(SkillEffects.fx(child, "max_health")))
 	child.current_health = child.max_health
 
@@ -279,6 +283,7 @@ static func make_rival(player: Character, portrait_path: String = "", gender: in
 	var c := make_random_character(player.role, gender, portrait_path)
 	c.combat = clampi(player.combat + randi_range(-RIVAL_STAT_SPREAD, RIVAL_STAT_SPREAD), 1, 20)
 	c.defense = clampi(player.defense + randi_range(-RIVAL_STAT_SPREAD, RIVAL_STAT_SPREAD), 1, 20)
+	c.agility = clampi(player.agility + randi_range(-RIVAL_STAT_SPREAD, RIVAL_STAT_SPREAD), 1, 20)
 	c.honor = randi_range(35, 65)
 	return c
 
@@ -288,4 +293,5 @@ static func make_test_character(char_name: String, role: int) -> Character:
 	c.role = role
 	c.combat = 7
 	c.defense = 5
+	c.agility = 5
 	return c

@@ -26,6 +26,7 @@ const UNSEEN_SHADE := Color(0.02, 0.03, 0.08, 0.35)
 const RAIN_COLOR := Color(0.75, 0.85, 1.0, 0.35)
 const SNOW_COLOR := Color(1, 1, 1, 0.75)
 const ORDER_COLOR := Color(1, 1, 1, 0.95)
+const FACING_COLOR := Color(1, 0.92, 0.6, 0.95)   # muesca de orientación del pelotón
 const PLAYER_COLOR := Color(0.20, 0.45, 0.90)
 const ENEMY_COLOR := Color(0.85, 0.20, 0.20)
 const ALLY_COLOR := Color(0.22, 0.62, 0.42)    # de tu bando, pero los mueve la IA aliada
@@ -361,6 +362,18 @@ func _draw() -> void:
 			var c := Vector2(inner.end.x - 9, inner.end.y - 15)
 			var dir := 1.0 if u.side == BattleEnums.Side.ATACANTE else -1.0
 			draw_colored_polygon(PackedVector2Array([c + Vector2(-6 * dir, -6), c + Vector2(6 * dir, 0), c + Vector2(-6 * dir, 6)]), ORDER_COLOR)
+
+		# Orientación: muesca en el borde hacia donde mira; formación: triángulo (cuña) o cuadrado (cuadro).
+		var fc := inner.get_center()
+		var fd := Vector2(u.facing)
+		var tip := fc + fd * (inner.size.x * 0.5 + 4.0)
+		var sd := Vector2(-fd.y, fd.x) * 5.0
+		draw_colored_polygon(PackedVector2Array([tip, tip - fd * 7.0 + sd, tip - fd * 7.0 - sd]), FACING_COLOR)
+		if u.formation == BattleEnums.Formation.CUNA:
+			var wc := inner.position + Vector2(inner.size.x * 0.5, 11)
+			draw_colored_polygon(PackedVector2Array([wc + Vector2(0, -6), wc + Vector2(6, 5), wc + Vector2(-6, 5)]), ORDER_COLOR)
+		elif u.formation == BattleEnums.Formation.CUADRO:
+			draw_rect(Rect2(inner.position + Vector2(inner.size.x * 0.5 - 5, 6), Vector2(10, 10)), ORDER_COLOR, false, 2.0)
 
 		# La cara de quien lo dirige, siempre a la vista: marco dorado si es un compañero,
 		# blanco si es el comandante y del color del bando si es un capitán de tropa.

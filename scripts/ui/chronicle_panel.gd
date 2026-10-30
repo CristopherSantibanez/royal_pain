@@ -2,6 +2,7 @@ extends Control
 # Crónica completa de la partida: todas las noticias y tus decisiones, de la más reciente a la más antigua.
 # Uso: const ChroniclePanel = preload("res://scripts/ui/chronicle_panel.gd"); ChroniclePanel.open(nodo, castillos_visibles)
 
+const MAX_SHOWN := 150  # entradas más recientes que se pintan; así el panel no crece sin fin
 const FILTERS := ["Todo", "Noticias del reino", "Tus decisiones"]
 const MONTHS := ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
 	"Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
@@ -75,6 +76,8 @@ func _rebuild() -> void:
 	var entries: Array = WorldEvents.chronicle.duplicate()
 	entries.reverse()
 	for e: Dictionary in entries:
+		if shown >= MAX_SHOWN:
+			break
 		var personal: bool = e.get("personal", false)
 		if _filter.selected == 1 and personal or _filter.selected == 2 and not personal:
 			continue

@@ -130,7 +130,7 @@ func _run() -> void:
 			bad.append(n.id)
 	check(bad.is_empty(), "todos los nodos de los tipos se aprenden y tienen efecto %s" % [bad])
 	for ft in F.values():
-		check(SkillTreeCatalog.nodes_of_tree(SkillTreeCatalog.fighter_tree(ft)).size() in range(10, 16), "%s: 10-15 nodos" % CharacterEnums.fighter_type_name(ft))
+		check(SkillTreeCatalog.nodes_of_tree(SkillTreeCatalog.fighter_tree(ft)).size() in range(20, 25), "%s: 20-24 nodos" % CharacterEnums.fighter_type_name(ft))
 	var low := _char(F.DUELISTA, 1)
 	check(not SkillTreeCatalog.can_learn(low, "due_corazon") and not SkillTreeCatalog.can_learn(low, "tan_mazazo"), "requisitos de nivel/árbol")
 	var npc := _char(F.ASESINO, 9)
@@ -141,7 +141,10 @@ func _run() -> void:
 	check(RpgStats.compute(npc).pv > p0, "una pasiva cambia las estadísticas")
 	print("[enemigos]")
 	var bandit := EnemyCatalog.make_enemy("bandido", 5)
-	check(bandit.portrait != null and str(bandit.get_meta("portrait_path")) == "res://assets/portraits/roles/bandido.png", "sin carpeta: retrato del rol")
+	# Con imágenes en su carpeta usa una de ellas; si la carpeta estuviera vacía, el retrato del rol.
+	var bandit_path := str(bandit.get_meta("portrait_path"))
+	var has_folder := DirAccess.get_files_at("res://assets/portraits/enemies/bandido/").size() > 0
+	check(bandit.portrait != null and bandit_path.begins_with("res://assets/portraits/enemies/bandido/" if has_folder else "res://assets/portraits/roles/bandido"), "retrato: carpeta del tipo o, si falta, el del rol")
 	var boss := EnemyCatalog.make_enemy("capitan_bandido", 5)
 	check(RpgStats.compute(boss).actions == 2 and RpgStats.compute(boss).pv > RpgStats.compute(bandit).pv * 1.5, "mini jefe: 2 acciones y más PV")
 	EnemyCatalog._folder_cache["prueba"] = ["x1", "x2"]

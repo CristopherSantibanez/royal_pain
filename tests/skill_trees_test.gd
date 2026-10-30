@@ -36,15 +36,15 @@ func _run() -> void:
 		var t: Dictionary = S.tree(tid)
 		var n_nodes: int = S.nodes_of_tree(tid).size()
 		total += n_nodes
-		if t.is_empty() or t.branches.size() != 3 or n_nodes < 10 or n_nodes > 15:
+		if t.is_empty() or t.branches.size() != 3 or n_nodes < 20 or n_nodes > 24:
 			bad.append(tid)
 			continue
 		for b in 3:
 			var basics: Array = S.basic_nodes(tid, b)
 			if basics.size() < 1 or not basics.all(func(id: String) -> bool: return S.node(id).tier == 1):
 				bad.append("%s/%d" % [tid, b])
-	check(bad.is_empty(), "3 ramas, 10–15 nodos y básicos por rama %s" % [bad])
-	check(total >= 280 and total <= 330, "≈300 nodos (%d)" % total)
+	check(bad.is_empty(), "3 ramas, 20–24 nodos y básicos por rama %s" % [bad])
+	check(total >= 520 and total <= 560, "≈540 nodos (%d)" % total)
 	print("[nodos]")
 	var bad_req := []
 	var bad_fx := []
@@ -101,7 +101,7 @@ func _run() -> void:
 	c.level = 6
 	var t2: String = S.tree("p_astuto").branches[0].nodes[2]
 	check(S.learn(c, t2) and S.points_free(c) == 1, "escalón 2 con un punto (nivel 6 → 2 puntos)")
-	var t3: String = S.tree("p_astuto").branches[0].nodes[3]
+	var t3: String = S.tree("p_astuto").branches[0].nodes.filter(func(id: String) -> bool: return S.node(id).req == [t2])[0]
 	check(not S.can_learn(c, t3), "escalón 3 cuesta 2")
 	c.level = 9
 	check(S.learn(c, t3) and S.points_free(c) == 0, "escalón 3 a nivel 9")

@@ -18,6 +18,7 @@ var has_acted: bool = false
 var routed: bool = false
 var companion: Character           # compañero (séquito o de facción) que dirige este pelotón, o null
 var captain: Character             # quien manda el pelotón si no hay compañero: el comandante o un capitán
+var officers: Array[Character] = []   # oficiales con nombre que acompañan al jefe (fase 4)
 var order: int = BattleEnums.Order.NINGUNA   # Mantener posición o Cargar (dura hasta cambiarla o, la carga, hasta golpear)
 var bonus_move: int = 0            # casillas extra este turno (habilidad Carga de caballería)
 var surge: float = 1.0             # multiplicador de su próximo golpe (habilidades como Emboscada)

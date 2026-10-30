@@ -57,6 +57,7 @@ var _busy := false
 var _ended := false
 var _pending_next_round := false
 var _embedded_winner: Character
+var last_result := {}          # resultado completo (choques de las campales)
 var _log_text := ""
 var _keys := {}               # keycode -> Callable
 
@@ -125,7 +126,14 @@ func _begin() -> void:
 	if not enemy_character in b:
 		enemy_character = b[0]
 	mgr = RpgBattleManager.new()
-	mgr.setup(a, b, {"to_the_death": CombatSetup.duel_to_death and is_campaign and not _practice, "can_flee": true})
+	# Bolsa de consumibles del grupo (la del jugador); en práctica se gasta una copia.
+	var keeper: Character = _owner if _owner != null else player_character
+	var bag: Dictionary = {} if keeper == null else (keeper.consumables.duplicate() if _practice else keeper.consumables)
+	var opts := {"to_the_death": CombatSetup.duel_to_death and is_campaign and not _practice, "can_flee": true,
+		"bag": bag, "enemy_bag": ConsumableCatalog.enemy_bag()}
+	if is_campaign and not _practice:
+		opts["loot_hook"] = func(r: Dictionary) -> void: ConsumableCatalog.grant_loot(bag, r)
+	mgr.setup(a, b, opts)
 	FightResults.apply_start_health(mgr)
 	results = FightResults.new(_owner, player_character, enemy_character)
 	results.champion = _champion
@@ -591,8 +599,8 @@ func _show_main_menu() -> void:
 	var techs: Array = mgr.techniques_of(f)
 	_cmd(grid, "Técnicas (T)", KEY_T, "%d técnicas · %d PT" % [techs.size(), f.pt], _show_techniques, techs.is_empty())
 	_cmd(grid, "Defender (D)", KEY_D, "Menos daño hasta tu turno y recuperas PT.", func(): _player_do({"type": "defender"}))
-	_cmd(grid, "Objeto (O)", KEY_O, "Sin objetos de combate por ahora." if not mgr.item_hook.is_valid() else "Usa un objeto.",
-		func(): _player_do({"type": "objeto"}), not mgr.item_hook.is_valid())
+	var no_items: bool = mgr.bags[0].is_empty()
+	_cmd(grid, "Objeto (O)", KEY_O, "No llevas objetos." if no_items else "Usa un objeto (gasta el turno).", _show_items, no_items)
 	_cmd(grid, "Cambiar (C)", KEY_C, "Entra alguien de la reserva (gasta el turno)." if not mgr.reserve_of(0).is_empty() else "No hay nadie en la reserva.",
 		_show_swap, mgr.reserve_of(0).is_empty())
 	_cmd(grid, "Abandonar (R)", KEY_R, "Rendirse o retirarse.", _show_abandon)
@@ -603,7 +611,7 @@ func _back_button() -> void:
 	b.alignment = HORIZONTAL_ALIGNMENT_CENTER
 
 func _aff_hint(f, t, dt: int, fx: Dictionary) -> String:
-	if t == null or t.side == f.side:
+	if t == null or t.side == f.side or dt < 0:   # dt < 0: objeto, sin afinidad
 		return ""
 	match mgr.affinity_of(f, t, dt, fx):
 		RpgStats.Affinity.DEBIL:
@@ -665,6 +673,29 @@ func _show_swap() -> void:
 	for r in mgr.reserve_of(0):
 		var b := _cmd(cmd_box, "%s · PV %d/%d" % [r.c.full_name(), r.hp, r.max_hp], KEY_NONE, "Entra al combate y %s pasa a la reserva." % f.c.first_name,
 			func(): _player_do({"type": "cambiar", "out": f, "reserve": r}))
+		if first == null:
+			first = b
+	_back_button()
+	if first != null:
+		first.grab_focus.call_deferred()
+
+func _show_items() -> void:
+	_menu = "items"
+	_clear_menu()
+	var f = _acting
+	actor_label.text = "Objetos"
+	var first: Button = null
+	for id in mgr.bags[0].keys():
+		var it := ConsumableCatalog.item(id)
+		var tgt := str(it.get("tgt", "ally"))
+		var text := "%s ×%d · %s" % [it.name, ConsumableCatalog.count(mgr.bags[0], id), TGT_NAMES.get(tgt, tgt)]
+		var item_id: String = id
+		var cb := func():
+			if tgt == "allies":
+				_player_do({"type": "objeto", "item": item_id, "target": f})
+			else:
+				_choose_target({"type": "objeto", "item": item_id}, ConsumableCatalog.targets(mgr, f, item_id), -1, {})
+		var b := _cmd(cmd_box, text, KEY_NONE, str(it.desc), cb)
 		if first == null:
 			first = b
 	_back_button()
@@ -846,6 +877,7 @@ func _on_fighter_down(f) -> void:
 
 func _on_battle_ended(result: Dictionary) -> void:
 	_ended = true
+	last_result = result
 	_acting = null
 	_targeting = {}
 	_clear_menu()

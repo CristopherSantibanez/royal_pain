@@ -83,6 +83,7 @@ func _kill_side(b, side: int) -> void:
 			u.morale = 1
 
 func _run() -> void:
+	load("res://scenes/battle/battle.gd").test_auto_encounters = true   # choques RPG: «Resolver»
 	seed(11)
 	GM = root.get_node("GameManager")
 	CS = root.get_node("CombatSetup")

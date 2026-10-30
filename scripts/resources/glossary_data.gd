@@ -121,6 +121,7 @@ Desesperada: gran daño, defensa por los suelos; solo Atacar y Empujar."],
 	],
 	"Economía y castillo": [
 		["Armería", "En tu castillo puedes comprar y vender equipo. El surtido cambia cada mes y mejora con tu rango (los Campesinos y Soldados solo encuentran piezas comunes). Tu Carisma rebaja o encarece el precio; al vender recuperas el 40%. Una pieza por ranura: la nueva sustituye a la anterior, que se entrega a cuenta."],
+		["Consumibles", "Vendas, ungüentos, aceite, redes y otros objetos de un solo uso para el combate. Se compran en la pestaña Consumibles de la tienda (el Mercado del castillo trae más), se ganan como botín y en algunos sucesos. Máximo 5 de cada uno; usar uno gasta el turno."],
 		["Oro propio y oro del castillo", "Tu oro es tuyo; el tesoro del castillo paga la tropa y lo usan las acciones de gobierno."],
 		["Recaudar y gobernar", "Lo recaudado se reparte: 60% para ti y 40% para el castillo."],
 		["Mantenimiento", "Cada mes el castillo recauda impuestos, paga a la guarnición y consume comida. Sin comida o sin paga, la guarnición pierde soldados."],

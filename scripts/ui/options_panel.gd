@@ -76,6 +76,13 @@ func _ready() -> void:
 	reduced.toggled.connect(Settings.set_reduced_effects)
 	box.add_child(reduced)
 
+	var others := CheckBox.new()
+	others.text = "Resolver solos los choques ajenos"
+	others.tooltip_text = "En las batallas campales, los choques sin ti ni tu grupo se resuelven solos."
+	others.button_pressed = Settings.auto_resolve_others
+	others.toggled.connect(Settings.set_auto_resolve_others)
+	box.add_child(others)
+
 	var close := Button.new()
 	close.text = "Cerrar"
 	close.theme_type_variation = "PrimaryButton"

@@ -100,6 +100,7 @@ const STATUS_NAMES := {
 	"marcado": "Marcado", "inspirado": "Inspirado", "furia": "Furia", "guardia_esgrima": "Guardia de esgrima",
 	"fortaleza": "Fortaleza", "oculto": "Oculto", "cubierto": "Cubierto", "guardia": "En guardia",
 	"analizado": "Analizado", "sereno": "Sereno",
+	"ardiendo": "Ardiendo", "afilado": "Afilado", "ebrio": "Ebrio", "humo": "Humo",   # consumibles
 }
 
 # IA por personalidad (ideas de DuelAI): agresividad, prudencia, astucia (debilidades y rematar), apoyo.
@@ -167,6 +168,7 @@ var to_the_death := false
 var can_flee := true
 var item_hook := Callable()
 var loot_hook := Callable()
+var bags := [{}, {}]   # consumibles de cada bando (id -> cantidad); el 0 es la bolsa del jugador
 var rng := RandomNumberGenerator.new()
 
 ## opts: to_the_death, can_flee, auto_learn ([bandos] que gastan sus puntos solos), seed, item_hook, loot_hook
@@ -175,6 +177,7 @@ func setup(side_a: Array, side_b: Array, opts: Dictionary = {}) -> void:
 	can_flee = opts.get("can_flee", true)
 	item_hook = opts.get("item_hook", Callable())
 	loot_hook = opts.get("loot_hook", Callable())
+	bags = [opts.get("bag", {}), opts.get("enemy_bag", {})]
 	if opts.has("seed"):
 		rng.seed = int(opts.seed)
 	var auto: Array = opts.get("auto_learn", [1])
@@ -194,6 +197,8 @@ func setup(side_a: Array, side_b: Array, opts: Dictionary = {}) -> void:
 			f.max_pt = f.s.pt
 			f.pt = f.max_pt
 			f.morale = clampi(MORALE_BASE + roundi(f.s.voluntad * MORALE_PER_WILL), 0, 100)
+			if c.has_meta("campal_troops"):   # campales: la tropa del pelotón suma (fase 4)
+				CampalEncounters.apply_troop_bonus(f)
 			f.active = i < MAX_ACTIVE
 			f.participated = f.active
 			f.next_time = f.interval() * (1.0 + rng.randf() * START_JITTER)
@@ -260,7 +265,11 @@ func hit_chance(att: Fighter, def: Fighter, fx: Dictionary = {}) -> float:
 		h += INSPIRADO_HIT
 	if att.has("cegado"):
 		h -= CEGADO_HIT
+	if att.has("ebrio"):
+		h -= ConsumableCatalog.ALE_HIT
 	var ev: float = def.s.evasion
+	if def.has("humo"):
+		ev += ConsumableCatalog.SMOKE_EVASION
 	if def.has("guardia_esgrima"):
 		ev += ESGRIMA_EVASION
 	if def.has("oculto"):
@@ -292,6 +301,8 @@ func base_damage(att: Fighter, def: Fighter, pow: float, dt: int, fx: Dictionary
 		mult += FURIA_DMG
 	if att.has("inspirado"):
 		mult += INSPIRADO_DMG
+	if att.has("afilado"):
+		mult += ConsumableCatalog.SHARPEN_DMG
 	if att.hp_ratio() < LOW_HP:
 		mult += att.fx("low_hp_dmg")
 	mult += att.fx("avenge") * side_fighters(att.side).filter(func(f: Fighter) -> bool: return not f.up()).size()
@@ -325,7 +336,7 @@ func techniques_of(f: Fighter) -> Array:
 	return SkillTreeCatalog.available_techniques(f.c)
 
 func usable_techniques(f: Fighter) -> Array:
-	return techniques_of(f).filter(func(n: Dictionary) -> bool: return f.pt >= int(n.get("pt", 0)) and not valid_targets(f, n).is_empty())
+	return techniques_of(f).filter(func(n: Dictionary) -> bool: return f.pt >= int(n.get("pt", 0)) and CampalEncounters.technique_allowed(f.c, n) and not valid_targets(f, n).is_empty())
 
 func valid_targets(f: Fighter, n: Dictionary) -> Array:
 	match n.get("tgt", "enemy"):
@@ -389,6 +400,12 @@ func next_turn() -> Fighter:
 			var dmg := maxi(1, roundi(f.max_hp * BLEED_FRAC * (1.0 + float(b.get("power", 0.0)))))
 			_log("%s sangra (−%d)." % [f.name(), dmg])
 			_damage(f, dmg, null)
+			if not f.up():
+				continue
+		if f.has("ardiendo"):
+			var burn := maxi(1, roundi(f.max_hp * ConsumableCatalog.BURN_FRAC))
+			_log("%s arde (−%d)." % [f.name(), burn])
+			_damage(f, burn, null)
 			if not f.up():
 				continue
 		f.pt = mini(f.max_pt, f.pt + PT_REGEN + roundi(f.fx("pt_regen")))
@@ -460,8 +477,10 @@ func act(f: Fighter, action: Dictionary) -> Dictionary:
 		"objeto":
 			if item_hook.is_valid():
 				item_hook.call(self, f, action)
-			else:
-				_log("%s no tiene objetos a mano." % f.name())
+			elif not ConsumableCatalog.use(self, f, action):
+				f.actions_left += 1
+				f.action_index -= 1
+				return info
 			ends_turn = true
 		"cambiar":
 			var out_f: Fighter = action.get("out", f)
@@ -690,7 +709,7 @@ func _abandon(f: Fighter, mode: String) -> void:
 	var diff := _avg(mine, "agilidad") - _avg(foes, "agilidad")
 	var best_fx := 0.0
 	for o: Fighter in mine:
-		best_fx = maxf(best_fx, o.fx("retreat"))
+		best_fx = maxf(best_fx, o.fx("retreat") + (ConsumableCatalog.SMOKE_RETREAT if o.has("humo") else 0.0))
 	var chance := clampf(RETREAT_BASE + diff * RETREAT_PER_AGI + best_fx, RETREAT_MIN, RETREAT_MAX)
 	if rng.randf() < chance:
 		_log("%s se retira del combate." % ("Tu grupo" if f.side == 0 else "El rival"))
@@ -762,6 +781,9 @@ func ai_choose(f: Fighter) -> Dictionary:
 	if f.side == 1 and can_flee and f.c.personality == P.COBARDE and f.hp_ratio() < AI_COWARD_FLEE_HP \
 			and rng.randf() < AI_COWARD_FLEE_CHANCE:
 		return {"type": "abandonar", "mode": "retirarse"}
+	var use_item := ConsumableCatalog.ai_pick(self, f)   # bolsa vacía: no consume azar
+	if not use_item.is_empty():
+		return use_item
 	var ref := _avg_hit(f, foes)   # un golpe normal: unidad de valor
 	var best := {"type": "atacar", "target": foes[0]}
 	var best_score := -INF

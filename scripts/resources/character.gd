@@ -121,6 +121,7 @@ const ATTRIBUTES := ["leadership", "charisma", "strategy", "combat", "defense", 
 
 @export_group("Equipamiento")
 @export var equipment: Array[Equipment] = []   # máximo 2, validado en la UI de creación
+@export var consumables: Dictionary = {}       # bolsa del grupo para el combate RPG: id (ConsumableCatalog) -> cantidad
 
 # --- Nombre completo ---
 

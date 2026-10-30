@@ -139,6 +139,9 @@ func finish_campaign(result: Dictionary) -> Dictionary:
 	if MissionData.has_method("on_duel_finished"):
 		MissionData.on_duel_finished(enemy, winner == fighter)
 	rivalry = " ".join([rivalry, death, award_xp(winner, event_fight)]).strip_edges()
+	var loot: Array = result.get("loot", [])
+	if not loot.is_empty():
+		rivalry += " Botín: %s." % ", ".join(loot.map(func(id) -> String: return ConsumableCatalog.item_name(str(id))))
 	if not CombatSetup.is_tournament():
 		var caught := CaptureData.after_duel(owner, fighter, enemy, winner, event_fight or hostile_foe())
 		if not caught.is_empty():

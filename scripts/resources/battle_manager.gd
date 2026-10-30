@@ -249,6 +249,21 @@ var deserted := false                 # abandonaste el campo sin orden del gener
 var mastery_gains: Array = []         # [nombre, familia, niveles ganados] al terminar
 
 signal retreat_ordered(general: Character)
+signal encounter_pending(enc: Dictionary)   # choque con tu grupo: se juega en la pantalla RPG (o «Resolver»)
+signal unit_defected(u: BattleUnit)
+
+# --- Fase 4: oficiales y choques RPG ---
+var use_encounters := true             # cada choque cuerpo a cuerpo es un combate RPG (auto o jugado)
+var interactive_encounters := false    # la pantalla de batalla juega los choques con tu grupo (si no, se resuelven solos)
+var auto_resolve_others := true        # los choques ajenos (sin tu grupo) se resuelven solos
+var pending_encounters: Array = []     # choques esperando a jugarse en la pantalla RPG
+var encounter_hp := {}                 # Character -> parte de PV que le queda en esta batalla
+var faction_officers := {}             # "player"/"enemy" -> Array[Character]: PNJ de la facción que van de oficiales
+var player_is_officer := false         # vas de oficial en el pelotón de otro jefe (tu señor te asigna)
+var player_officer_override := -1      # pruebas: 0/1 fija si vas de oficial
+var abandon_chance_override := -1.0
+var defect_chance_override := -1.0
+var defections := 0
 
 # --- Inicio ---
 
@@ -277,6 +292,9 @@ func start_battle(attacker_size: int, defender_size: int, walls: bool, a_cmd: Ch
 	retreating_side = -1
 	mastery_gains.clear()
 	betrayed_characters.clear()
+	pending_encounters.clear()
+	encounter_hp.clear()
+	defections = 0
 	_own_companions = player_companions.filter(func(c: Character) -> bool: return c != null and not c.has_meta("faction_companion")).size()
 	if player_leader == null:
 		player_leader = _commander(player_side)
@@ -303,6 +321,8 @@ func start_battle(attacker_size: int, defender_size: int, walls: bool, a_cmd: Ch
 	_assign_companions(_other_side(player_side), enemy_companions)
 	_assign_captains(BattleEnums.Side.ATACANTE)
 	_assign_captains(BattleEnums.Side.DEFENSOR)
+	_assign_officers(player_side, player_companions)
+	_assign_officers(_other_side(player_side), enemy_companions)
 	for side: int in [BattleEnums.Side.ATACANTE, BattleEnums.Side.DEFENSOR]:
 		_assign_families(side)
 		_mark_general(side)
@@ -748,6 +768,8 @@ func attack(attacker: BattleUnit, target: BattleUnit) -> bool:
 		return false
 
 	var dist := distance(attacker.cell, target.cell)
+	if use_encounters and dist == 1:
+		return _encounter(attacker, target, dist)
 	var casualties := _compute_casualties(attacker, target, dist, true)
 	_apply_casualties(target, casualties)
 	var text := "%s (%s) ataca a %s (%s): %d bajas." % [
@@ -1003,6 +1025,9 @@ func _enemy_phase() -> void:
 		var g := general_of(player_side)
 		log_message.emit("%s ordena la retirada." % (g.full_name() if g != null else "Tu general"))
 		retreat_ordered.emit(g)
+	_check_defections()
+	if is_over:
+		return
 	_reset_side(player_side)
 	log_message.emit("— Turno %d de %d —" % [turn, max_turns])
 	state_updated.emit()
@@ -1570,7 +1595,7 @@ func _assign_companions(side: int, companions: Array[Character]) -> void:
 		free.erase(biggest)
 	var commander := _commander(side)
 	for c: Character in companions:
-		if c == null or free.is_empty() or c.is_wounded():
+		if c == null or free.is_empty() or c.is_wounded() or _is_party_officer(c):
 			continue
 		# Cada jefe lleva su tropa: la que le asignó el Consejo de guerra o la que decide el general.
 		var fam := _family_for(c, side)
@@ -2325,11 +2350,9 @@ func betray() -> String:
 	var new_side := _other_side(old_side)
 	betrayed_characters = characters_on_side(old_side)
 	for u: BattleUnit in units:
+		u.officers.erase(player_leader)
 		if u.side == old_side and u.own:
-			u.side = new_side
-			u.ally = false
-			u.general = false
-			u.order = BattleEnums.Order.NINGUNA
+			_switch_unit_side(u, new_side, false)
 		elif u.side == old_side:
 			u.ally = false
 		elif u.side == new_side:
@@ -2357,3 +2380,160 @@ func betray() -> String:
 	_check_end()
 	state_updated.emit()
 	return text
+
+# --- Fase 4: oficiales, choques RPG y deserciones ---
+
+func _is_party_officer(c: Character) -> bool:
+	var pd := _autoload("PartyData")
+	return pd != null and pd.has_method("is_officer") and pd.is_officer(c)
+
+## Oficiales: los del grupo marcados como oficiales y los que no tienen pelotón (más compañeros que pelotones)
+## van con tu pelotón; en el otro bando, con los de su señor. Si tu señor te asigna, vas de oficial de su general.
+func _assign_officers(side: int, companions: Array[Character]) -> void:
+	var pool: Array[Character] = []
+	var leading := {}
+	for u: BattleUnit in units:
+		if u.side == side:
+			u.officers.clear()
+		if u.leader() != null:
+			leading[u.leader()] = true
+	for c: Character in companions:
+		if c != null and not c.is_wounded() and not leading.has(c) and not c in pool:
+			pool.append(c)
+	for c in faction_officers.get("player" if side == player_side else "enemy", []):
+		if c is Character and not c.is_wounded() and not leading.has(c) and not c in pool:
+			pool.append(c)
+	if side == player_side:
+		player_is_officer = _player_goes_as_officer(pool)
+		if player_is_officer:
+			var host := _officer_host(side)
+			for u: BattleUnit in units:
+				if u.side == side and u.captain == player_leader and u.companion == null:
+					u.captain = _make_captain(u.type)
+			if host != null:
+				host.officers.append(player_leader)
+				log_message.emit("Tu señor te pone de oficial de %s." % host.leader().full_name())
+	var order: Array[BattleUnit] = []
+	for u: BattleUnit in units:
+		if u.side == side and u.is_active():
+			order.append(u)
+	# Primero tu pelotón (o el del general), luego los demás.
+	order.sort_custom(func(a: BattleUnit, b: BattleUnit) -> bool:
+		return _officer_priority(a) > _officer_priority(b))
+	for c: Character in pool:
+		for u: BattleUnit in order:
+			if u.officers.size() < CampalEncounters.MAX_OFFICERS:
+				u.officers.append(c)
+				log_message.emit("%s va de oficial con %s." % [c.full_name(), u.leader().full_name() if u.leader() != null else "su pelotón"])
+				break
+
+func _officer_priority(u: BattleUnit) -> int:
+	if player_leader != null and u.leader() == player_leader:
+		return 3
+	if u.general:
+		return 2
+	return 1 if not u.ally else 0
+
+func _player_goes_as_officer(pool: Array[Character]) -> bool:
+	if player_officer_override >= 0:
+		return player_officer_override == 1
+	# Sin séquito ni hombres propios en una batalla ajena, tu señor te pone en el pelotón de su general.
+	var own_men := 0
+	for u: BattleUnit in units:
+		if u.side == player_side:
+			own_men += u.soldiers
+	return ally_soldiers > 0 and own_men - ally_soldiers < CAPTAIN_MIN_SOLDIERS and _own_companions == 0 		and pool.is_empty() and general_of(player_side) != player_leader
+
+func _officer_host(side: int) -> BattleUnit:
+	var best: BattleUnit = null
+	for u: BattleUnit in units:
+		if u.side != side or u.leader() == null or u.leader() == player_leader or u.leader().has_meta("captain"):
+			continue
+		if best == null or (u.general and not best.general):
+			best = u
+	return best
+
+func abandon_chance() -> float:
+	return abandon_chance_override if abandon_chance_override >= 0.0 else CampalEncounters.ABANDON_CHANCE
+
+## ¿Este choque se juega en la pantalla RPG? Con tu grupo dentro, sí; los ajenos de tu bando, según Ajustes.
+func encounter_is_played(enc: Dictionary) -> bool:
+	if not interactive_encounters:
+		return false
+	if CampalEncounters.involves_player(self, enc):
+		return true
+	return not auto_resolve_others and (is_friendly(enc.attacker) or is_friendly(enc.target))
+
+func _encounter(attacker: BattleUnit, target: BattleUnit, dist: int) -> bool:
+	var enc := CampalEncounters.make(self, attacker, target, dist)
+	attacker.has_acted = true
+	attacker.has_moved = true
+	var charged := attacker.order == BattleEnums.Order.CARGAR
+	attacker.fatigue = mini(100, attacker.fatigue + _fatigue_gain(attacker, roundi(10 * CHARGE_FATIGUE) if charged else 10))
+	if encounter_is_played(enc):
+		pending_encounters.append(enc)
+		log_message.emit("¡Choque! %s contra %s." % [enc.a[0].full_name(), enc.b[0].full_name()])
+		encounter_pending.emit(enc)
+		state_updated.emit()
+		return true
+	resolve_encounter(enc, CampalEncounters.auto_fight(self, enc))
+	return true
+
+## Aplica el resultado de un choque (bando 0 = atacante). Lo llama la pantalla tras jugarlo o «Resolver».
+func resolve_encounter(enc: Dictionary, result: Dictionary) -> void:
+	pending_encounters.erase(enc)
+	var att: BattleUnit = enc.attacker
+	var tgt: BattleUnit = enc.target
+	if att.order == BattleEnums.Order.CARGAR:
+		att.order = BattleEnums.Order.NINGUNA
+	att.surge = 1.0
+	var before := [tgt.soldiers, att.soldiers]
+	var text := CampalEncounters.apply(self, enc, result)
+	unit_attacked.emit(att, tgt, before[0] - tgt.soldiers, before[1] - att.soldiers, false)
+	log_message.emit(text)
+	_check_rout(tgt)
+	_check_rout(att)
+	_check_end()
+	state_updated.emit()
+
+## Resolver solo el choque pendiente (mismas reglas que si lo juegas).
+func auto_resolve_pending(enc: Dictionary) -> void:
+	resolve_encounter(enc, CampalEncounters.auto_fight(self, enc))
+
+## Un pelotón con jefe desleal puede pasarse al enemigo si su bando no va ganando; un oficial desleal, cambiar de pelotón.
+func _check_defections() -> void:
+	var chance := defect_chance_override if defect_chance_override >= 0.0 else CampalEncounters.DEFECT_CHANCE
+	for u: BattleUnit in units.duplicate():
+		if not u.is_active() or u.general or is_over:
+			continue
+		var lead := u.leader()
+		var losing := _strength_ratio(u.side) <= _strength_ratio(_other_side(u.side)) * CampalEncounters.DEFECT_MAX_RATIO
+		if lead != null and lead != player_leader and CampalEncounters._disloyal(lead) and losing and randf() < chance:
+			var to := _other_side(u.side)
+			_switch_unit_side(u, to, true)
+			defections += 1
+			var text := "¡%s se pasa al enemigo con sus %d hombres!" % [lead.full_name(), u.soldiers] if to != player_side \
+				else "¡%s abandona a su señor y se une a tu bando!" % lead.full_name()
+			log_message.emit(text)
+			unit_defected.emit(u)
+			continue
+		for o: Character in u.officers.duplicate():
+			if o != player_leader and CampalEncounters._disloyal(o) and losing and randf() < chance * CampalEncounters.OFFICER_DEFECT_CHANCE / CampalEncounters.DEFECT_CHANCE:
+				u.officers.erase(o)
+				for foe: BattleUnit in active_units(_other_side(u.side)):
+					if foe.officers.size() < CampalEncounters.MAX_OFFICERS:
+						foe.officers.append(o)
+						break
+				log_message.emit("¡%s, oficial desleal, se pasa al enemigo!" % o.full_name())
+	_check_end()
+
+## Cambio de bando de un pelotón (traición del jugador o deserción).
+func _switch_unit_side(u: BattleUnit, new_side: int, by_ai: bool) -> void:
+	u.side = new_side
+	u.general = false
+	u.order = BattleEnums.Order.NINGUNA
+	u.ally = by_ai and new_side == player_side
+	if by_ai:
+		u.own = false
+		u.has_acted = true
+		u.has_moved = true

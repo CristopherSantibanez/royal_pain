@@ -53,7 +53,7 @@ const EVENTS := [
 				"result": "Ordenas cerrar filas y cargar contra la arboleda.",
 				"fight": {"type": "battle", "no_rival": true, "enemy_name": "Los emboscados", "enemy_ratio": 1.1, "garrison_share": 0.2,
 					"foe": {"name": "Capitán de los emboscados", "role": R.SOLDADO, "power": 1},
-					"win": {"effects": {"honor": 6, "fame": 5, "gold": 30}, "result": "Los emboscados huyen dejando armas y botín."},
+					"win": {"effects": {"honor": 6, "fame": 5, "gold": 30, "consumable": 1}, "result": "Los emboscados huyen dejando armas y botín."},
 					"lose": {"effects": {"honor": -3, "gold": -30}, "result": "Os batís en retirada y perdéis parte del equipaje."}}},
 			{"label": "Huir al galope", "effects": {"honor": -4, "gold": -30}, "result": "Salvas la vida, pero no el equipaje ni la reputación."},
 		],
@@ -107,7 +107,7 @@ const EVENTS := [
 			{"label": "Retar al cabecilla (duelo)", "requires": {"healthy": true}, "effects": {},
 				"result": "Te abres paso hasta el cabecilla y le exiges que pelee.",
 				"fight": {"type": "duel", "no_rival": true, "foe": {"name": "Cabecilla de los bandidos", "role": R.SOLDADO, "power": -1, "personality": "CRUEL"},
-					"win": {"effects": {"gold": 40, "honor": 6, "fame": 4}, "result": "El cabecilla cae y su banda huye. Recuperas parte del botín."},
+					"win": {"effects": {"gold": 40, "honor": 6, "fame": 4, "consumable": 2}, "result": "El cabecilla cae y su banda huye. Recuperas parte del botín."},
 					"lose": {"effects": {"honor": -4}, "result": "Los bandidos escapan con el botín y se ríen de ti."}}},
 			{"label": "Cargar con tus hombres (escaramuza)", "requires": {"garrison": 30}, "effects": {},
 				"result": "Reúnes a parte de la guarnición y salís tras ellos.",
@@ -531,6 +531,10 @@ static func _apply_effects(effects: Dictionary, character: Character, castle: Ca
 					parts.append("+%d exp." % character.last_xp_gained + (" ¡Subes al nivel %d!" % character.level if levels > 0 else ""))
 			"item":
 				parts.append(_grant_item(character, amount))
+			"consumable":   # n consumibles al azar para la bolsa
+				var got := ConsumableCatalog.grant_random(character.consumables, amount)
+				if not got.is_empty():
+					parts.append(got)
 			"unique":   # probabilidad (en %) de encontrar una pieza única
 				if randf() * 100.0 < amount:
 					var found: String = load("res://scripts/resources/unique_items.gd").grant(character)

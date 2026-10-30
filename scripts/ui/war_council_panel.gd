@@ -126,6 +126,13 @@ func _row(c: Character) -> Control:
 		var id := pick.get_item_id(i)
 		c.assigned_family = -1 if id == AUTO_ID else id)
 	row.add_child(pick)
+	if c != GameManager.player_character and c in PartyData.members():
+		var off := CheckBox.new()
+		off.text = "Oficial"
+		off.tooltip_text = "Va contigo en tu pelotón en vez de llevar uno propio."
+		off.button_pressed = PartyData.is_officer(c)
+		off.toggled.connect(func(on: bool): PartyData.set_officer(c, on))
+		row.add_child(off)
 	if _first == null:
 		_first = pick
 	return row

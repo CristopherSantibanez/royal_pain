@@ -11,6 +11,7 @@ const MAX_ACTIVE := 4
 const PLAYER_KEY := "@jugador"
 
 var _order: Array[String] = []   # claves de los activos, en orden (PLAYER_KEY = tú)
+var officers: Array[String] = []   # claves de quienes van de oficial en tu pelotón (campales)
 var _customized := false         # true en cuanto el jugador ordena el grupo a mano
 
 func _ready() -> void:
@@ -175,11 +176,24 @@ static func _strength(c: Character) -> int:
 
 # --- Guardado ---
 
+## Oficial: en las campales va contigo en tu pelotón en vez de llevar uno propio.
+func is_officer(c: Character) -> bool:
+	return c != null and _key(c) in officers
+
+func set_officer(c: Character, on: bool) -> void:
+	var k := _key(c)
+	officers.erase(k)
+	if on:
+		officers.append(k)
+
 func save_state() -> Dictionary:
-	return {"order": _order.duplicate(), "customized": _customized}
+	return {"order": _order.duplicate(), "customized": _customized, "officers": officers.duplicate()}
 
 func load_state(data: Dictionary) -> void:
 	_order.clear()
 	for k in data.get("order", []):
 		_order.append(str(k))
 	_customized = bool(data.get("customized", false))
+	officers.clear()
+	for k in data.get("officers", []):
+		officers.append(str(k))

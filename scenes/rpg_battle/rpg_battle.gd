@@ -361,7 +361,7 @@ func _make_card(f, enemy: bool) -> Dictionary:
 		var tex := TextureRect.new()
 		tex.texture = f.c.get_portrait()
 		tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED   # figura completa, sin recortar cabeza ni pies
 		tex.custom_minimum_size = Vector2(ENEMY_CARD_W - 10, 196)
 		tex.clip_contents = true
 		tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -384,8 +384,7 @@ func _make_card(f, enemy: bool) -> Dictionary:
 		row.add_theme_constant_override("separation", 6)
 		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		col.add_child(row)
-		var face := FaceIcon.make(f.c, 64, FaceIcon.FRAME_COLOR, false)
-		face.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var face := _upper_body(f.c)
 		row.add_child(face)
 		face.add_child(tag)
 		tag.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
@@ -405,6 +404,38 @@ func _make_card(f, enemy: bool) -> Dictionary:
 		d.pt_label = pt[1]
 		d.status = _small_label(col, 11)
 	return d
+
+const PARTY_PORTRAIT_SIZE := Vector2(84, 84)
+const UPPER_BODY_WIDTH := 2.4    # ancho del recorte en «caras» (hombros incluidos)
+const UPPER_BODY_HEIGHT := 2.6   # alto: de la coronilla a la cintura
+const UPPER_BODY_TOP := 0.15     # margen sobre la cabeza
+
+# Mitad superior del cuerpo (cabeza y torso) para las tarjetas del grupo: se recorta alrededor
+# de la cara del retrato (Character.get_face) para que la figura llene el marco.
+func _upper_body(c: Character) -> TextureRect:
+	var rect := TextureRect.new()
+	rect.custom_minimum_size = PARTY_PORTRAIT_SIZE
+	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var tex := c.get_portrait()
+	if tex == null:
+		return rect
+	var face := c.get_face() as AtlasTexture
+	var region := Rect2(0, 0, tex.get_width(), tex.get_height() * 0.5)
+	if face != null and face.region.size.x > 0:
+		var side := face.region.size.x
+		var w := minf(tex.get_width(), side * UPPER_BODY_WIDTH)
+		var h := minf(tex.get_height(), side * UPPER_BODY_HEIGHT)
+		var cx := face.region.position.x + side * 0.5
+		var x := clampf(cx - w * 0.5, 0.0, tex.get_width() - w)
+		var y := clampf(face.region.position.y - side * UPPER_BODY_TOP, 0.0, tex.get_height() - h)
+		region = Rect2(x, y, w, h)
+	var atlas := AtlasTexture.new()
+	atlas.atlas = tex
+	atlas.region = region
+	rect.texture = atlas
+	return rect
 
 func _pick_background() -> void:
 	var path := "res://assets/TurnFight-Trining_Ground.png"

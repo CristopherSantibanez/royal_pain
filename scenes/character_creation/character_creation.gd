@@ -266,10 +266,14 @@ func _build_stats_grid() -> void:
 		child.queue_free()
 	stat_value_labels.clear()
 
-	for stat_key in Character.ATTRIBUTES:
+	# Dos atributos por fila (la rejilla tiene 8 columnas): con 6 atributos en una sola columna no cabía.
+	for i in Character.ATTRIBUTES.size():
+		var stat_key: String = Character.ATTRIBUTES[i]
 		var name_label := Label.new()
 		name_label.text = STAT_LABELS[stat_key]
-		name_label.custom_minimum_size = Vector2(100, 0)
+		name_label.custom_minimum_size = Vector2(100 if i % 2 == 0 else 150, 0)
+		if i % 2 == 1:
+			name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		name_label.add_theme_color_override("font_color", Color(0.01, 0.008, 0.002, 1.0)) # dorado suave
 		stats_grid.add_child(name_label)
 

@@ -24,3 +24,6 @@ Godot_v*.exe
 
 # Python
 __pycache__/
+
+# Capturas de pruebas
+tests/_shots/

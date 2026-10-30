@@ -200,7 +200,7 @@ size_flags_horizontal = 3
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"InkLabel"
-text = "Ventajas (mínimo 3)"
+text = "Ventajas"
 
 [node name="AdvantagesScroll" type="ScrollContainer" parent="ScreenMargin/RootVBox/PagesTab/PageTraits/TraitsSection/AdvantagesBox" unique_id=1452192155]
 unique_name_in_owner = true
@@ -226,7 +226,7 @@ size_flags_horizontal = 3
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"InkLabel"
-text = "Desventajas (mínimo 2)"
+text = "Desventajas"
 
 [node name="DisadvantagesScroll" type="ScrollContainer" parent="ScreenMargin/RootVBox/PagesTab/PageTraits/TraitsSection/DisadvantagesBox" unique_id=857593205]
 unique_name_in_owner = true
@@ -314,9 +314,9 @@ theme_override_colors/font_color = Color(0.011764706, 0.011764706, 0.011764706, 
 [node name="StatsGrid" type="GridContainer" parent="ScreenMargin/RootVBox/PagesTab/PageStats/StatsSection" unique_id=1053997169]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_constants/h_separation = 15
-theme_override_constants/v_separation = 15
-columns = 4
+theme_override_constants/h_separation = 14
+theme_override_constants/v_separation = 10
+columns = 8
 
 [node name="PageSkills" type="HBoxContainer" parent="ScreenMargin/RootVBox/PagesTab" unique_id=461299301]
 unique_name_in_owner = true
